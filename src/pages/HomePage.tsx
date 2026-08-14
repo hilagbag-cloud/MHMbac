@@ -292,6 +292,7 @@ export const HomePage: React.FC<HomePageProps> = ({ navigate }) => {
       </section>
 
       {/* ========================================================================= */}
+      {live.rows.length > 0 && <>
       {/* 5. APERÇU DES RECOMMANDATIONS DU MVP1                                      */}
       {/* ========================================================================= */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-slate-200 dark:border-slate-800">
@@ -362,9 +363,10 @@ export const HomePage: React.FC<HomePageProps> = ({ navigate }) => {
           </button>
         </div>
       </section>
+      </>}
 
       {/* ========================================================================= */}
-      {/* 5. PRÉSENTATION MHM SOLUTIONS & HILARUS GBAGOULE                            */}
+      {/* 6. PRÉSENTATION MHM SOLUTIONS & HILARUS GBAGOULE                            */}
       {/* ========================================================================= */}
       <section className="bg-slate-900 text-white py-16 border-t border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
