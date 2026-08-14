@@ -18,6 +18,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AboutPage } from './pages/AboutPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -39,13 +40,14 @@ function AppContent() {
   }, []);
 
   const navigate = (route: string) => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
+    window.scrollTo({ top: 0, behavior: 'auto' });
     try {
-      window.history.pushState({}, '', route);
+      window.history.pushState({}, '', normalizedRoute);
     } catch {
       // Ignorer dans certains environnements restreints
     }
-    setCurrentRoute(route);
+    setCurrentRoute(normalizedRoute);
   };
 
   // Redirection protégée pour les routes privées
@@ -81,7 +83,7 @@ function AppContent() {
       case '/terms':
         return <TermsPage navigate={navigate} />;
       default:
-        return <HomePage navigate={navigate} />;
+        return <NotFoundPage navigate={navigate} />;
     }
   };
 
