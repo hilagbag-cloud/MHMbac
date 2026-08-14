@@ -1,0 +1,6 @@
+{
+  "name": "MHM SOLUTIONS — Après Mon Bac",
+  "description": "Plateforme d'aide à l'orientation post-baccalauréat par MHM SOLUTIONS, fondée par Hilarus GBAGOULE.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
