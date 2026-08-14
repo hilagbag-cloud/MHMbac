@@ -316,12 +316,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated_at: new Date().toISOString(),
       };
 
-      setProfile(updated);
-
       if (isSupabaseLive && realSupabase) {
-        const { error } = await realSupabase.from('profiles').upsert(updated);
-        if (error) throw error;
+        const payload = {
+          id: updated.id,
+          display_name: updated.display_name,
+          email: updated.email ?? user.email ?? null,
+          series: updated.series ?? null,
+          mention: updated.mention ?? null,
+          updated_at: updated.updated_at,
+        };
+        const { data, error } = await realSupabase
+          .from('profiles')
+          .upsert(payload, { onConflict: 'id' })
+          .select('*')
+          .single();
+        if (error) throw new Error(`Profil Supabase (${error.code || 'erreur'}): ${error.message}`);
+        setProfile((data as UserProfile) || updated);
       } else {
+        setProfile(updated);
         DemoStore.setProfile(updated);
       }
       return true;
@@ -351,12 +363,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updated_at: new Date().toISOString(),
       };
 
-      setPreferences(updated);
-
       if (isSupabaseLive && realSupabase) {
-        const { error } = await realSupabase.from('user_preferences').upsert(updated);
-        if (error) throw error;
+        const payload = {
+          user_id: updated.user_id,
+          primary_goal: updated.primary_goal,
+          career_keywords: updated.career_keywords || [],
+          preferred_universities: updated.preferred_universities || [],
+          scholarship_priority: updated.scholarship_priority,
+          career_priority: updated.career_priority,
+          competition_priority: updated.competition_priority,
+          updated_at: updated.updated_at,
+        };
+        const { data, error } = await realSupabase
+          .from('user_preferences')
+          .upsert(payload, { onConflict: 'user_id' })
+          .select('*')
+          .single();
+        if (error) throw new Error(`Préférences Supabase (${error.code || 'erreur'}): ${error.message}`);
+        setPreferences((data as UserPreferences) || updated);
       } else {
+        setPreferences(updated);
         DemoStore.setPreferences(updated);
       }
       return true;
