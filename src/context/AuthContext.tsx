@@ -64,19 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setPreferences(null);
           }
         } else {
-          // Mode Démo / Stockage local
-          const localUser = DemoStore.getUser();
-          if (localUser) {
-            setUser(localUser);
-            setProfile(DemoStore.getProfile() || DEFAULT_DEMO_PROFILE);
-            setPreferences(DemoStore.getPreferences() || DEFAULT_DEMO_PREFERENCES);
-          } else {
-            // Par défaut pour MVP1 découverte : charger le profil de démonstration par défaut
-            DemoStore.resetToDemo();
-            setUser(DEFAULT_DEMO_USER);
-            setProfile(DEFAULT_DEMO_PROFILE);
-            setPreferences(DEFAULT_DEMO_PREFERENCES);
-          }
+          // Sans Supabase, aucun utilisateur fictif n’est créé. Le site reste en lecture publique.
+          setUser(null);
+          setProfile(null);
+          setPreferences(null);
         }
       } catch (err: any) {
         console.error('Erreur initialisation Auth:', err);

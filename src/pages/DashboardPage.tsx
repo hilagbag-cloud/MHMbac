@@ -1,355 +1,38 @@
-/**
- * MHM SOLUTIONS — Après Mon Bac (MVP1)
- * Tableau de bord protégé avec recommandations, jauges et note de transparence
- * Créateur : Hilarus GBAGOULE
- */
-
-import React, { useState } from 'react';
-import {
-  LayoutDashboard,
-  User,
-  GraduationCap,
-  Award,
-  Target,
-  Percent,
-  Flame,
-  Briefcase,
-  Compass,
-  ArrowRight,
-  Sparkles,
-  RefreshCw,
-  SlidersHorizontal,
-  Bookmark,
-  CheckCircle2,
-  AlertCircle,
-  TrendingUp,
-  Building2,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { ArrowRight, Bookmark, RefreshCw, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { DEMO_PROGRAMMES } from '../lib/demoData';
-import { rankProgrammes } from '../lib/ranking';
-import { ProgrammeCard } from '../components/ProgrammeCard';
-import { TransparencyBadge } from '../components/TransparencyBadge';
-import { ScoredProgramme } from '../types/orientation';
+import { formatFreshness, useLiveProgrammes } from '../lib/liveProgrammes';
+import { LiveProgramme } from '../types/orientation';
 
-interface DashboardPageProps {
-  navigate: (route: string) => void;
+interface DashboardPageProps { navigate: (route: string) => void; }
+
+function liveScore(row: LiveProgramme, goal: string): number {
+  if (row.score_opportunity != null) return row.score_opportunity;
+  if (goal === 'bourse') return Math.max(0, Math.min(100, Math.round((row.scholarships / Math.max(row.total, 1)) * 100)));
+  return Math.max(0, Math.min(100, Math.round((1 - row.passable / Math.max(row.total, 1)) * 100)));
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
-  const { user, profile, preferences, updatePreferences, switchDemoPersona } = useAuth();
-  
-  // État local de la shortlist d'orientation
-  const [shortlist, setShortlist] = useState<string[]>(['prog-01']);
-  const [activeTab, setActiveTab] = useState<'recommandations' | 'shortlist' | 'indicateurs'>('recommandations');
-  const [quickGoal, setQuickGoal] = useState<'bourse' | 'carriere'>(
-    preferences?.primary_goal || 'carriere'
-  );
-  const [isUpdatingGoal, setIsUpdatingGoal] = useState(false);
+  const { profile, preferences, updatePreferences } = useAuth();
+  const [goal, setGoal] = useState(preferences?.primary_goal || 'bourse');
+  const [selected, setSelected] = useState<number[]>([]);
+  const live = useLiveProgrammes(100);
+  const keywords = preferences?.career_keywords || [];
+  const rows = useMemo(() => [...live.rows].sort((a, b) => {
+    const aMatch = keywords.some((word) => `${a.programme} ${a.school}`.toLowerCase().includes(word.toLowerCase()));
+    const bMatch = keywords.some((word) => `${b.programme} ${b.school}`.toLowerCase().includes(word.toLowerCase()));
+    if (goal === 'carriere' && aMatch !== bMatch) return Number(bMatch) - Number(aMatch);
+    return liveScore(b, goal) - liveScore(a, goal);
+  }), [live.rows, goal, keywords]);
+  const title = goal === 'bourse' ? 'Classement selon tes chances de bourse' : 'Classement selon ton objectif carrière';
+  const changeGoal = async (next: 'bourse' | 'carriere') => { setGoal(next); await updatePreferences({ primary_goal: next, scholarship_priority: next === 'bourse' ? 100 : 40, career_priority: next === 'carriere' ? 100 : 40 }); };
+  const toggle = (id: number) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
 
-  // Calcul du classement personnalisé
-  const rankedProgrammes = rankProgrammes(
-    DEMO_PROGRAMMES,
-    profile || { series: 'D', mention: 'Bien' },
-    {
-      ...preferences,
-      primary_goal: quickGoal,
-    }
-  );
-
-  const topThree = rankedProgrammes.slice(0, 3);
-  const allRanked = rankedProgrammes;
-
-  // Gestion de la shortlist
-  const toggleShortlist = (item: ScoredProgramme) => {
-    if (shortlist.includes(item.programme.id)) {
-      setShortlist(shortlist.filter((id) => id !== item.programme.id));
-    } else {
-      setShortlist([...shortlist, item.programme.id]);
-    }
-  };
-
-  // Modification rapide d'objectif depuis le dashboard
-  const handleToggleGoal = async (newGoal: 'bourse' | 'carriere') => {
-    setQuickGoal(newGoal);
-    setIsUpdatingGoal(true);
-    try {
-      await updatePreferences({
-        primary_goal: newGoal,
-        scholarship_priority: newGoal === 'bourse' ? 85 : 50,
-        career_priority: newGoal === 'carriere' ? 90 : 50,
-      });
-    } catch (err) {
-      console.error('Erreur mise à jour objectif:', err);
-    } finally {
-      setIsUpdatingGoal(false);
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white transition-colors">
-      
-      {/* Conteneur Principal */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
-        
-        {/* ========================================================================= */}
-        {/* 1. BIENVENUE & PROFIL STATS BAR                                           */}
-        {/* ========================================================================= */}
-        <div
-          id="dashboard-welcome-banner"
-          className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-indigo-950 border border-slate-800 p-6 sm:p-8 text-white shadow-2xl"
-        >
-          {/* Lueur de fond */}
-          <div className="absolute top-0 right-0 w-80 h-80 bg-rose-500/10 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-            
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                <Sparkles className="w-3.5 h-3.5 text-rose-400" />
-                <span>Tableau de bord d’orientation</span>
-              </div>
-
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-serif font-bold tracking-tight">
-                Bienvenue,{' '}
-                <span className="bg-gradient-to-r from-rose-400 to-amber-300 bg-clip-text text-transparent italic">
-                  {profile?.display_name || user?.user_metadata?.display_name || 'Bachelier'}
-                </span>{' '}
-                !
-              </h1>
-
-              <div className="flex flex-wrap items-center gap-2 pt-1 text-xs sm:text-sm text-slate-300">
-                <span className="px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 font-semibold text-white">
-                  Série {profile?.series || 'D'}
-                </span>
-                <span className="px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 font-semibold text-rose-400">
-                  Mention {profile?.mention || 'Bien'}
-                </span>
-                <span className="px-3 py-1 rounded-xl bg-slate-800 border border-slate-700 font-semibold text-emerald-400">
-                  Objectif : {quickGoal === 'bourse' ? 'Bourses d’Études' : 'Parcours Carrière'}
-                </span>
-              </div>
-            </div>
-
-            {/* Boutons d'action rapide */}
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                id="btn-edit-onboarding"
-                onClick={() => navigate('/onboarding')}
-                className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition-colors flex items-center gap-2"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-indigo-400" />
-                <span>Reconfigurer le profil</span>
-              </button>
-
-              <button
-                id="btn-view-profile"
-                onClick={() => navigate('/profile')}
-                className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-950/40 transition-colors flex items-center gap-2"
-              >
-                <User className="w-4 h-4" />
-                <span>Mon Espace Profil</span>
-              </button>
-            </div>
-
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 2. SÉLECTEUR RAPIDE D'OBJECTIF (BOURSE vs CARRIÈRE)                       */}
-        {/* ========================================================================= */}
-        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-0.5">
-            <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white flex items-center gap-2">
-              <Target className="w-4 h-4 text-rose-500" />
-              <span>Ajuster mon objectif stratégique en temps réel :</span>
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Basculez instantanément la pondération de l'algorithme selon vos priorités.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 self-start sm:self-auto">
-            <button
-              onClick={() => handleToggleGoal('bourse')}
-              disabled={isUpdatingGoal}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                quickGoal === 'bourse'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Percent className="w-3.5 h-3.5" />
-              <span>Priorité Bourse</span>
-            </button>
-
-            <button
-              onClick={() => handleToggleGoal('carriere')}
-              disabled={isUpdatingGoal}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                quickGoal === 'carriere'
-                  ? 'bg-rose-500 text-white shadow-md'
-                  : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span>Priorité Carrière</span>
-            </button>
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 3. RECOMMANDATIONS INITIALES (3 CARTES CLÉS)                               */}
-        {/* ========================================================================= */}
-        <div className="space-y-4">
-          
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wider text-rose-500">
-                Analyse Algorithmique MVP1
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 dark:text-white">
-                Mes recommandations initiales (Top 3)
-              </h2>
-            </div>
-
-            <div className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">
-              Calculé pour Série <strong>{profile?.series || 'D'}</strong> • Mention <strong>{profile?.mention || 'Bien'}</strong>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {topThree.map((p) => (
-              <ProgrammeCard
-                key={p.programme.id}
-                item={p}
-                isShortlisted={shortlist.includes(p.programme.id)}
-                onToggleShortlist={toggleShortlist}
-              />
-            ))}
-          </div>
-
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 4. INDICATEURS DE SUIVI SYNTHÉTIQUES                                      */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Pression Concurrence
-              </span>
-              <Flame className="w-4 h-4 text-rose-500" />
-            </div>
-            <div className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              Modérée à Élevée
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Selon le ratio de candidats observés par filière dans le jeu démo.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Moyenne Bourses Top 3
-              </span>
-              <Percent className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400">
-              {Math.round(
-                (topThree.reduce((acc, curr) => acc + curr.programme.demoStats.scholarshipRatio, 0) /
-                  (topThree.length || 1)) *
-                  100
-              )}
-              %
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Moyenne estimée des admis recevant une bourse universitaire.
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Adéquation Métiers
-              </span>
-              <Briefcase className="w-4 h-4 text-indigo-500" />
-            </div>
-            <div className="text-2xl font-extrabold text-indigo-600 dark:text-indigo-400">
-              {preferences?.career_keywords?.length || 2} Domaines Ciblés
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {preferences?.career_keywords?.join(', ') || 'Informatique & Sciences'}
-            </p>
-          </div>
-
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 5. MA PROCHAINE ÉTAPE & SHORTLIST                                         */}
-        {/* ========================================================================= */}
-        <div className="rounded-3xl bg-slate-900 text-white p-6 sm:p-8 border border-slate-800 space-y-6 shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
-            <div>
-              <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
-                Plan d'action
-              </span>
-              <h3 className="text-xl sm:text-2xl font-serif font-bold">
-                Ma prochaine étape d’orientation
-              </h3>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-400">
-                Shortlist actuelle : <strong className="text-white">{shortlist.length} filière(s)</strong>
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-rose-400 text-sm">
-                <span className="w-5 h-5 rounded-full bg-rose-500/20 flex items-center justify-center text-xs">1</span>
-                <span>Explorer l'ensemble des filières</span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Consulte les {DEMO_PROGRAMMES.length} filières disponibles pour comparer les ratios et programmes d'études.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-emerald-400 text-sm">
-                <span className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-xs">2</span>
-                <span>Ajuster tes priorités</span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Raffine tes mots-clés métiers ou tes préférences universitaires dans ton profil.
-              </p>
-            </div>
-
-            <div className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-2">
-              <div className="flex items-center gap-2 font-semibold text-indigo-400 text-sm">
-                <span className="w-5 h-5 rounded-full bg-indigo-500/20 flex items-center justify-center text-xs">3</span>
-                <span>Préparer ta sélection officielle</span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Garde ta shortlist à portée de main avant l'ouverture des dépôts sur les plateformes officielles.
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 6. NOTE DE TRANSPARENCE OBLIGATOIRE                                       */}
-        {/* ========================================================================= */}
-        <TransparencyBadge variant="banner" />
-
-      </div>
-    </div>
-  );
+  return <main className="min-h-[70vh] bg-slate-50 px-4 py-8 text-slate-900 dark:bg-slate-950 dark:text-white sm:py-12"><div className="mx-auto max-w-6xl space-y-8">
+    <header className="flex flex-col justify-between gap-5 border-b border-slate-200 pb-6 dark:border-slate-800 sm:flex-row sm:items-end"><div><p className="text-xs font-semibold uppercase tracking-wider text-rose-500">Espace orientation</p><h1 className="mt-2 text-3xl font-bold sm:text-4xl">Bonjour {profile?.display_name || 'candidat'}.</h1><p className="mt-2 text-sm text-slate-500">{profile?.series ? `Série ${profile.series}` : 'Série non renseignée'}{profile?.mention ? ` · Mention ${profile.mention}` : ''}</p></div><button onClick={() => navigate('/onboarding')} className="inline-flex items-center gap-2 self-start rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold dark:border-slate-700">Modifier mon profil <ArrowRight className="h-4 w-4" /></button></header>
+    <section className="flex flex-col justify-between gap-5 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900 sm:flex-row sm:items-center"><div><h2 className="font-bold">Quel classement veux-tu consulter ?</h2><p className="mt-1 text-sm text-slate-500">Le changement réordonne uniquement les observations réelles disponibles.</p></div><div className="flex gap-2"><button onClick={() => void changeGoal('bourse')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${goal === 'bourse' ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>Chances de bourse</button><button onClick={() => void changeGoal('carriere')} className={`rounded-lg px-4 py-2 text-sm font-semibold ${goal === 'carriere' ? 'bg-rose-500 text-white' : 'bg-slate-100 dark:bg-slate-800'}`}>Objectif carrière</button></div></section>
+    <section><div className="mb-5 flex flex-col justify-between gap-2 sm:flex-row sm:items-end"><div><h2 className="text-2xl font-bold">{title}</h2><p className="mt-1 text-sm text-slate-500">{live.rows.length} observation(s) · dernière collecte {formatFreshness(live.lastUpdated)}</p></div><span className={`text-xs font-semibold ${live.realtime === 'connected' ? 'text-emerald-600' : 'text-slate-500'}`}>{live.realtime === 'connected' ? '● Temps réel connecté' : '○ Connexion en cours'}</span></div>{live.loading && <div className="rounded-2xl bg-white p-8 text-center text-sm text-slate-500 dark:bg-slate-900">Chargement des données observées…</div>}{live.error && <div className="rounded-2xl bg-rose-50 p-5 text-sm text-rose-700 dark:bg-rose-950/30">Les données live sont momentanément indisponibles : {live.error}</div>}{!live.loading && !live.error && rows.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">Aucune donnée réelle disponible. Lance une collecte depuis l’extension.</div>}<div className="grid gap-4 md:grid-cols-2">{rows.map((row, index) => <article key={row.programme_id} className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-slate-400">#{index + 1} · {row.university} · {row.school}</p><h3 className="mt-2 font-bold">{row.programme}</h3></div><div className="text-right"><strong className="text-2xl text-rose-500">{liveScore(row, goal)}</strong><span className="block text-[10px] uppercase text-slate-400">score observé</span></div></div><div className="mt-4 grid grid-cols-3 gap-2 text-center text-xs"><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800"><strong>{row.scholarships}</strong><span className="block text-slate-500">bourses</span></div><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800"><strong>{row.passable}</strong><span className="block text-slate-500">Passable</span></div><div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800"><strong>{row.total}</strong><span className="block text-slate-500">inscrits</span></div></div><button onClick={() => toggle(row.programme_id)} className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold ${selected.includes(row.programme_id) ? 'text-emerald-600' : 'text-slate-500'}`}><Bookmark className="h-4 w-4" />{selected.includes(row.programme_id) ? 'Proposition sélectionnée' : 'Sélectionner cette proposition'}</button></article>)}</div></section>
+    <section className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5 dark:border-indigo-900/60 dark:bg-indigo-950/20"><div className="flex gap-3"><Sparkles className="mt-0.5 h-5 w-5 text-indigo-500" /><div><h2 className="font-bold">À venir : analyse IA personnalisée</h2><p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">Nous préparons une fonctionnalité qui pourra comparer ton profil, tes notes, les données observées et le guide officiel pour proposer une aide à la décision. Elle n’est pas encore active : aucun résultat prédictif n’est présenté aujourd’hui.</p></div></div></section>
+  </div></main>;
 };
+export default DashboardPage;
