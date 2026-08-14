@@ -1,0 +1,5 @@
+# MHM SOLUTIONS — configuration Supabase Edge Functions
+# La fonction utilise MHM_SYNC_TOKEN comme garde d’entrée applicative.
+# Elle ne reçoit pas de JWT utilisateur depuis l’extension Chrome.
+[functions.mhmbac-sync]
+verify_jwt = false
