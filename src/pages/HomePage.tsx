@@ -28,6 +28,7 @@ import { DEMO_PROGRAMMES } from '../lib/demoData';
 import { rankProgrammes } from '../lib/ranking';
 import { MHM_PROMOTION_CONFIG } from '../lib/promotion';
 import { useAuth } from '../context/AuthContext';
+import { formatFreshness, useLiveProgrammes } from '../lib/liveProgrammes';
 
 interface HomePageProps {
   navigate: (route: string) => void;
@@ -36,6 +37,7 @@ interface HomePageProps {
 export const HomePage: React.FC<HomePageProps> = ({ navigate }) => {
   const { user, profile, preferences, switchDemoPersona } = useAuth();
   const [activeFilter, setActiveFilter] = useState<'tous' | 'bourse' | 'carriere'>('tous');
+  const live = useLiveProgrammes(60);
 
   // Génération des recommandations initiales basées sur le profil actuel ou démo
   const ranked = rankProgrammes(
@@ -259,7 +261,38 @@ export const HomePage: React.FC<HomePageProps> = ({ navigate }) => {
       </section>
 
       {/* ========================================================================= */}
-      {/* 4. APERÇU DES RECOMMANDATIONS DU MVP1                                      */}
+      {/* 4. DONNÉES OBSERVÉES EN DIRECT                                             */}
+      {/* ========================================================================= */}
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-slate-200 dark:border-slate-800" id="live-rankings">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1">Données publiques observées</div>
+            <h2 className="text-3xl sm:text-4xl font-serif font-bold text-slate-900 dark:text-white">Classements et jauges en temps réel</h2>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">Les données affichées proviennent des relevés reçus par MHM SOLUTIONS. Elles ne garantissent ni admission ni bourse.</p>
+          </div>
+          <div className="text-right text-xs text-slate-500 dark:text-slate-400">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border ${live.realtime === 'connected' ? 'border-emerald-400/40 text-emerald-600 dark:text-emerald-300' : 'border-slate-300 dark:border-slate-700'}`}>
+              <span className={`w-2 h-2 rounded-full ${live.realtime === 'connected' ? 'bg-emerald-500' : live.realtime === 'error' ? 'bg-rose-500' : 'bg-slate-400'}`} />
+              {live.realtime === 'connected' ? 'Realtime connecté' : live.realtime === 'disabled' ? 'Supabase non configuré' : live.realtime === 'error' ? 'Lecture live indisponible' : 'Connexion en cours'}
+            </div>
+            <div className="mt-2">Dernière collecte : {formatFreshness(live.lastUpdated)}</div>
+          </div>
+        </div>
+        {live.loading && <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500">Chargement des relevés observés…</div>}
+        {!live.loading && live.error && <div className="rounded-2xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-950/20 p-6 text-sm text-rose-700 dark:text-rose-300">Lecture live indisponible : {live.error}</div>}
+        {!live.loading && !live.error && live.rows.length === 0 && <div className="rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-8 text-center text-sm text-slate-500">Aucun relevé réel disponible pour le moment. Lancez un scan depuis l’extension MHM SOLUTIONS pour alimenter cette section.</div>}
+        {!live.loading && !live.error && live.rows.length > 0 && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {live.rows.slice(0, 9).map((row) => <article key={row.programme_id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-3"><div><div className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Observée</div><h3 className="mt-1 font-bold text-slate-900 dark:text-white">{row.programme}</h3></div><div className="text-right"><div className="text-2xl font-black text-rose-500">{row.score_opportunity ?? '—'}</div><div className="text-[10px] uppercase text-slate-400">score /100</div></div></div>
+            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">{row.university} · {row.school}</p>
+            <div className="grid grid-cols-3 gap-2 mt-5 text-center text-xs"><div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2"><strong className="block text-slate-900 dark:text-white">{row.scholarships}</strong><span className="text-slate-500">bourses</span></div><div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2"><strong className="block text-slate-900 dark:text-white">{row.passable}</strong><span className="text-slate-500">Passable</span></div><div className="rounded-lg bg-slate-50 dark:bg-slate-950 p-2"><strong className="block text-slate-900 dark:text-white">{row.total}</strong><span className="text-slate-500">inscrits</span></div></div>
+            <div className="mt-4 flex items-center justify-between text-[11px] text-slate-500"><span>{row.rank != null ? `Rang observé #${row.rank}` : 'Rang non disponible'}</span><span>Confiance {row.score_confidence || 'limitée'}</span></div>
+          </article>)}
+        </div>}
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 5. APERÇU DES RECOMMANDATIONS DU MVP1                                      */}
       {/* ========================================================================= */}
       <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 border-t border-slate-200 dark:border-slate-800">
         

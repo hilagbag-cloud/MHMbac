@@ -82,6 +82,32 @@ export interface DomainSuggestion {
 // MODÈLES DE DONNÉES PRÉPARATOIRES (Phases futures : n8n, Extension Chrome, Alertes)
 // ============================================================================
 
+export interface LiveProgramme {
+  id: number;
+  university_id: number;
+  university: string;
+  school_id: number;
+  school: string;
+  programme_id: number;
+  programme: string;
+  scholarships: number;
+  aid: number;
+  tb: number;
+  b: number;
+  ab: number;
+  passable: number;
+  total: number;
+  rank: number | null;
+  capacity: number | null;
+  applicants: number | null;
+  score_version: string | null;
+  score_opportunity: number | null;
+  score_confidence: string | null;
+  observed_at: string;
+  updated_at: string;
+  source: string;
+}
+
 export interface GaugeObservation {
   id: string;
   programme_id: string;
