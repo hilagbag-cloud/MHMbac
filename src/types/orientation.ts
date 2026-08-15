@@ -8,7 +8,7 @@ export type BacSeries = 'A' | 'B' | 'C' | 'D' | 'E' | 'Autre';
 
 export type BacMention = 'Passable' | 'Assez bien' | 'Bien' | 'Très bien';
 
-export type PrimaryGoal = 'bourse' | 'carriere';
+export type PrimaryGoal = 'bourse' | 'carriere' | 'equilibre';
 
 export interface UserProfile {
   id: string;
