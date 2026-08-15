@@ -1,9 +1,3 @@
-/**
- * MHM SOLUTIONS — Après Mon Bac (MVP1)
- * Pied de page complet avec liens légaux, présentation du créateur et avertissement
- * Créateur : Hilarus GBAGOULE
- */
-
 import React from 'react';
 import { Shield, Mail } from 'lucide-react';
 import { MHM_PROMOTION_CONFIG } from '../lib/promotion';
@@ -13,131 +7,55 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ navigate }) => {
+  const onInternalLink = (event: React.MouseEvent<HTMLAnchorElement>, route: string) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    navigate(route);
+  };
+
   return (
-    <footer id="app-footer" className="bg-slate-950 text-slate-400 border-t border-slate-900 mt-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
-        
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 lg:gap-12">
-          
-          {/* Colonne 1: Marque & Créateur */}
-          <div className="md:col-span-2 space-y-4">
+    <footer id="app-footer" className="mt-20 border-t border-slate-900 bg-slate-950 text-slate-400">
+      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
+        <div className="grid grid-cols-1 gap-8 md:grid-cols-4 lg:gap-12">
+          <div className="space-y-4 md:col-span-2">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-indigo-700 flex items-center justify-center text-white shadow-md overflow-hidden">
-                <img src="/branding/bacpilot-mark-final.png" alt="" className="w-9 h-9 object-contain" />
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-md">
+                <img src="/branding/bacpilot-mark-final.png" alt="Logo BacPilot" className="h-9 w-9 object-contain" />
               </div>
               <div>
-                <span className="font-bold text-lg text-white font-sans">
-                  MHM <span className="text-rose-400">SOLUTIONS</span>
-                </span>
-                <span className="block text-xs text-slate-300">BacPilot — Plateforme d’Orientation</span>
+                <span className="font-sans text-lg font-bold text-white">MHM <span className="text-rose-400">SOLUTIONS</span></span>
+                <span className="block text-xs text-slate-300">BacPilot — Plateforme d’orientation</span>
               </div>
             </div>
-
-            <p className="text-xs sm:text-sm text-slate-400 leading-relaxed max-w-md">
-              {MHM_PROMOTION_CONFIG.subheadline}
-            </p>
-
-            <div className="pt-2 text-xs text-slate-300 border-t border-slate-900/80">
-              Conçu & Développé par <strong className="text-white font-semibold">{MHM_PROMOTION_CONFIG.creatorName}</strong> ({MHM_PROMOTION_CONFIG.creatorTitle}).
-            </div>
+            <p className="max-w-md text-xs leading-relaxed text-slate-400 sm:text-sm">{MHM_PROMOTION_CONFIG.subheadline}</p>
+            <div className="border-t border-slate-900/80 pt-2 text-xs text-slate-300">Conçu et développé par <strong className="font-semibold text-white">{MHM_PROMOTION_CONFIG.creatorName}</strong> ({MHM_PROMOTION_CONFIG.creatorTitle}).</div>
           </div>
 
-          {/* Colonne 2: Navigation rapide */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-              Navigation
-            </h4>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">Navigation</h2>
             <ul className="space-y-2 text-xs sm:text-sm">
-              <li>
-                <button
-                  onClick={() => navigate('/')}
-                  className="hover:text-white transition-colors"
-                >
-                  Accueil & Découverte
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => navigate('/about')}
-                  className="hover:text-white transition-colors"
-                >
-                  À propos de MHM SOLUTIONS
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => navigate('/onboarding')}
-                  className="hover:text-white transition-colors"
-                >
-                  Personnaliser mon orientation
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className="hover:text-white transition-colors"
-                >
-                  Tableau de bord de suivi
-                </button>
-              </li>
+              <li><a href="/" onClick={(event) => onInternalLink(event, '/')} className="transition-colors hover:text-white">Accueil BacPilot</a></li>
+              <li><a href="/orientation-bac-benin" onClick={(event) => onInternalLink(event, '/orientation-bac-benin')} className="transition-colors hover:text-white">Guide orientation après le bac au Bénin</a></li>
+              <li><a href="/about" onClick={(event) => onInternalLink(event, '/about')} className="transition-colors hover:text-white">À propos de MHM SOLUTIONS</a></li>
+              <li><a href="/onboarding" onClick={(event) => onInternalLink(event, '/onboarding')} className="transition-colors hover:text-white">Préparer mes pistes</a></li>
             </ul>
           </div>
 
-          {/* Colonne 3: Cadre Légal & Contact */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-              Informations & Éthique
-            </h4>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">Informations et éthique</h2>
             <ul className="space-y-2 text-xs sm:text-sm">
-              <li>
-                <button
-                  onClick={() => navigate('/privacy')}
-                  className="hover:text-white transition-colors"
-                >
-                  Politique de confidentialité
-                </button>
-              </li>
-              <li>
-                <button
-                  onClick={() => navigate('/terms')}
-                  className="hover:text-white transition-colors"
-                >
-                  Conditions d’utilisation
-                </button>
-              </li>
-              <li className="pt-2">
-                <a
-                  href={`mailto:${MHM_PROMOTION_CONFIG.contact.creatorEmail}`}
-                  className="flex items-center gap-1.5 text-rose-400 hover:text-rose-300 transition-colors"
-                >
-                  <Mail className="w-3.5 h-3.5" />
-                  <span>{MHM_PROMOTION_CONFIG.contact.creatorEmail}</span>
-                </a>
-              </li>
+              <li><a href="/privacy" onClick={(event) => onInternalLink(event, '/privacy')} className="transition-colors hover:text-white">Politique de confidentialité</a></li>
+              <li><a href="/terms" onClick={(event) => onInternalLink(event, '/terms')} className="transition-colors hover:text-white">Conditions d’utilisation</a></li>
+              <li className="pt-2"><a href={`mailto:${MHM_PROMOTION_CONFIG.contact.creatorEmail}`} className="flex items-center gap-1.5 text-rose-400 transition-colors hover:text-rose-300"><Mail className="h-3.5 w-3.5" /><span>{MHM_PROMOTION_CONFIG.contact.creatorEmail}</span></a></li>
             </ul>
           </div>
         </div>
 
-        {/* Bannière de Transparence Déontologique dans le Footer */}
-        <div className="mt-10 pt-6 border-t border-slate-900 text-xs text-slate-300 leading-relaxed">
-          <p className="flex items-start gap-2">
-            <Shield className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <span>
-              <strong>Avertissement déontologique :</strong> {MHM_PROMOTION_CONFIG.ethicsDisclaimer}
-            </span>
-          </p>
-        </div>
-
-        {/* Copyright */}
-        <div className="mt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
-          <div>
-            © {new Date().getFullYear()} MHM SOLUTIONS. Tous droits réservés.
-          </div>
-          <div className="flex items-center gap-1">
-            <span>Créé avec rigueur & bienveillance pour les bacheliers.</span>
-          </div>
-        </div>
+        <div className="mt-10 border-t border-slate-900 pt-6 text-xs leading-relaxed text-slate-300"><p className="flex items-start gap-2"><Shield className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" /><span><strong>Avertissement déontologique :</strong> {MHM_PROMOTION_CONFIG.ethicsDisclaimer}</span></p></div>
+        <div className="mt-6 flex flex-col items-center justify-between gap-2 text-xs text-slate-400 sm:flex-row"><div>© {new Date().getFullYear()} MHM SOLUTIONS. Tous droits réservés.</div><div>Créé avec rigueur et bienveillance pour les bacheliers.</div></div>
       </div>
     </footer>
   );
 };
+
+export default Footer;

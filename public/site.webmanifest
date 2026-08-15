@@ -1,0 +1,17 @@
+{
+  "name": "BacPilot — Orientation après le bac au Bénin",
+  "short_name": "BacPilot",
+  "lang": "fr-BJ",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/branding/bacpilot-mark-final.png",
+      "sizes": "1920x1920",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

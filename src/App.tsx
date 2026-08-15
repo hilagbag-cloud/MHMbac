@@ -10,6 +10,7 @@ import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { VerificationModal } from './components/VerificationModal';
 import { HomePage } from './pages/HomePage';
+import { OrientationGuidePage } from './pages/OrientationGuidePage';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { OnboardingPage } from './pages/OnboardingPage';
@@ -19,6 +20,7 @@ import { AboutPage } from './pages/AboutPage';
 import { PrivacyPage } from './pages/PrivacyPage';
 import { TermsPage } from './pages/TermsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { Seo } from './components/Seo';
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -76,6 +78,8 @@ function AppContent() {
         return user ? <DashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} />;
       case '/profile':
         return user ? <ProfilePage navigate={navigate} /> : <LoginPage navigate={navigate} />;
+      case '/orientation-bac-benin':
+        return <OrientationGuidePage />;
       case '/about':
         return <AboutPage navigate={navigate} />;
       case '/privacy':
@@ -90,6 +94,8 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-rose-500 selection:text-white">
       
+      <Seo route={currentRoute} />
+
       {/* Barre de navigation globale */}
       <Navbar
         currentRoute={currentRoute}

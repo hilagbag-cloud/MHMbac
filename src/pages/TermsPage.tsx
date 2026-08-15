@@ -31,7 +31,7 @@ export const TermsPage: React.FC<{ navigate: (route: string) => void }> = ({ nav
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Shield className="w-4 h-4 text-rose-500" />
-              <span>1. Objet du Service MVP1</span>
+              <span>1. Objet du service</span>
             </h2>
             <p>
               La plateforme MHM SOLUTIONS est un outil d'aide à la décision et de simulation d'orientation post-baccalauréat. Elle est conçue pour aider les nouveaux bacheliers à évaluer l'adéquation de leur profil avec différentes filières universitaires et d'écoles supérieures.
@@ -51,10 +51,10 @@ export const TermsPage: React.FC<{ navigate: (route: string) => void }> = ({ nav
           <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 text-indigo-500" />
-              <span>3. Statut des Données de Démonstration (MVP1)</span>
+              <span>3. Statut et limites des observations</span>
             </h2>
             <p>
-              Les données de filières, jauges de bourses et indicateurs de concurrence inclus dans ce MVP1 sont des données de démonstration destinées à valider le parcours utilisateur et la robustesse de l'algorithme de recommandation. La synchronisation réelle avec les flux ministériels et l'extension Chrome sera déployée dans les versions ultérieures.
+              Les indicateurs affichés par BacPilot proviennent d’observations synchronisées par une extension autorisée dans une session officielle active. Ils décrivent un état observé à un instant donné, peuvent évoluer et ne remplacent ni les règles, ni les décisions, ni les informations publiées par les autorités compétentes. BacPilot ne présente pas de donnée inventée comme une information réelle.
             </p>
           </div>
 

@@ -200,7 +200,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
 
     <section aria-live="polite" className="flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8">
       {messages.map((message, index) => message.role === 'agent'
-        ? <AgentBubble key={message.id} message={message} animate={index === messages.length - 1 && !isSaving} />
+        ? <React.Fragment key={message.id}><AgentBubble message={message} animate={index === messages.length - 1 && !isSaving} /></React.Fragment>
         : <div key={message.id} className="ml-auto flex max-w-2xl items-start gap-3"><div className="rounded-2xl rounded-tr-md bg-amber-300 px-4 py-3 text-sm leading-6 text-slate-950 sm:text-[15px]">{message.content}</div><div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700"><UserRound className="h-4 w-4" /></div></div>)}
       {isSaving && <div className="flex items-center gap-3 text-sm text-slate-400"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800"><LoaderCircle className="h-4 w-4 animate-spin text-amber-300" /></div><span>Je prépare la suite…</span></div>}
       {error && <p role="alert" className="max-w-2xl rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</p>}
