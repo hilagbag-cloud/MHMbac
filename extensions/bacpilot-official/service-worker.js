@@ -17,11 +17,10 @@ const RETRY_PERIOD_MINUTES = 5;
 const CHUNK_SIZE = 40;
 const MAX_DIAGNOSTICS = 40;
 const OFFICIAL_PAGE_PREFIX = 'https://apresmonbac.bj/Home/choice';
-const SYNC_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{16,}$/;
-const INVALID_SYNC_TOKEN_MESSAGE = 'Jeton invalide : utilisez au moins 16 caractères ASCII (lettres, chiffres, ., _, ~ ou -), sans espace ni accent.';
+const INVALID_SYNC_TOKEN_MESSAGE = 'Jeton requis : saisissez une valeur non vide avant la synchronisation.';
 
 const nowIso = () => new Date().toISOString();
-const isValidSyncToken = (value) => typeof value === 'string' && SYNC_TOKEN_PATTERN.test(value);
+const isValidSyncToken = (value) => typeof value === 'string' && value.trim().length > 0;
 const newId = (prefix) => `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -183,8 +182,8 @@ async function testSyncConfiguration(config) {
   try {
     const response = await fetch(config.endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-mhm-sync-token': config.syncToken },
-      body: JSON.stringify({ action: 'preflight', source: 'bacpilot_chrome_official' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'preflight', source: 'bacpilot_chrome_official', syncToken: config.syncToken }),
       signal: controller.signal
     });
     const raw = await response.text();
@@ -230,8 +229,8 @@ async function sendBatch(entry, config) {
     try {
       const response = await fetch(config.endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-mhm-sync-token': config.syncToken },
-        body: JSON.stringify(entry.payload),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...entry.payload, syncToken: config.syncToken }),
         signal: controller.signal
       });
       lastStatus = response.status;

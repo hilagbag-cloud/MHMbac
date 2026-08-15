@@ -62,8 +62,11 @@ async function send(onMessage, message) {
 
 const preflightFetch = async (_url, options) => {
   const body = JSON.parse(options.body || '{}');
-  if (body.action !== 'preflight') throw new Error('Requête réseau non attendue dans ce test.');
-  return new Response(JSON.stringify({ ok: true, mode: 'preflight' }), { status: 200 });
+  if (options.headers['x-mhm-sync-token'] || options.headers['x-mhm-sync-token-b64']) throw new Error('Le jeton ne doit jamais être transmis par en-tête.');
+  if (typeof body.syncToken !== 'string' || !body.syncToken) throw new Error('Le jeton doit être placé dans le corps JSON.');
+  if (body.action === 'preflight') return new Response(JSON.stringify({ ok: true, mode: 'preflight' }), { status: 200 });
+  if (Array.isArray(body.items)) return new Response(JSON.stringify({ ok: true, received: body.items.length }), { status: 200 });
+  throw new Error('Requête réseau non attendue dans ce test.');
 };
 
 const firstWorker = makeRuntime(preflightFetch);
@@ -90,6 +93,7 @@ const collection = {
 const completed = await send(firstWorker.onMessage, { type: 'BP_COLLECTION_COMPLETED', state: collection });
 if (!completed.ok || storage.bacpilotOfficialSyncQueue.length !== 1) throw new Error('Le lot terminé devait être placé dans la file locale.');
 if (storage.bacpilotOfficialSyncQueue[0].payload.items.length !== 2) throw new Error('Les observations brutes ne sont pas intégralement conservées.');
+if ('syncToken' in storage.bacpilotOfficialSyncQueue[0].payload) throw new Error('Le jeton ne doit pas être conservé dans les lots locaux.');
 
 const restartedWorker = makeRuntime(preflightFetch);
 await waitFor(() => storage.bacpilotOfficialState);
@@ -101,8 +105,12 @@ const existingToken = 'local-test-token';
 storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: existingToken };
 const configResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: null });
 if (!configResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken) throw new Error('Un champ de jeton vide ne doit pas effacer le jeton local existant.');
-const invalidTokenResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: 'jeton-é-invalide' });
-if (invalidTokenResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken || !String(invalidTokenResult.error || '').includes('ASCII')) throw new Error('Un jeton Unicode doit être refusé avant toute requête HTTP.');
+const unicodeToken = 'jeton-é-étudiant';
+const unicodeTokenResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: unicodeToken });
+if (!unicodeTokenResult.ok || storage.bacpilotOfficialConfig.syncToken !== unicodeToken || !unicodeTokenResult.validation?.ok) throw new Error('Un jeton Unicode doit être accepté lorsqu’il est envoyé dans le corps JSON.');
+storage.bacpilotOfficialSyncQueue[0].nextAttemptAt = 0;
+const syncResult = await send(restartedWorker.onMessage, { type: 'BP_SYNC_NOW' });
+if (!syncResult.ok || syncResult.sent !== 2 || storage.bacpilotOfficialSyncQueue.length !== 0) throw new Error('Le lot doit être transmis avec le jeton dans le JSON, puis retiré après accusé de réception.');
 storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026', verification: { status: 'unverified', checkedAt: null, message: '' } };
 const authorizedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
 if (!authorizedScan.ok || storage.bacpilotOfficialConfig.verification?.status !== 'verified') throw new Error('Une collecte doit lancer et mémoriser un prévol serveur réussi avant de démarrer.');
@@ -110,4 +118,4 @@ storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncTo
 const blockedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
 if (blockedScan.ok || !String(blockedScan.error || '').includes('Collecte bloquée')) throw new Error('Une collecte doit être refusée tant que le jeton n’est pas configuré et testé.');
 
-console.log('Test de reprise, prévol et validation du jeton : OK');
+console.log('Test de reprise, prévol et transmission JSON du jeton : OK');

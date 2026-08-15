@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mhm-sync-token, x-mhm-sync-token-b64',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
@@ -76,25 +76,15 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function decodeBase64Url(value: string | null): string | null {
-  if (!value || value.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
-  try {
-    const padding = '='.repeat((4 - (value.length % 4)) % 4);
-    const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/') + padding);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    return null;
-  }
-}
-
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ ok: false, error: 'Méthode non autorisée' }, 405);
 
+  let body: any;
+  try { body = await request.json(); } catch { return json({ ok: false, error: 'JSON invalide' }, 400); }
+
   const expectedToken = Deno.env.get('MHM_SYNC_TOKEN');
-  const encodedToken = request.headers.get('x-mhm-sync-token-b64');
-  const receivedToken = encodedToken ? decodeBase64Url(encodedToken) : request.headers.get('x-mhm-sync-token');
+  const receivedToken = typeof body?.syncToken === 'string' ? body.syncToken : null;
   if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
     return json({ ok: false, error: 'Jeton de synchronisation invalide' }, 401);
   }
@@ -102,9 +92,6 @@ Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: 'Configuration serveur incomplète' }, 500);
-
-  let body: any;
-  try { body = await request.json(); } catch { return json({ ok: false, error: 'JSON invalide' }, 400); }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   if (body?.action === 'preflight') {

@@ -54,7 +54,7 @@
 L’endpoint BacPilot est prérempli. Le **jeton de collecte** doit être renseigné depuis le panneau *Administration locale* par une personne autorisée, après rotation si une ancienne valeur a été exposée.
 
 - Le jeton est stocké localement dans le profil Chrome courant et n’est jamais affiché par la console.
-- Utilisez un jeton d’au moins 16 caractères ASCII : lettres, chiffres, point (`.`), tiret bas (`_`), tilde (`~`) ou tiret (`-`). N’utilisez ni espace, ni accent, ni guillemet typographique ; les en-têtes HTTP ne les acceptent pas de manière fiable.
+- Le jeton est transmis exclusivement dans le corps JSON de la requête HTTPS, jamais dans un en-tête HTTP. Il peut donc contenir des caractères Unicode ; gardez toutefois une valeur longue, unique et difficile à deviner.
 - Si la console affichait auparavant « Jeton requis » malgré l’enregistrement, rechargez l’extension dans `chrome://extensions` en conservant le même dossier local : la configuration et les lots restent associés à cette extension. Ne désinstallez pas l’extension et n’effacez pas les données locales.
 - Ne partagez jamais le dossier utilisateur Chrome, une capture de ce champ ou un export contenant une configuration.
 - La version distribuée publiquement ne doit pas utiliser un jeton unique partagé : elle devra évoluer vers un mécanisme d’enrôlement par appareil ou par collecteur avant diffusion large.
