@@ -63,5 +63,5 @@ export const MHM_PROMOTION_CONFIG = {
   ],
 
   ethicsDisclaimer:
-    'Avertissement déontologique : Les données présentées dans ce MVP1 sont des données de démonstration destinées à illustrer le fonctionnement de la plateforme. MHM SOLUTIONS ne garantit en aucun cas une admission ou une attribution de bourse, qui relèvent exclusivement des commissions nationales d’orientation et des universités.',
+    'Les données affichées proviennent des dernières observations synchronisées par la collecte BacPilot. Elles sont indicatives, peuvent évoluer et ne constituent jamais une garantie d’admission ou de bourse : la vérification et la validation finale relèvent du candidat, du portail officiel et des commissions compétentes.',
 };
