@@ -18,7 +18,7 @@ const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const PartnerPage = lazy(() => import('./pages/PartnerPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then((module) => ({ default: module.RegisterPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
