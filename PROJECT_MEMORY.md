@@ -121,6 +121,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 3 | Refactorer l’extension vers la collecte brute et la couverture complète autorisée. | Collecte sans personnalisation, `collection_runs` exploité et données envoyées de manière robuste. |
 | 4 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
 | 5 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
+| 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
 
 ## 10. Journal de continuité
 
@@ -130,6 +131,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | `789c904` | Intégration Gemini/Groq alignée sur les documentations ; repli déterministe conservé. | Ne jamais ajouter de clé dans le dépôt. |
 | 15 août 2026 | `32f659b` | UI validée « Preuves & Top 3 » : dashboard et onboarding mis à jour. | Recette connectée avec données réelles. |
 | 15 août 2026 | En cours | Mémoire projet canonique créée. | Lire et mettre à jour ce fichier à chaque changement. |
+| 15 août 2026 | Kit prêt, non publié | Première campagne organique BacPilot préparée : Reel, couverture, voix-off, légende, Stories, UTM et tableau de suivi. | Obtenir l’accord explicite avant toute publication sur un réseau social. |
 
 ## 11. Règle de reprise de session
 
@@ -149,6 +151,7 @@ Au début de toute nouvelle session ou intervention :
 - `CONFIGURATION_SECRETS_AGENT_BACPILOT.md` — procédure de secrets et rotation.
 - `PRODUCTION_VERIFICATION_AGENT.md` — contrôles publics et sécurité réalisés.
 - `SPEC_UI_PREUVES_TOP3.md` — décision UX/UI et microcopies.
+- `MARKETING_JOUR1_LANCEMENT_BACPILOT.md` — kit de lancement organique du Jour 1.
 
 ---
 
