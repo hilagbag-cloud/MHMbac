@@ -39,6 +39,11 @@
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex" }]
     },
     {
+      "source": "/:path*",
+      "has": [{ "type": "host", "value": "beta.bacpilot.site" }],
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
       "source": "/assets/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }

@@ -30,6 +30,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const returnToBeta = new URLSearchParams(window.location.search).get('returnTo') === 'beta';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +51,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
     try {
       const res = await signUp(displayName, email, password, confirmPassword);
       if (res.success) {
-        navigate('/onboarding');
+        navigate(returnToBeta ? '/beta-access' : '/onboarding');
       } else {
         setLocalError(res.error || 'Erreur lors de l’inscription.');
       }
@@ -77,7 +78,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
             Créer mon compte
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Rejoins BacPilot, par MHM SOLUTIONS, pour personnaliser ton parcours d’orientation post-BAC.
+            {returnToBeta ? 'Crée ton compte puis BacPilot vérifiera ton invitation bêta.' : 'Rejoins BacPilot, par MHM SOLUTIONS, pour personnaliser ton parcours d’orientation post-BAC.'}
           </p>
         </div>
 
@@ -178,7 +179,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
           <div className="pt-2 text-center text-xs text-slate-500 dark:text-slate-400">
             Déjà inscrit ?{' '}
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => navigate(returnToBeta ? '/login?returnTo=beta' : '/login')}
               className="text-rose-500 hover:text-rose-600 font-bold underline"
             >
               Se connecter ici

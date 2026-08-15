@@ -27,21 +27,25 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const BetaPage = lazy(() => import('./pages/BetaPage').then((module) => ({ default: module.BetaPage })));
+const BetaAccessPage = lazy(() => import('./pages/BetaAccessPage'));
+const BetaPortalPage = lazy(() => import('./pages/BetaPortalPage'));
 
 function AppContent() {
   const { user, isBetaTester, isLoading } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('/');
   const [isTestsModalOpen, setIsTestsModalOpen] = useState(false);
   const isPartnerPortal = typeof window !== 'undefined' && window.location.hostname === 'partenaires.bacpilot.site';
+  const isBetaPortal = typeof window !== 'undefined' && window.location.hostname === 'beta.bacpilot.site';
+  const routePath = currentRoute.split('?')[0] || '/';
 
   // Synchronisation avec l'historique du navigateur
   useEffect(() => {
     const handlePopState = () => {
-      const path = window.location.pathname || '/';
-      setCurrentRoute(path);
+        const path = `${window.location.pathname || '/'}${window.location.search || ''}`;
+        setCurrentRoute(path);
     };
 
-    const initialPath = window.location.pathname || '/';
+    const initialPath = `${window.location.pathname || '/'}${window.location.search || ''}`;
     setCurrentRoute(initialPath);
 
     window.addEventListener('popstate', handlePopState);
@@ -78,7 +82,7 @@ function AppContent() {
       );
     }
 
-    switch (currentRoute) {
+    switch (routePath) {
       case '/':
         return <HomePage navigate={navigate} />;
       case '/login':
@@ -93,6 +97,8 @@ function AppContent() {
         return user ? <ProfilePage navigate={navigate} /> : <LoginPage navigate={navigate} />;
       case '/beta':
         return <BetaPage navigate={navigate} />;
+      case '/beta-access':
+        return <BetaAccessPage navigate={navigate} />;
       case '/orientation-bac-benin':
         return <OrientationGuidePage />;
       case '/methodologie':
@@ -112,6 +118,10 @@ function AppContent() {
     }
   };
 
+  if (isBetaPortal) {
+    return <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Chargement du portail bêta…</div>}><BetaPortalPage accessUrl="https://bacpilot.site/beta-access" /></Suspense>;
+  }
+
   if (isPartnerPortal) {
     return (
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Chargement de l’espace partenaire…</div>}>
@@ -124,11 +134,11 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-rose-500 selection:text-white">
       
-      <Seo route={currentRoute} />
+      <Seo route={routePath} />
 
       {/* Barre de navigation globale */}
       <Navbar
-        currentRoute={currentRoute}
+        currentRoute={routePath}
         navigate={navigate}
         openTestsModal={() => setIsTestsModalOpen(true)}
       />

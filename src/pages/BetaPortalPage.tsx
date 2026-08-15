@@ -1,0 +1,16 @@
+import React from 'react';
+import { ArrowRight, Bug, CheckCircle2, FlaskConical, LockKeyhole, MessageSquare, ShieldCheck } from 'lucide-react';
+
+interface BetaPortalPageProps { accessUrl: string; }
+
+export const BetaPortalPage: React.FC<BetaPortalPageProps> = ({ accessUrl }) => {
+  const start = () => { window.location.assign(accessUrl); };
+  return <main className="min-h-screen bg-slate-950 text-white"><section className="mx-auto flex min-h-screen max-w-6xl flex-col justify-center px-5 py-16 sm:px-8"><div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.18em] text-rose-200"><FlaskConical className="h-4 w-4" /> Programme bêta BacPilot</div><div className="grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-center"><div><h1 className="max-w-3xl text-4xl font-black tracking-tight sm:text-6xl">Teste BacPilot.<br /><span className="text-rose-400">Améliore l’orientation.</span></h1><p className="mt-6 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">Ce portail est réservé aux comptes invités dans la phase bêta. Tu testes les parcours, trouves les incohérences et envoies des retours utiles à l’équipe BacPilot.</p><div className="mt-8 flex flex-col gap-3 sm:flex-row"><button onClick={start} className="inline-flex items-center justify-center gap-2 rounded-xl bg-rose-500 px-6 py-3.5 font-black text-white transition hover:bg-rose-400">Vérifier mon accès bêta <ArrowRight className="h-4 w-4" /></button><a href="https://bacpilot.site" className="inline-flex items-center justify-center rounded-xl border border-slate-700 px-6 py-3.5 font-bold text-slate-200">Découvrir BacPilot</a></div><p className="mt-4 text-xs leading-5 text-slate-500">La vérification d’identité et de statut se déroule sur `bacpilot.site`. Aucun jeton ou rôle n’est placé dans le lien.</p></div><div className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6 sm:p-8"><h2 className="text-xl font-black">Ton rôle de bêta-testeur</h2><div className="mt-6 space-y-5">{[
+    [Bug, 'Tester les parcours', 'Recherche, profil, Top 3, statistiques et recommandations.'],
+    [MessageSquare, 'Signaler rapidement', 'Bug, incompréhension, idée ou point positif, avec capture facultative.'],
+    [CheckCircle2, 'Suivre tes retours', 'Historique personnel, statut de traitement et activité de test.'],
+    [LockKeyhole, 'Rester dans un cadre privé', 'Tes retours et captures sont isolés par compte.'],
+  ].map(([Icon, title, text]) => { const FeatureIcon = Icon as typeof Bug; return <div key={title as string} className="flex gap-3"><div className="mt-0.5 rounded-lg bg-slate-800 p-2 text-rose-300"><FeatureIcon className="h-4 w-4" /></div><div><h3 className="font-bold">{title as string}</h3><p className="mt-1 text-sm leading-5 text-slate-400">{text as string}</p></div></div>; })}</div></div></div><div className="mt-12 border-t border-slate-800 pt-6 text-xs leading-5 text-slate-500"><ShieldCheck className="mr-2 inline h-4 w-4 text-emerald-400" />La bêta est bénévole. BacPilot propose des pistes d’orientation ; tu vérifies et valides tes choix sur le portail officiel.</div></section></main>;
+};
+
+export default BetaPortalPage;
