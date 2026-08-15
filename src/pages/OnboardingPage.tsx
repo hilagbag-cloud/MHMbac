@@ -26,12 +26,12 @@ const signalReplies: QuickReply[] = [
 ];
 
 const questions: Record<Exclude<ChatStep, 'complete'>, string> = {
-  name: 'Bonjour, je suis BacPilot. Pour bien t’accompagner, comment puis-je t’appeler ?',
+  name: 'Bonjour, je suis BacPilot. On va préparer tes trois pistes à vérifier. Comment puis-je t’appeler ?',
   series: 'Merci. Quelle est ta série au Bac ?',
   mention: 'Quelle mention as-tu obtenue ?',
-  goal: 'Que souhaites-tu privilégier pour cette recherche ?',
-  career: 'Quel domaine ou métier veux-tu explorer ? Tu peux répondre avec quelques mots, par exemple « informatique » ou « santé ».',
-  signals: 'Dernière question, facultative : dans quelle matière ou force académique te sens-tu le plus à l’aise ?',
+  goal: 'Pour préparer tes pistes, que souhaites-tu privilégier ?',
+  career: 'Quel domaine ou métier veux-tu explorer ? Quelques mots suffisent, par exemple « informatique » ou « santé ».',
+  signals: 'Dernière question, facultative : dans quelle matière te sens-tu le plus à l’aise ?',
 };
 
 function getQuickReplies(step: ChatStep, goal: PrimaryGoal | null): QuickReply[] {
@@ -76,8 +76,8 @@ function useTypewriter(text: string, enabled: boolean) {
 function AgentBubble({ message, animate }: { message: Message; animate: boolean }) {
   const content = useTypewriter(message.content, animate);
   return <div className="flex max-w-2xl items-start gap-3">
-    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white"><Bot className="h-4 w-4" /></div>
-    <div className="rounded-2xl rounded-tl-md bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 shadow-sm sm:text-[15px]">{content}<span aria-hidden="true" className={animate && content !== message.content ? 'ml-0.5 inline-block h-4 border-r border-rose-300 align-[-2px]' : 'hidden'} /></div>
+    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-300 text-slate-950"><Bot className="h-4 w-4" /></div>
+    <div className="rounded-2xl rounded-tl-md bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 shadow-sm sm:text-[15px]">{content}<span aria-hidden="true" className={animate && content !== message.content ? 'ml-0.5 inline-block h-4 border-r border-amber-200 align-[-2px]' : 'hidden'} /></div>
   </div>;
 }
 
@@ -108,14 +108,14 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
 
   const finalize = async () => {
     setIsSaving(true);
-    appendAgent('Je vérifie la dernière synchronisation, je compare les filières compatibles et je prépare tes trois pistes.');
+    appendAgent('Je vérifie la dernière mise à jour des données, je compare les filières observées et je prépare tes trois pistes à vérifier.');
     const result = await askOrientationAssistant({ action: 'recommend' });
     setIsSaving(false);
     if (!result.ok) {
       setError(result.error || 'Je ne peux pas encore lancer l’analyse. Réessaie dans un instant.');
       return;
     }
-    appendAgent(result.response || 'Ton analyse est prête. Ouvre tes trois pistes pour voir les données utilisées.');
+    appendAgent(result.response || 'Tes trois pistes sont prêtes. Tu pourras voir pourquoi chacune ressort et vérifier les données utilisées.');
     setIsReady(true);
   };
 
@@ -192,22 +192,22 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
   };
 
   if (!user) {
-    return <main className="min-h-[70vh] bg-slate-950 px-4 py-10 text-white sm:py-16"><section className="mx-auto max-w-2xl rounded-3xl border border-slate-800 bg-slate-900/70 p-8 text-center shadow-2xl sm:p-12"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-500"><ShieldCheck className="h-6 w-6" /></div><p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-rose-300">Assistant BacPilot</p><h1 className="mt-3 text-3xl font-black sm:text-4xl">Personnalise ton orientation en quelques messages.</h1><p className="mt-4 text-sm leading-6 text-slate-300">Connecte-toi d’abord. Tes réponses seront enregistrées uniquement dans ton espace personnel et ne modifieront jamais les observations collectées.</p><button onClick={() => navigate('/login')} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-rose-500 px-5 py-3 text-sm font-bold text-white transition active:scale-[0.97]">Me connecter pour commencer <ArrowRight className="h-4 w-4" /></button></section></main>;
+    return <main className="min-h-[70vh] bg-slate-950 px-4 py-10 text-white sm:py-16"><section className="mx-auto max-w-2xl rounded-3xl border border-slate-800 bg-slate-900/70 p-8 text-center shadow-2xl sm:p-12"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-300 text-slate-950"><ShieldCheck className="h-6 w-6" /></div><p className="mt-6 text-xs font-bold uppercase tracking-[0.2em] text-amber-200">Assistant BacPilot</p><h1 className="mt-3 text-3xl font-black sm:text-4xl">Personnalise ton orientation en quelques messages.</h1><p className="mt-4 text-sm leading-6 text-slate-300">Connecte-toi d’abord. Tes réponses seront enregistrées uniquement dans ton espace personnel et ne modifieront jamais les observations collectées.</p><button onClick={() => navigate('/login')} className="mt-8 inline-flex items-center gap-2 rounded-xl bg-amber-300 text-slate-950 px-5 py-3 text-sm font-bold text-white transition active:scale-[0.97]">Me connecter pour commencer <ArrowRight className="h-4 w-4" /></button></section></main>;
   }
 
   return <main className="min-h-[78vh] bg-slate-950 px-3 py-3 text-slate-100 sm:px-6 sm:py-6"><div className="mx-auto flex min-h-[72vh] max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/30">
-    <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4 sm:px-7"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500"><Bot className="h-5 w-5" /></div><div><p className="text-sm font-black">BacPilot</p><p className="text-xs text-slate-400">Assistant d’orientation · données observées</p></div></div><button onClick={() => navigate('/dashboard')} className="text-xs font-semibold text-slate-400 transition hover:text-white">Voir le classement public</button></header>
+    <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4 sm:px-7"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-300 text-slate-950"><Bot className="h-5 w-5" /></div><div><p className="text-sm font-black">BacPilot</p><p className="text-xs text-slate-400">Je t’aide à préparer tes choix</p></div></div><button onClick={() => navigate('/dashboard')} className="text-xs font-semibold text-slate-400 transition hover:text-white">Voir les données observées</button></header>
 
     <section aria-live="polite" className="flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8">
       {messages.map((message, index) => message.role === 'agent'
         ? <AgentBubble key={message.id} message={message} animate={index === messages.length - 1 && !isSaving} />
-        : <div key={message.id} className="ml-auto flex max-w-2xl items-start gap-3"><div className="rounded-2xl rounded-tr-md bg-rose-500 px-4 py-3 text-sm leading-6 text-white sm:text-[15px]">{message.content}</div><div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700"><UserRound className="h-4 w-4" /></div></div>)}
-      {isSaving && <div className="flex items-center gap-3 text-sm text-slate-400"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800"><LoaderCircle className="h-4 w-4 animate-spin text-rose-400" /></div><span>Je prépare la suite…</span></div>}
+        : <div key={message.id} className="ml-auto flex max-w-2xl items-start gap-3"><div className="rounded-2xl rounded-tr-md bg-amber-300 px-4 py-3 text-sm leading-6 text-slate-950 sm:text-[15px]">{message.content}</div><div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700"><UserRound className="h-4 w-4" /></div></div>)}
+      {isSaving && <div className="flex items-center gap-3 text-sm text-slate-400"><div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-800"><LoaderCircle className="h-4 w-4 animate-spin text-amber-300" /></div><span>Je prépare la suite…</span></div>}
       {error && <p role="alert" className="max-w-2xl rounded-xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</p>}
     </section>
 
-    {isReady ? <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><button onClick={() => navigate('/dashboard')} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-500 px-5 py-3.5 text-sm font-black text-white transition active:scale-[0.98]">Découvrir mes 3 pistes <Sparkles className="h-4 w-4" /><ChevronRight className="h-4 w-4" /></button><p className="mt-3 text-center text-[11px] leading-5 text-slate-500">Les suggestions sont indicatives. Tu gardes toujours la main pour vérifier et valider manuellement tes choix sur le portail officiel.</p></footer>
-      : <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><div className="mb-3 flex flex-wrap gap-2">{quickReplies.map((reply) => <button key={reply.value} type="button" disabled={isSaving} onClick={() => void submitAnswer(reply.value)} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-rose-400 hover:text-white disabled:opacity-50">{reply.label}</button>)}</div><form onSubmit={onSubmit} className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 p-2 focus-within:border-rose-400"><input value={input} onChange={(event) => setInput(event.target.value)} disabled={isSaving} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500" /><button type="submit" disabled={isSaving || !input.trim()} aria-label="Envoyer ma réponse" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500 text-white transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></form><p className="mt-3 text-center text-[11px] text-slate-500">BacPilot répond avec les observations disponibles et ne promet jamais une admission ou une bourse.</p></footer>}
+    {isReady ? <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><button onClick={() => navigate('/dashboard')} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 py-3.5 text-sm font-black text-slate-950 transition active:scale-[0.98]">Découvrir mes 3 pistes <Sparkles className="h-4 w-4" /><ChevronRight className="h-4 w-4" /></button><p className="mt-3 text-center text-[11px] leading-5 text-slate-500">BacPilot te propose des pistes. Tu vérifies et tu valides toi-même sur le portail officiel.</p></footer>
+      : <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><div className="mb-3 flex flex-wrap gap-2">{quickReplies.map((reply) => <button key={reply.value} type="button" disabled={isSaving} onClick={() => void submitAnswer(reply.value)} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-amber-300 hover:text-white disabled:opacity-50">{reply.label}</button>)}</div><form onSubmit={onSubmit} className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 p-2 focus-within:border-amber-300"><input value={input} onChange={(event) => setInput(event.target.value)} disabled={isSaving} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500" /><button type="submit" disabled={isSaving || !input.trim()} aria-label="Envoyer ma réponse" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-300 text-slate-950 transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></form><p className="mt-3 text-center text-[11px] text-slate-500">BacPilot utilise les données observées. Elles peuvent évoluer et ne garantissent jamais une admission ou une bourse.</p></footer>}
   </div></main>;
 };
 
