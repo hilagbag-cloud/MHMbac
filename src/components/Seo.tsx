@@ -10,6 +10,7 @@ type SeoConfig = {
   path: string;
   noindex?: boolean;
   schema?: JsonLd;
+  canonicalUrl?: string;
 };
 
 const guideFaqSchema: JsonLd = {
@@ -56,6 +57,25 @@ const configs: Record<string, SeoConfig> = {
       'Comprendre comment comparer ses pistes d’orientation après le bac au Bénin, lire des observations avec prudence et vérifier ses choix sur le portail officiel.',
     path: '/orientation-bac-benin',
     schema: guideFaqSchema,
+  },
+  '/partenaires': {
+    title: 'Devenir partenaire | BacPilot',
+    description:
+      'Découvrez comment collaborer avec BacPilot pour rendre l’orientation post-baccalauréat plus accessible et vérifiable au Bénin.',
+    path: '/partenaires',
+    noindex: true,
+  },
+  '/methodologie': {
+    title: 'Comment fonctionne BacPilot ? | BacPilot',
+    description:
+      'Découvrez comment BacPilot utilise les observations disponibles et les critères du candidat pour comparer des pistes d’orientation à vérifier.',
+    path: '/methodologie',
+  },
+  '/contact': {
+    title: 'Contacter BacPilot | MHM SOLUTIONS',
+    description:
+      'Contactez l’équipe BacPilot pour une question sur la plateforme, un retour d’expérience ou une proposition de partenariat.',
+    path: '/contact',
   },
   '/about': {
     title: 'À propos de BacPilot et MHM SOLUTIONS | BacPilot',
@@ -116,9 +136,15 @@ function setMeta(selector: string, attributes: Record<string, string>) {
   Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value));
 }
 
-export function Seo({ route }: { route: string }) {
+export function Seo({ route, partnerPortal = false }: { route: string; partnerPortal?: boolean }) {
+  const partnerConfig: SeoConfig = {
+    title: 'Devenir partenaire | BacPilot',
+    description: 'Découvrez comment collaborer avec BacPilot pour rendre l’orientation post-baccalauréat plus accessible et vérifiable au Bénin.',
+    path: '/',
+    canonicalUrl: 'https://partenaires.bacpilot.site/',
+  };
   const config: SeoConfig =
-    configs[route] ?? {
+    partnerPortal ? partnerConfig : configs[route] ?? {
       title: 'Page introuvable | BacPilot',
       description: 'Cette page BacPilot est introuvable.',
       path: route,
@@ -126,7 +152,7 @@ export function Seo({ route }: { route: string }) {
     };
 
   useEffect(() => {
-    const canonicalUrl = `${SITE_URL}${config.path}`;
+    const canonicalUrl = config.canonicalUrl ?? `${SITE_URL}${config.path}`;
     document.title = config.title;
 
     setMeta('meta[name="description"]', { name: 'description', content: config.description });

@@ -8,7 +8,7 @@ export const MHM_PROMOTION_CONFIG = {
   brandName: 'MHM SOLUTIONS',
   tagline: 'BacPilot',
   creatorName: 'Hilarus GBAGOULE',
-  creatorTitle: 'Fondateur & Ingénieur Concepteur MHM SOLUTIONS',
+  creatorTitle: 'Fondateur de MHM SOLUTIONS et créateur de BacPilot',
   headline: 'Ton orientation commence par une bonne décision.',
   subheadline:
     'MHM SOLUTIONS t’aide à comprendre tes possibilités après le BAC, à définir ton objectif et à suivre les filières qui correspondent vraiment à ton profil.',
@@ -48,11 +48,10 @@ export const MHM_PROMOTION_CONFIG = {
   ],
 
   contact: {
-    officialWebsite: 'https://mhmsolutions.bj',
-    contactEmail: 'contact@mhmsolutions.bj',
-    creatorEmail: 'hilagbag@gmail.com',
-    supportPhone: '+229 97 00 00 00',
-    address: 'Cotonou, République du Bénin',
+    officialWebsite: 'https://bacpilot.site',
+    officialEmail: 'contact@bacpilot.site',
+    supportEmail: 'support@bacpilot.site',
+    creatorPortfolio: 'https://hilarusblog.vercel.app/',
   },
 
   socialLinks: [

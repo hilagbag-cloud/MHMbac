@@ -36,7 +36,9 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
             <ul className="space-y-2 text-xs sm:text-sm">
               <li><a href="/" onClick={(event) => onInternalLink(event, '/')} className="transition-colors hover:text-white">Accueil BacPilot</a></li>
               <li><a href="/orientation-bac-benin" onClick={(event) => onInternalLink(event, '/orientation-bac-benin')} className="transition-colors hover:text-white">Guide orientation après le bac au Bénin</a></li>
+              <li><a href="/methodologie" onClick={(event) => onInternalLink(event, '/methodologie')} className="transition-colors hover:text-white">Comment BacPilot fonctionne</a></li>
               <li><a href="/about" onClick={(event) => onInternalLink(event, '/about')} className="transition-colors hover:text-white">À propos de MHM SOLUTIONS</a></li>
+              <li><a href="https://partenaires.bacpilot.site" className="transition-colors hover:text-white">Devenir partenaire</a></li>
               <li><a href="/onboarding" onClick={(event) => onInternalLink(event, '/onboarding')} className="transition-colors hover:text-white">Préparer mes pistes</a></li>
             </ul>
           </div>
@@ -46,7 +48,8 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
             <ul className="space-y-2 text-xs sm:text-sm">
               <li><a href="/privacy" onClick={(event) => onInternalLink(event, '/privacy')} className="transition-colors hover:text-white">Politique de confidentialité</a></li>
               <li><a href="/terms" onClick={(event) => onInternalLink(event, '/terms')} className="transition-colors hover:text-white">Conditions d’utilisation</a></li>
-              <li className="pt-2"><a href={`mailto:${MHM_PROMOTION_CONFIG.contact.creatorEmail}`} className="flex items-center gap-1.5 text-rose-400 transition-colors hover:text-rose-300"><Mail className="h-3.5 w-3.5" /><span>{MHM_PROMOTION_CONFIG.contact.creatorEmail}</span></a></li>
+              <li><a href="/contact" onClick={(event) => onInternalLink(event, '/contact')} className="transition-colors hover:text-white">Nous contacter</a></li>
+              <li className="pt-2"><a href={`mailto:${MHM_PROMOTION_CONFIG.contact.officialEmail}`} className="flex items-center gap-1.5 text-rose-400 transition-colors hover:text-rose-300"><Mail className="h-3.5 w-3.5" /><span>{MHM_PROMOTION_CONFIG.contact.officialEmail}</span></a></li>
             </ul>
           </div>
         </div>

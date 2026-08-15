@@ -13,6 +13,9 @@ import { HomePage } from './pages/HomePage';
 import { Seo } from './components/Seo';
 
 const OrientationGuidePage = lazy(() => import('./pages/OrientationGuidePage'));
+const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const PartnerPage = lazy(() => import('./pages/PartnerPage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
@@ -27,6 +30,7 @@ function AppContent() {
   const { user, isLoading } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('/');
   const [isTestsModalOpen, setIsTestsModalOpen] = useState(false);
+  const isPartnerPortal = typeof window !== 'undefined' && window.location.hostname === 'partenaires.bacpilot.site';
 
   // Synchronisation avec l'historique du navigateur
   useEffect(() => {
@@ -81,6 +85,12 @@ function AppContent() {
         return user ? <ProfilePage navigate={navigate} /> : <LoginPage navigate={navigate} />;
       case '/orientation-bac-benin':
         return <OrientationGuidePage />;
+      case '/methodologie':
+        return <MethodologyPage navigate={navigate} />;
+      case '/contact':
+        return <ContactPage />;
+      case '/partenaires':
+        return <PartnerPage />;
       case '/about':
         return <AboutPage navigate={navigate} />;
       case '/privacy':
@@ -91,6 +101,15 @@ function AppContent() {
         return <NotFoundPage navigate={navigate} />;
     }
   };
+
+  if (isPartnerPortal) {
+    return (
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Chargement de l’espace partenaire…</div>}>
+        <Seo route="/" partnerPortal />
+        <PartnerPage partnerPortal />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-rose-500 selection:text-white">

@@ -1,302 +1,94 @@
-/**
- * MHM SOLUTIONS — Après Mon Bac (MVP1)
- * Page de présentation institutionnelle MHM SOLUTIONS et du créateur Hilarus GBAGOULE
- * Créateur : Hilarus GBAGOULE
- */
-
-import React, { useState } from 'react';
-import {
-  Compass,
-  User,
-  ShieldCheck,
-  Target,
-  Sparkles,
-  Send,
-  Mail,
-  Globe,
-  Phone,
-  CheckCircle2,
-  ExternalLink,
-  Linkedin,
-  Twitter,
-  Facebook,
-  MessageCircle,
-  AlertTriangle,
-} from 'lucide-react';
+import React from 'react';
+import { ArrowRight, BadgeCheck, Compass, ExternalLink, Lightbulb, ShieldCheck, UserRound } from 'lucide-react';
 import { MHM_PROMOTION_CONFIG } from '../lib/promotion';
-import { TransparencyBadge } from '../components/TransparencyBadge';
 
 interface AboutPageProps {
   navigate: (route: string) => void;
 }
 
-export const AboutPage: React.FC<AboutPageProps> = ({ navigate }) => {
-  const [contactName, setContactName] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
-  const [contactMessage, setContactMessage] = useState('');
-  const [contactSent, setContactSent] = useState(false);
+const principles = [
+  {
+    title: 'Rendre l’information lisible',
+    description: 'BacPilot transforme des observations disponibles en pistes de comparaison plus simples à lire avant de faire un choix.',
+    icon: Compass,
+  },
+  {
+    title: 'Conserver la décision au candidat',
+    description: 'La plateforme ne choisit ni ne valide à la place de l’élève. Elle aide à préparer une décision qui reste personnelle.',
+    icon: UserRound,
+  },
+  {
+    title: 'Privilégier la transparence',
+    description: 'Les résultats sont présentés comme des pistes à vérifier ; aucune admission ni bourse n’est promise.',
+    icon: ShieldCheck,
+  },
+];
 
-  const handleContactSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setContactSent(true);
-    setContactName('');
-    setContactEmail('');
-    setContactMessage('');
-    setTimeout(() => setContactSent(false), 5000);
+export const AboutPage: React.FC<AboutPageProps> = ({ navigate }) => {
+  const go = (event: React.MouseEvent<HTMLAnchorElement>, route: string) => {
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
+    event.preventDefault();
+    navigate(route);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white py-10 sm:py-16 transition-colors">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-        
-        {/* ========================================================================= */}
-        {/* 1. EN-TÊTE PRINCIPAL                                                      */}
-        {/* ========================================================================= */}
-        <div className="text-center max-w-3xl mx-auto space-y-4">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-rose-500/15 border border-rose-500/30 text-rose-500 dark:text-rose-300">
-            <Compass className="w-3.5 h-3.5" />
-            <span>À propos de MHM SOLUTIONS</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl font-serif font-bold tracking-tight text-slate-900 dark:text-white">
-            {MHM_PROMOTION_CONFIG.brandName}
-          </h1>
-
-          <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-            {MHM_PROMOTION_CONFIG.headline}
+    <div className="min-h-screen bg-slate-50 py-12 text-slate-900 dark:bg-slate-950 dark:text-white sm:py-16">
+      <div className="mx-auto max-w-5xl space-y-16 px-4 sm:px-6 lg:px-8">
+        <section className="mx-auto max-w-3xl text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 dark:text-rose-300">À propos de BacPilot</p>
+          <h1 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl">Une orientation plus claire, sans promesse illusoire.</h1>
+          <p className="mt-6 text-base leading-relaxed text-slate-600 dark:text-slate-300 sm:text-lg">
+            BacPilot est une initiative de <strong>MHM SOLUTIONS</strong> conçue pour aider les nouveaux bacheliers béninois à comparer des pistes d’orientation avec méthode. La plateforme organise les observations disponibles et les met en regard du profil et des priorités volontairement renseignés par chaque candidat.
           </p>
+        </section>
 
-          <div className="inline-block p-2 px-4 rounded-xl bg-slate-200 dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 font-medium">
-            Créateur & Concepteur : <strong className="text-slate-900 dark:text-white">{MHM_PROMOTION_CONFIG.creatorName}</strong>
-          </div>
-        </div>
+        <section className="grid gap-6 md:grid-cols-3">
+          {principles.map(({ title, description, icon: Icon }) => (
+            <article key={title} className="rounded-3xl border border-slate-200 bg-white p-7 dark:border-slate-800 dark:bg-slate-900">
+              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-600 dark:text-rose-300"><Icon className="h-5 w-5" /></div>
+              <h2 className="mt-5 text-lg font-bold">{title}</h2>
+              <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
+            </article>
+          ))}
+        </section>
 
-        {/* ========================================================================= */}
-        {/* 2. SECTION MISSION & VISION                                               */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          
-          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-500 flex items-center justify-center">
-              <Target className="w-6 h-6" />
-            </div>
-            <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 dark:text-white">
-              Notre Mission
-            </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {MHM_PROMOTION_CONFIG.mission}
-            </p>
-          </div>
-
-          <div className="p-8 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-rose-500/20 text-rose-500 flex items-center justify-center">
-              <Sparkles className="w-6 h-6" />
-            </div>
-            <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-900 dark:text-white">
-              Notre Vision
-            </h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {MHM_PROMOTION_CONFIG.vision}
-            </p>
-          </div>
-
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 3. CE QUE LA PLATEFORME APPORTE                                           */}
-        {/* ========================================================================= */}
-        <div className="p-8 sm:p-10 rounded-3xl bg-slate-900 text-white border border-slate-800 space-y-6 shadow-xl">
+        <section className="grid gap-8 rounded-3xl bg-slate-950 p-7 text-white sm:p-10 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
-            <span className="text-xs font-bold uppercase tracking-wider text-rose-400">
-              Valeur Ajoutée & Rigueur
-            </span>
-            <h2 className="text-2xl sm:text-3xl font-serif font-bold tracking-tight mt-1">
-              Ce que la plateforme apporte concrètement
-            </h2>
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-300 text-slate-950"><Lightbulb className="h-6 w-6" /></div>
+            <p className="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-amber-200">L’origine du projet</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight">Faire d’un obstacle vécu une solution utile.</h2>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {MHM_PROMOTION_CONFIG.whatPlatformBrings.map((item, idx) => (
-              <div
-                key={idx}
-                className="p-4 rounded-2xl bg-slate-800/80 border border-slate-700/80 flex items-start gap-3 text-xs sm:text-sm text-slate-200"
-              >
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                <span className="leading-relaxed">{item}</span>
-              </div>
-            ))}
+          <div className="space-y-4 text-sm leading-7 text-slate-300">
+            <p>Face à la multitude de filières, à l’évolution des classements et au choix parfois difficile entre sécurité financière et projet de carrière, BacPilot propose de replacer la comparaison et la vérification au centre de la préparation.</p>
+            <p>La plateforme ne remplace pas les autorités d’orientation. Elle prépare le candidat à consulter les bonnes informations, à poser les bonnes questions et à valider lui-même sa démarche sur le portail officiel compétent.</p>
           </div>
-        </div>
+        </section>
 
-        {/* ========================================================================= */}
-        {/* 4. COORDONNÉES OFFICIELLES & RÉSEAUX SOCIAUX                               */}
-        {/* ========================================================================= */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Site Officiel
-            </div>
-            <a
-              href={MHM_PROMOTION_CONFIG.contact.officialWebsite}
-              target="_blank"
-              rel="noreferrer"
-              className="font-bold text-sm text-rose-500 hover:underline flex items-center gap-1.5"
-            >
-              <Globe className="w-4 h-4" />
-              <span>{MHM_PROMOTION_CONFIG.contact.officialWebsite}</span>
-              <ExternalLink className="w-3.5 h-3.5" />
+        <section className="grid gap-8 border-y border-slate-200 py-14 dark:border-slate-800 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-rose-600 dark:text-rose-300">Le créateur</p>
+            <h2 className="mt-3 text-3xl font-black tracking-tight">Hilarus GBAGOULE</h2>
+            <p className="mt-5 text-sm leading-7 text-slate-600 dark:text-slate-300">
+              Hilarus Gbagoule est un développeur web et créateur de contenu qui présente publiquement son intérêt pour l’intelligence artificielle, le numérique et l’innovation. À travers MHM SOLUTIONS, il conçoit BacPilot comme un outil concret pour rendre l’orientation post-baccalauréat plus accessible et plus compréhensible.
+            </p>
+            <a href={MHM_PROMOTION_CONFIG.contact.creatorPortfolio} target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-rose-600 underline underline-offset-4 dark:text-rose-300">
+              Consulter le portfolio public de Hilarus Gbagoule <ExternalLink className="h-4 w-4" />
             </a>
-            <p className="text-xs text-slate-500">Portail des solutions et initiatives MHM.</p>
           </div>
+          <aside className="rounded-3xl border border-amber-200 bg-amber-50 p-7 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+            <BadgeCheck className="h-6 w-6 text-amber-700 dark:text-amber-300" />
+            <h3 className="mt-4 text-lg font-black">Un engagement de clarté</h3>
+            <p className="mt-3 text-sm leading-relaxed">Chaque recommandation est une aide à la préparation. Les règles officielles, les conditions d’admission et la validation finale restent les références pour toute démarche.</p>
+          </aside>
+        </section>
 
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Email de Contact
-            </div>
-            <a
-              href={`mailto:${MHM_PROMOTION_CONFIG.contact.creatorEmail}`}
-              className="font-bold text-sm text-indigo-500 hover:underline flex items-center gap-1.5"
-            >
-              <Mail className="w-4 h-4" />
-              <span>{MHM_PROMOTION_CONFIG.contact.creatorEmail}</span>
-            </a>
-            <p className="text-xs text-slate-500">Support et demandes de partenariats académiques.</p>
-          </div>
-
-          <div className="p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
-            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
-              Réseaux Sociaux
-            </div>
-            <div className="flex items-center gap-2">
-              <a
-                href={MHM_PROMOTION_CONFIG.socialLinks[0].url}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-rose-500 transition-colors"
-                title="LinkedIn"
-              >
-                <Linkedin className="w-4 h-4" />
-              </a>
-              <a
-                href={MHM_PROMOTION_CONFIG.socialLinks[1].url}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-rose-500 transition-colors"
-                title="Twitter / X"
-              >
-                <Twitter className="w-4 h-4" />
-              </a>
-              <a
-                href={MHM_PROMOTION_CONFIG.socialLinks[2].url}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-rose-500 transition-colors"
-                title="Facebook"
-              >
-                <Facebook className="w-4 h-4" />
-              </a>
-              <a
-                href={MHM_PROMOTION_CONFIG.socialLinks[3].url}
-                target="_blank"
-                rel="noreferrer"
-                className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:text-emerald-500 transition-colors"
-                title="WhatsApp"
-              >
-                <MessageCircle className="w-4 h-4" />
-              </a>
-            </div>
-            <p className="text-xs text-slate-500">Suivez nos actualités et alertes d'orientation.</p>
-          </div>
-
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 5. FORMULAIRE DE CONTACT (PRÊT POUR RELIURE FUTURE)                       */}
-        {/* ========================================================================= */}
-        <div className="p-8 sm:p-10 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-          <div>
-            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-sans">
-              Nous contacter / Poser une question
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Ce formulaire est prêt pour être relié à notre passerelle de messagerie (n8n / Supabase Edge Functions).
-            </p>
-          </div>
-
-          {contactSent && (
-            <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-sm flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="w-5 h-5 text-emerald-500 flex-shrink-0" />
-              <span>Merci pour votre message ! L'équipe de contact MHM SOLUTIONS vous répondra prochainement.</span>
-            </div>
-          )}
-
-          <form onSubmit={handleContactSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Votre Nom
-                </label>
-                <input
-                  type="text"
-                  value={contactName}
-                  onChange={(e) => setContactName(e.target.value)}
-                  placeholder="Ex: Hilarus"
-                  className="w-full px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                  Votre Adresse E-mail
-                </label>
-                <input
-                  type="email"
-                  value={contactEmail}
-                  onChange={(e) => setContactEmail(e.target.value)}
-                  placeholder="votre.email@exemple.com"
-                  className="w-full px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                  required
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">
-                Votre Message
-              </label>
-              <textarea
-                rows={4}
-                value={contactMessage}
-                onChange={(e) => setContactMessage(e.target.value)}
-                placeholder="Décrivez votre besoin d'information ou votre demande d'assistance..."
-                className="w-full px-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
-                required
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="px-7 py-3 rounded-xl font-bold text-sm bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-950/30 flex items-center gap-2 transition-all hover:scale-105"
-            >
-              <Send className="w-4 h-4" />
-              <span>Envoyer mon message</span>
-            </button>
-          </form>
-        </div>
-
-        {/* ========================================================================= */}
-        {/* 6. AVERTISSEMENT DÉONTOLOGIQUE                                            */}
-        {/* ========================================================================= */}
-        <div className="p-5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 text-xs leading-relaxed flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-          <div>
-            <strong>Avertissement déontologique :</strong> {MHM_PROMOTION_CONFIG.ethicsDisclaimer}
-          </div>
-        </div>
-
+        <section className="flex flex-col items-start justify-between gap-5 rounded-3xl border border-rose-200 bg-rose-50 p-7 dark:border-rose-500/20 dark:bg-rose-500/10 sm:flex-row sm:items-center">
+          <div><h2 className="text-xl font-black">Comprendre concrètement le fonctionnement</h2><p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Découvrez comment BacPilot prépare des pistes avant toute validation officielle.</p></div>
+          <a href="/methodologie" onClick={(event) => go(event, '/methodologie')} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-rose-500 px-5 py-3 text-sm font-bold text-white">Voir la méthode <ArrowRight className="h-4 w-4" /></a>
+        </section>
       </div>
     </div>
   );
 };
+
+export default AboutPage;
