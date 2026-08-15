@@ -10,7 +10,7 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | `2f4f011` — persistance fiable de la configuration de synchronisation dans l’extension officielle |
+| Dernier commit confirmé | `26de6e9` — prévalidation serveur obligatoire avant toute collecte de l’extension officielle |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
 | Date de cette mémoire | 15 août 2026 |
