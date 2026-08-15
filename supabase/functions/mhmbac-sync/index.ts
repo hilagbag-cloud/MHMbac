@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mhm-sync-token',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-mhm-sync-token, x-mhm-sync-token-b64',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
@@ -76,12 +76,25 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function decodeBase64Url(value: string | null): string | null {
+  if (!value || value.length > 4096 || !/^[A-Za-z0-9_-]+$/.test(value)) return null;
+  try {
+    const padding = '='.repeat((4 - (value.length % 4)) % 4);
+    const binary = atob(value.replace(/-/g, '+').replace(/_/g, '/') + padding);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ ok: false, error: 'Méthode non autorisée' }, 405);
 
   const expectedToken = Deno.env.get('MHM_SYNC_TOKEN');
-  const receivedToken = request.headers.get('x-mhm-sync-token');
+  const encodedToken = request.headers.get('x-mhm-sync-token-b64');
+  const receivedToken = encodedToken ? decodeBase64Url(encodedToken) : request.headers.get('x-mhm-sync-token');
   if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
     return json({ ok: false, error: 'Jeton de synchronisation invalide' }, 401);
   }
