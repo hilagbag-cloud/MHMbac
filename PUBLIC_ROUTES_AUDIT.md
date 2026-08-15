@@ -14,3 +14,4 @@
 | CTA Onboarding → `/login` | Clic réel sur « Me connecter pour commencer ». | Conforme : page de connexion affichée. |
 | `/partenaires` (prévisualisation locale) | Page partenaire, lien de proposition et liens `mailto:` vers les deux adresses officielles. | Conforme sur le contenu et les actions ; l’URL publique cible reste `https://partenaires.bacpilot.site` et attend son CNAME LWS. |
 | `/partenaires` après métadonnées | Titre, contenu, lien de proposition et canaux de contact/support. | Conforme : titre « Devenir partenaire », actions `mailto:` vers `contact@bacpilot.site` et `support@bacpilot.site`, sans formulaire simulé. |
+| `https://partenaires.bacpilot.site/` (production) | Sous-domaine HTTPS, rendu de l’espace partenaire, titre et canaux de contact. | Conforme : Vercel vérifie le domaine, HTTPS 200, titre « Devenir partenaire | BacPilot », liens vers `contact@bacpilot.site` et `support@bacpilot.site` visibles. |
