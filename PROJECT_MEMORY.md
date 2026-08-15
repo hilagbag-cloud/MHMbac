@@ -8,7 +8,7 @@
 | Créateur | **Hilarus GBAGOULE** |
 | Signature | **Compare. Décide. Avance.** |
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
-| Production | [https://bacpilot.site](https://bacpilot.site) — DNS validés par Vercel ; activation HTTPS à confirmer après émission du certificat. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
+| Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
 | Dernier commit confirmé | `32f659b` — interface **Preuves & Top 3** |
 | Projet Vercel canonique | `hila2/mhmbac` |
@@ -123,7 +123,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 5 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
 | 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
 | 7 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
-| 8 | Confirmer l’émission du certificat HTTPS pour `bacpilot.site`, puis mettre à jour les liens publics et UTM. | Accès HTTPS confirmé sur le domaine et aucune référence de campagne ne pointe encore vers l’ancienne URL Vercel. |
+| 8 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
 | 9 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
 
 ## 10. Journal de continuité
@@ -138,7 +138,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | Kit prêt, non publié | Post Assomption BacPilot créé après vérification du ton local : visuel 4:5, légende courte et signature discrète. | Publier séparément du Reel, sans lien ni CTA commercial. |
 | 15 août 2026 | Recherche terminée, achat non effectué | Comparaison de domaines : `bacpilot.com` chez Spaceship recommandé pour le coût, la lisibilité et le renouvellement prévisible ; `.xyz` est le coût minimal sur deux ans. | Attendre le choix et l’accord explicite avant tout achat. |
 | 15 août 2026 | Kit prêt, profil non configuré | Informations, photo de profil et bannière Facebook préparées pour le profil professionnel BacPilot existant. | Connexion au compte Facebook requise avant configuration. |
-| 15 août 2026 | Configuration externe validée | `bacpilot.site` et `www.bacpilot.site` associés au projet Vercel `hila2/mhmbac`. Les deux A de l’apex et le CNAME `www` ont été validés par Vercel ; le domaine répond en HTTP. | Attendre l’émission effective du certificat puis confirmer la réponse HTTPS avant de remplacer les liens publics. |
+| 15 août 2026 | Domaine actif | `bacpilot.site` et `www.bacpilot.site` associés au projet Vercel `hila2/mhmbac`. Les DNS sont validés ; un certificat Vercel couvre les deux variantes et chacune répond en HTTPS 200 avec HSTS. | Remplacer les liens de bios, contenus marketing et UTM par `https://bacpilot.site`. |
 
 ## 11. Règle de reprise de session
 
