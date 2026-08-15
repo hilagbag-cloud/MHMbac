@@ -11,7 +11,7 @@
 | Fichier | Usage | Format |
 |---|---|---|
 | `reel-bacpilot-day1-ready.mp4` | Reel Instagram, Reel Facebook et Statut WhatsApp vidéo. | Portrait 720 × 1280, 7,85 s, voix-off incluse. |
-| `reel-cover-bacpilot-day1.png` | Couverture Reel, Story statique ou visuel WhatsApp. | Portrait 1440 × 2560. |
+| `reel-cover-bacpilot-day1-instagram-cover.png` | Couverture Reel pour l’aperçu Instagram et la grille du profil. | Format 4:5, avec titre et marque éloignés des bords. |
 | `voix-off-bacpilot-day1.wav` | Piste séparée si une modification du montage est nécessaire. | WAV français. |
 
 Les fichiers sont livrés dans le dossier de lancement local et ne contiennent ni promesse d’admission ni donnée d’inscription inventée.
@@ -34,7 +34,7 @@ Pour WhatsApp, conserver le même lien mais remplacer `instagram` par `whatsapp`
 |---|---|
 | Format | Reel vertical 9:16 |
 | Fichier | `reel-bacpilot-day1-ready.mp4` |
-| Couverture | `reel-cover-bacpilot-day1.png` |
+| Couverture | `reel-cover-bacpilot-day1-instagram-cover.png` — adaptée au cadrage de l’aperçu Instagram. |
 | Publication | Aujourd’hui, à un créneau où la personne qui publie peut répondre aux commentaires pendant une heure. Un lancement entre 18 h 30 et 20 h 30, heure du Bénin, est un point de départ pratique à tester. |
 | Lien | Lien en bio vers BacPilot ; ajouter le lien UTM ci-dessus. |
 | Épinglage | Épingler le Reel après publication s’il devient la présentation principale du compte. |
