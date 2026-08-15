@@ -16,7 +16,7 @@ function setFeedback(message, kind = '') {
   node.className = `feedback ${kind}`;
 }
 
-function renderCollection(state = {}) {
+function renderCollection(state = {}, config = {}) {
   const total = Number(state.totalCandidates || 0);
   const done = Number(state.completedCandidates || 0);
   const items = Array.isArray(state.items) ? state.items.length : 0;
@@ -32,7 +32,9 @@ function renderCollection(state = {}) {
     <div class="detail"><span>Observations brutes</span><strong>${items}</strong></div>
     <div class="detail"><span>Échecs documentés</span><strong>${errors}</strong></div>`;
   const recoverable = Boolean(state.collectionId && ['paused', 'running'].includes(state.status) && total > done);
-  $('resumeScan').disabled = !recoverable;
+  const readyForScan = Boolean(config.readyForScan);
+  $('startScan').disabled = !readyForScan || state.status === 'running';
+  $('resumeScan').disabled = !recoverable || !readyForScan;
   $('cancelScan').disabled = state.status !== 'running';
 }
 
@@ -42,10 +44,12 @@ function renderQueue(queue = [], config = {}, state = {}) {
   $('queueBadge').className = `badge ${count ? 'warning' : ''}`;
   $('syncStatus').textContent = count ? 'Reprise planifiée' : 'À jour';
   $('syncMessage').textContent = state.syncMessage || (count ? `${count} lot(s) conservé(s) localement et réessayé(s) automatiquement.` : 'Aucun lot en attente.');
-  const configState = config.tokenState || (config.configured ? 'ready' : 'missing');
-  const configLabels = { ready: 'Configurée localement', missing: 'Jeton requis', invalid: 'Jeton à corriger' };
-  $('configState').textContent = configLabels[configState] || 'Jeton requis';
-  $('configState').className = `badge ${configState === 'ready' ? '' : 'warning'}`;
+  const configState = config.verificationStatus || config.tokenState || (config.configured ? 'unverified' : 'missing');
+  const configLabels = { verified: 'Test validé', unverified: 'Test requis', missing: 'Jeton requis', invalid: 'Jeton à corriger', failed: 'Test à corriger' };
+  $('configState').textContent = configLabels[configState] || 'Test requis';
+  $('configState').className = `badge ${configState === 'verified' ? '' : 'warning'}`;
+  $('configMessage').textContent = config.verificationMessage || 'Saisissez puis testez le jeton avant la collecte.';
+  $('testConfig').disabled = config.tokenState !== 'ready';
   if (!count) { $('queueList').innerHTML = '<p>Aucun lot en attente.</p>'; return; }
   $('queueList').innerHTML = queue.map((entry) => `<div class="queue-item"><strong>${escapeHtml(entry.payload?.items?.length || 0)} observation(s) · lot ${escapeHtml(entry.payload?.part || '—')}/${escapeHtml(entry.payload?.totalParts || '—')}</strong><small>Créé : ${escapeHtml(formatDate(entry.createdAt))} · Tentatives : ${escapeHtml(entry.attempts || 0)}</small><small>${escapeHtml(entry.lastError || `Prochaine tentative : ${entry.nextAttemptAt ? formatDate(entry.nextAttemptAt) : 'dès que possible'}`)}</small></div>`).join('');
 }
@@ -59,7 +63,7 @@ function renderDiagnostics(diagnostics = []) {
 function render(data) {
   snapshot = data;
   const state = data.state || {};
-  renderCollection(state);
+  renderCollection(state, data.config || {});
   renderQueue(data.queue || [], data.config || {}, state);
   renderDiagnostics(data.diagnostics || []);
   $('syncEndpoint').value = data.config?.endpoint || '';
@@ -105,9 +109,15 @@ $('syncNow').addEventListener('click', () => withAction('syncNow', async () => {
 $('saveConfig').addEventListener('click', () => withAction('saveConfig', async () => {
   const endpoint = $('syncEndpoint').value.trim();
   const token = $('syncToken').value.trim();
-  await request('BP_SET_CONFIG', { endpoint, syncToken: token || null });
+  const result = await request('BP_SET_CONFIG', { endpoint, syncToken: token || null });
   $('syncToken').value = '';
-  setFeedback(token ? 'Configuration locale enregistrée.' : 'Endpoint enregistré ; le jeton local existant est conservé.', 'success');
+  if (result.validation?.ok) setFeedback('Configuration enregistrée et test serveur validé. Vous pouvez lancer une collecte.', 'success');
+  else setFeedback(result.validation?.message || 'Configuration enregistrée, mais le test serveur doit être corrigé avant la collecte.', 'error');
+}));
+$('testConfig').addEventListener('click', () => withAction('testConfig', async () => {
+  const result = await request('BP_TEST_CONFIG');
+  if (result.validation?.ok) setFeedback('Jeton enregistré et serveur validé. Collecte autorisée.', 'success');
+  else setFeedback(result.validation?.message || 'Test serveur non validé.', 'error');
 }));
 $('exportData').addEventListener('click', () => {
   const state = snapshot?.state || {};

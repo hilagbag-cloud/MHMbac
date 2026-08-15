@@ -35,5 +35,7 @@ assert(/syncToken:\s*''/.test(worker), 'Le package doit démarrer sans jeton de 
 assert(!/gsk_|AIza|service_role|MHM_SYNC_CONFIG/.test(joined), 'Une clé ou une configuration héritée sensible est présente dans le package.');
 assert(/SYNC_TOKEN_PATTERN/.test(worker) && /ASCII/.test(worker), 'La validation ASCII du jeton de synchronisation est requise.');
 assert(/function ensureStorage\(\)/.test(worker) && /await ensureStorage\(\);/.test(worker), 'Les actions doivent attendre l’initialisation du stockage local.');
+assert(/action: 'preflight'/.test(worker) && /requireVerifiedConfiguration\('before_scan'\)/.test(worker), 'Le prévol serveur doit être obligatoire avant une collecte.');
+assert(/BP_TEST_CONFIG/.test(worker) && /testConfig/.test(consoleCode), 'La console doit permettre de retester la configuration enregistrée.');
 
 console.log('Validation extension officielle : OK');

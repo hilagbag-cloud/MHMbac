@@ -93,6 +93,17 @@ Deno.serve(async (request) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ ok: false, error: 'JSON invalide' }, 400); }
 
+  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  if (body?.action === 'preflight') {
+    const { error } = await admin.from('live_programmes').select('programme_id').limit(1);
+    if (error) return json({ ok: false, error: 'Vérification serveur impossible' }, 500);
+    return json({ ok: true, mode: 'preflight', message: 'Jeton validé et serveur prêt pour la collecte.', serverCheckedAt: new Date().toISOString() });
+  }
+
+  const batchId = cleanText(body?.batchId, 120);
+  if (!batchId) return json({ ok: false, error: 'batchId obligatoire pour garantir l’idempotence' }, 400);
+  const part = nonNegativeInteger(body?.part) ?? 0;
+  const totalParts = nonNegativeInteger(body?.totalParts) ?? 1;
   const rawItems = Array.isArray(body?.items) ? body.items : [];
   if (rawItems.length === 0 || rawItems.length > 500) return json({ ok: false, error: 'Le relevé doit contenir entre 1 et 500 filières' }, 400);
 
@@ -105,7 +116,6 @@ Deno.serve(async (request) => {
   for (const item of items) unique.set(item.programmeId, item);
   items = [...unique.values()];
 
-  const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   const programmeIds = items.map((item) => item.programmeId);
   const { data: previous, error: previousError } = await admin
     .from('live_programmes')
@@ -157,5 +167,5 @@ Deno.serve(async (request) => {
     if (alertError) return json({ ok: false, error: alertError.message }, 500);
   }
 
-  return json({ ok: true, received: items.length, updated: rows.length, alerts: alerts.length, observedAt });
+  return json({ ok: true, batchId, part, totalParts, received: items.length, updated: rows.length, alerts: alerts.length, observedAt, serverReceivedAt: new Date().toISOString() });
 });

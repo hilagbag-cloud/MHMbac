@@ -42,10 +42,12 @@
 |---:|---|
 | 1 | Ouvrir et authentifier sa session sur le portail officiel. |
 | 2 | Ouvrir la console BacPilot via l’icône de l’extension. |
-| 3 | Cliquer sur **Nouvelle collecte**. |
-| 4 | Laisser l’onglet officiel ouvert pendant la lecture. La console peut être réduite, déplacée ou fermée : l’état est conservé. |
-| 5 | En cas d’interruption, rouvrir le portail officiel, se reconnecter si besoin, puis cliquer sur **Reprendre la collecte**. |
-| 6 | Vérifier le panneau **Lots conservés localement** jusqu’à confirmation de synchronisation. |
+| 3 | Ouvrir **Administration locale**, saisir le jeton, puis cliquer sur **Enregistrer et tester**. |
+| 4 | Attendre le badge **Test validé** ; **Nouvelle collecte** et **Reprendre la collecte** restent bloqués tant que le serveur n’a pas confirmé le jeton. |
+| 5 | Cliquer sur **Nouvelle collecte**. |
+| 6 | Laisser l’onglet officiel ouvert pendant la lecture. La console peut être réduite, déplacée ou fermée : l’état est conservé. |
+| 7 | En cas d’interruption, rouvrir le portail officiel, se reconnecter si besoin, puis cliquer sur **Reprendre la collecte**. |
+| 8 | Vérifier le panneau **Lots conservés localement** jusqu’à confirmation de synchronisation. |
 
 ## Configuration de synchronisation réservée à l’opérateur autorisé
 

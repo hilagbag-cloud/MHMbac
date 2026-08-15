@@ -8,7 +8,8 @@ const STORAGE_KEYS = Object.freeze({
 
 const DEFAULT_CONFIG = Object.freeze({
   endpoint: 'https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/mhmbac-sync',
-  syncToken: ''
+  syncToken: '',
+  verification: { status: 'unverified', checkedAt: null, message: 'Saisissez puis testez le jeton avant la collecte.' }
 });
 
 const RETRY_ALARM = 'bacpilot-official-retry';
@@ -62,12 +63,23 @@ function ensureStorage() {
 async function getState() {
   await ensureStorage();
   const data = await chrome.storage.local.get([STORAGE_KEYS.state, STORAGE_KEYS.queue, STORAGE_KEYS.config, STORAGE_KEYS.diagnostics, STORAGE_KEYS.sourceTabId]);
-  const syncToken = data[STORAGE_KEYS.config]?.syncToken || '';
+  const config = { ...DEFAULT_CONFIG, ...(data[STORAGE_KEYS.config] || {}) };
+  const syncToken = config.syncToken || '';
   const tokenState = !syncToken ? 'missing' : (isValidSyncToken(syncToken) ? 'ready' : 'invalid');
+  const verification = config.verification || DEFAULT_CONFIG.verification;
+  const verificationStatus = tokenState === 'ready' ? (verification.status || 'unverified') : tokenState;
   return {
     state: data[STORAGE_KEYS.state],
     queue: data[STORAGE_KEYS.queue] || [],
-    config: { endpoint: data[STORAGE_KEYS.config]?.endpoint || DEFAULT_CONFIG.endpoint, configured: tokenState === 'ready', tokenState },
+    config: {
+      endpoint: config.endpoint || DEFAULT_CONFIG.endpoint,
+      configured: tokenState === 'ready',
+      tokenState,
+      verificationStatus,
+      verificationMessage: verification.message || '',
+      verificationCheckedAt: verification.checkedAt || null,
+      readyForScan: tokenState === 'ready' && verificationStatus === 'verified'
+    },
     diagnostics: data[STORAGE_KEYS.diagnostics] || [],
     sourceTabId: data[STORAGE_KEYS.sourceTabId] || null
   };
@@ -163,6 +175,49 @@ async function enqueueCollection(state) {
   return next;
 }
 
+async function testSyncConfiguration(config) {
+  if (!config.syncToken) return { ok: false, permanent: true, stage: 'configuration', message: 'Saisissez le jeton de collecte avant de lancer le test.' };
+  if (!isValidSyncToken(config.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(config.endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-mhm-sync-token': config.syncToken },
+      body: JSON.stringify({ action: 'preflight', source: 'bacpilot_chrome_official' }),
+      signal: controller.signal
+    });
+    const raw = await response.text();
+    let body = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
+    if (response.ok && body.ok && body.mode === 'preflight') return { ok: true, stage: 'preflight', message: 'Jeton validé et serveur prêt pour la collecte.', httpStatus: response.status };
+    if (response.status === 401) return { ok: false, permanent: true, stage: 'authentication', message: 'Jeton de collecte refusé. Vérifiez qu’il correspond au secret serveur.', httpStatus: response.status };
+    return { ok: false, permanent: false, stage: 'server_response', message: body.error || `Test serveur incomplet (HTTP ${response.status}).`, httpStatus: response.status };
+  } catch (error) {
+    return { ok: false, permanent: false, stage: 'network', message: error?.name === 'AbortError' ? 'Délai dépassé lors du test serveur.' : String(error?.message || 'Échec réseau pendant le test serveur.') };
+  } finally { clearTimeout(timeout); }
+}
+
+async function verifySyncConfiguration(trigger = 'manual') {
+  await ensureStorage();
+  const { [STORAGE_KEYS.config]: stored = DEFAULT_CONFIG } = await chrome.storage.local.get(STORAGE_KEYS.config);
+  const config = { ...DEFAULT_CONFIG, ...stored };
+  const result = await testSyncConfiguration(config);
+  const next = {
+    ...config,
+    verification: { status: result.ok ? 'verified' : 'failed', checkedAt: nowIso(), message: result.message }
+  };
+  await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
+  await addDiagnostic(result.ok ? 'success' : (result.permanent ? 'warning' : 'error'), 'preflight', result.message, { trigger, httpStatus: result.httpStatus || null });
+  return result;
+}
+
+async function requireVerifiedConfiguration(trigger) {
+  const result = await verifySyncConfiguration(trigger);
+  if (!result.ok) throw new Error(`Collecte bloquée : ${result.message}`);
+  return result;
+}
+
 async function sendBatch(entry, config) {
   if (!config.syncToken) return { ok: false, permanent: true, stage: 'configuration', message: 'Synchronisation en attente : configurez le jeton de collecte dans la console officielle.' };
   if (!isValidSyncToken(config.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
@@ -234,6 +289,7 @@ async function flushQueue(trigger = 'manual') {
 }
 
 async function startScan(tabId = null) {
+  await requireVerifiedConfiguration('before_scan');
   const tab = await findSourceTab(tabId);
   const response = await sendToContent(tab.id, { type: 'BP_START_COLLECTION' });
   if (!response?.ok) throw new Error(response?.error || 'La collecte ne peut pas démarrer.');
@@ -241,6 +297,7 @@ async function startScan(tabId = null) {
 }
 
 async function resumeScan(tabId = null) {
+  await requireVerifiedConfiguration('before_resume');
   const tab = await findSourceTab(tabId);
   const snapshot = await getState();
   const response = await sendToContent(tab.id, { type: 'BP_RESUME_COLLECTION', state: snapshot.state });
@@ -277,14 +334,25 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'BP_SYNC_NOW':
         return { ok: true, ...(await flushQueue('manual')) };
       case 'BP_SET_CONFIG': {
-        const current = (await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || DEFAULT_CONFIG;
+        const current = { ...DEFAULT_CONFIG, ...((await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || {}) };
         const suppliedToken = message.syncToken === null || message.syncToken === undefined ? current.syncToken : String(message.syncToken).trim();
         if (suppliedToken && !isValidSyncToken(suppliedToken)) return { ok: false, configured: Boolean(current.syncToken), error: INVALID_SYNC_TOKEN_MESSAGE };
-        const next = { ...current, endpoint: String(message.endpoint || DEFAULT_CONFIG.endpoint).trim(), syncToken: suppliedToken };
+        const endpoint = String(message.endpoint || DEFAULT_CONFIG.endpoint).trim();
+        const changed = endpoint !== current.endpoint || suppliedToken !== current.syncToken;
+        const next = {
+          ...current,
+          endpoint,
+          syncToken: suppliedToken,
+          verification: changed ? { status: 'unverified', checkedAt: null, message: 'Configuration enregistrée ; test serveur en cours.' } : current.verification
+        };
         await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
         await addDiagnostic('info', 'configuration', next.syncToken ? 'Configuration de synchronisation enregistrée localement.' : 'Jeton de synchronisation retiré ; les lots restent conservés localement.');
-        return { ok: true, configured: Boolean(next.syncToken) };
+        if (!next.syncToken) return { ok: true, configured: false, validation: { ok: false, stage: 'configuration', message: 'Saisissez un jeton pour activer le test.' } };
+        const validation = await verifySyncConfiguration('configuration_saved');
+        return { ok: true, configured: true, validation };
       }
+      case 'BP_TEST_CONFIG':
+        return { ok: true, validation: await verifySyncConfiguration('manual_test') };
       case 'BP_CLEAR_LOCAL_DATA':
         await chrome.storage.local.set({ [STORAGE_KEYS.state]: { status: 'idle', collectionId: null, observedAt: null, startedAt: null, updatedAt: nowIso(), totalCandidates: 0, completedCandidates: 0, items: [], errors: [], message: 'Données locales effacées par l’utilisateur.' }, [STORAGE_KEYS.queue]: [] });
         await addDiagnostic('info', 'local_data', 'Données de collecte et lots en attente effacés par l’utilisateur.');

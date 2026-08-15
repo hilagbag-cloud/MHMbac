@@ -42,10 +42,11 @@
 
       <details class="panel configuration">
         <summary><span><p class="eyebrow">Administration locale</p><h2>Synchronisation BacPilot</h2></span><span id="configState" class="badge">Non configurée</span></summary>
-        <p>Le jeton de collecte ne figure pas dans le package. Il est enregistré uniquement dans le stockage local de ce navigateur par une personne autorisée.</p>
+        <p>Avant toute collecte, saisissez le jeton, enregistrez-le puis attendez le test automatique du serveur. Le scan reste bloqué tant que ce test n’est pas validé.</p>
         <label>Endpoint de synchronisation<input id="syncEndpoint" type="url" autocomplete="off" /></label>
         <label>Nouveau jeton de collecte <input id="syncToken" type="password" autocomplete="new-password" placeholder="Laissez vide pour conserver le jeton local" /></label>
-        <button id="saveConfig" class="secondary">Enregistrer la configuration</button>
+        <p id="configMessage" class="configuration-message">Saisissez puis testez le jeton avant la collecte.</p>
+        <div class="configuration-actions"><button id="saveConfig" class="secondary">Enregistrer et tester</button><button id="testConfig" class="quiet">Tester le jeton enregistré</button></div>
       </details>
 
       <details class="panel diagnostics">

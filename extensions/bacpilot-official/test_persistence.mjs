@@ -12,7 +12,7 @@ function eventHub() {
   return { addListener(listener) { listeners.push(listener); }, listeners };
 }
 
-function makeRuntime() {
+function makeRuntime(fetchImpl = globalThis.fetch) {
   const onInstalled = eventHub();
   const onStartup = eventHub();
   const onMessage = eventHub();
@@ -32,11 +32,11 @@ function makeRuntime() {
     action: { onClicked: action },
     alarms: { onAlarm: alarms, async create() {} },
     storage: { local },
-    tabs: { async query() { return []; }, async get() { throw new Error('not used in this test'); }, async sendMessage() {} },
+    tabs: { async query() { return [{ id: 7, url: 'https://apresmonbac.bj/Home/choice', active: true }]; }, async get() { return { id: 7, url: 'https://apresmonbac.bj/Home/choice', active: true }; }, async sendMessage() { return { ok: true }; } },
     windows: { async create() {}, async update() {} },
     scripting: { async executeScript() {} }
   };
-  const context = vm.createContext({ chrome, console, crypto: webcrypto, fetch: globalThis.fetch, Response, setTimeout, clearTimeout, Date, Promise, String, Number, Boolean, Array, Object, Math, JSON });
+  const context = vm.createContext({ chrome, console, crypto: webcrypto, fetch: fetchImpl, Response, AbortController, setTimeout, clearTimeout, Date, Promise, String, Number, Boolean, Array, Object, Math, JSON });
   vm.runInContext(code, context, { filename: 'service-worker.js' });
   return { onMessage, context };
 }
@@ -60,7 +60,13 @@ async function send(onMessage, message) {
   });
 }
 
-const firstWorker = makeRuntime();
+const preflightFetch = async (_url, options) => {
+  const body = JSON.parse(options.body || '{}');
+  if (body.action !== 'preflight') throw new Error('Requête réseau non attendue dans ce test.');
+  return new Response(JSON.stringify({ ok: true, mode: 'preflight' }), { status: 200 });
+};
+
+const firstWorker = makeRuntime(preflightFetch);
 const immediateSave = await send(firstWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026' });
 if (!immediateSave.ok || storage.bacpilotOfficialConfig.syncToken !== 'stable-sync-token-2026') throw new Error('La configuration enregistrée au démarrage doit survivre à l’initialisation du stockage.');
 await waitFor(() => storage.bacpilotOfficialState);
@@ -85,7 +91,7 @@ const completed = await send(firstWorker.onMessage, { type: 'BP_COLLECTION_COMPL
 if (!completed.ok || storage.bacpilotOfficialSyncQueue.length !== 1) throw new Error('Le lot terminé devait être placé dans la file locale.');
 if (storage.bacpilotOfficialSyncQueue[0].payload.items.length !== 2) throw new Error('Les observations brutes ne sont pas intégralement conservées.');
 
-const restartedWorker = makeRuntime();
+const restartedWorker = makeRuntime(preflightFetch);
 await waitFor(() => storage.bacpilotOfficialState);
 const afterRestart = await send(restartedWorker.onMessage, { type: 'BP_GET_STATE' });
 if (!afterRestart.ok || afterRestart.state.collectionId !== 'collection-test-001') throw new Error('La collecte a été perdue au redémarrage du service worker.');
@@ -97,5 +103,11 @@ const configResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFI
 if (!configResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken) throw new Error('Un champ de jeton vide ne doit pas effacer le jeton local existant.');
 const invalidTokenResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: 'jeton-é-invalide' });
 if (invalidTokenResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken || !String(invalidTokenResult.error || '').includes('ASCII')) throw new Error('Un jeton Unicode doit être refusé avant toute requête HTTP.');
+storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026', verification: { status: 'unverified', checkedAt: null, message: '' } };
+const authorizedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
+if (!authorizedScan.ok || storage.bacpilotOfficialConfig.verification?.status !== 'verified') throw new Error('Une collecte doit lancer et mémoriser un prévol serveur réussi avant de démarrer.');
+storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: '', verification: { status: 'unverified', checkedAt: null, message: '' } };
+const blockedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
+if (blockedScan.ok || !String(blockedScan.error || '').includes('Collecte bloquée')) throw new Error('Une collecte doit être refusée tant que le jeton n’est pas configuré et testé.');
 
-console.log('Test de reprise après fermeture et validation du jeton : OK');
+console.log('Test de reprise, prévol et validation du jeton : OK');
