@@ -11,6 +11,7 @@ import { Footer } from './components/Footer';
 import { VerificationModal } from './components/VerificationModal';
 import { HomePage } from './pages/HomePage';
 import { Seo } from './components/Seo';
+import { recordBetaEvent } from './lib/beta';
 
 const OrientationGuidePage = lazy(() => import('./pages/OrientationGuidePage'));
 const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
@@ -25,9 +26,10 @@ const AboutPage = lazy(() => import('./pages/AboutPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const BetaPage = lazy(() => import('./pages/BetaPage').then((module) => ({ default: module.BetaPage })));
 
 function AppContent() {
-  const { user, isLoading } = useAuth();
+  const { user, isBetaTester, isLoading } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('/');
   const [isTestsModalOpen, setIsTestsModalOpen] = useState(false);
   const isPartnerPortal = typeof window !== 'undefined' && window.location.hostname === 'partenaires.bacpilot.site';
@@ -45,6 +47,12 @@ function AppContent() {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (user && isBetaTester && currentRoute !== '/beta') {
+      void recordBetaEvent('route_view', currentRoute === '/' ? 'accueil' : currentRoute.replace('/', '') as any, currentRoute);
+    }
+  }, [currentRoute, isBetaTester, user]);
 
   const navigate = (route: string) => {
     const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
@@ -83,6 +91,8 @@ function AppContent() {
         return user ? <DashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} />;
       case '/profile':
         return user ? <ProfilePage navigate={navigate} /> : <LoginPage navigate={navigate} />;
+      case '/beta':
+        return <BetaPage navigate={navigate} />;
       case '/orientation-bac-benin':
         return <OrientationGuidePage />;
       case '/methodologie':

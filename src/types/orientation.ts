@@ -20,6 +20,22 @@ export interface UserProfile {
   updated_at?: string;
 }
 
+export type BetaTesterStatus = 'invited' | 'active' | 'paused' | 'revoked';
+
+export interface BetaTester {
+  user_id: string;
+  status: BetaTesterStatus;
+  cohort: string;
+  joined_at?: string;
+  consent_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type BetaFeedbackCategory = 'bug' | 'confusion' | 'idea' | 'praise';
+export type BetaFeedbackSeverity = 'low' | 'medium' | 'high' | 'blocker';
+export type BetaZone = 'accueil' | 'onboarding' | 'dashboard' | 'profil' | 'extension' | 'authentification' | 'autre';
+
 export interface UserPreferences {
   id?: string;
   user_id: string;

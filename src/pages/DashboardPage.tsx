@@ -14,6 +14,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Bug,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { askOrientationAssistant, AssistantRecommendation, AssistantResponse, formatAssistantFreshness } from '../lib/orientationAssistant';
@@ -57,7 +58,7 @@ function factorText(item: AssistantRecommendation) {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
-  const { profile, preferences, updatePreferences } = useAuth();
+  const { profile, preferences, isBetaTester, updatePreferences } = useAuth();
   const [goal, setGoal] = useState<PrimaryGoal>(preferences?.primary_goal || 'bourse');
   const [selected, setSelected] = useState<number[]>([]);
   const [openFactors, setOpenFactors] = useState<number | null>(null);
@@ -150,9 +151,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
             <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Bonjour {profile?.display_name || 'à toi'}.</h1>
             <p className="mt-2 text-sm text-slate-400">{profile?.series ? `Série ${profile.series}` : 'Série à renseigner'}{profile?.mention ? ` · Mention ${profile.mention}` : ''} · BacPilot compare les données observées pour t’aider à préparer tes choix.</p>
           </div>
-          <button onClick={() => navigate('/onboarding')} className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-amber-300 hover:text-white active:scale-[0.98]">
-            Modifier mon parcours <ArrowRight className="h-4 w-4" />
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => navigate('/onboarding')} className="inline-flex w-fit items-center gap-2 rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-amber-300 hover:text-white active:scale-[0.98]">
+              Modifier mon parcours <ArrowRight className="h-4 w-4" />
+            </button>
+            {isBetaTester && <button onClick={() => navigate('/beta?zone=dashboard')} className="inline-flex w-fit items-center gap-2 rounded-xl border border-rose-400/50 bg-rose-500/10 px-4 py-2.5 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/20 active:scale-[0.98]"><Bug className="h-4 w-4" /> Signaler sur cette zone</button>}
+          </div>
         </header>
 
         <section className="mt-5 flex flex-col gap-4 border-b border-slate-800 py-5 sm:flex-row sm:items-center sm:justify-between">

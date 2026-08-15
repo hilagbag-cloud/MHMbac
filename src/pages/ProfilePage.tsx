@@ -19,6 +19,7 @@ import {
   LogOut,
   Building,
   Sparkles,
+  FlaskConical,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { BacMention, BacSeries, PrimaryGoal } from '../types/orientation';
@@ -29,7 +30,7 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
-  const { user, profile, preferences, updateProfile, updatePreferences, signOut } = useAuth();
+  const { user, profile, preferences, isBetaTester, updateProfile, updatePreferences, signOut } = useAuth();
 
   const [displayName, setDisplayName] = useState(profile?.display_name || 'Bachelier');
   const [series, setSeries] = useState<BacSeries>((profile?.series as BacSeries) || 'D');
@@ -90,6 +91,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
                 Gérez vos informations académiques et affinez les curseurs de l'algorithme MHM.
               </p>
             </div>
+
+            {isBetaTester && <button type="button" onClick={() => navigate('/beta')} className="flex items-center gap-2 rounded-xl border border-rose-300 bg-rose-50 px-4 py-2 text-left text-sm font-bold text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300"><FlaskConical className="h-4 w-4" /> Compte bêta actif</button>}
           </div>
 
           <button

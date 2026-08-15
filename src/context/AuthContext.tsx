@@ -13,12 +13,14 @@ import {
   isSupabaseConfigured,
   realSupabase,
 } from '../lib/supabase';
-import { UserPreferences, UserProfile } from '../types/orientation';
+import { BetaTester, UserPreferences, UserProfile } from '../types/orientation';
 
 interface AuthContextType {
   user: any | null;
   profile: UserProfile | null;
   preferences: UserPreferences | null;
+  betaTester: BetaTester | null;
+  isBetaTester: boolean;
   isLoading: boolean;
   isSupabaseLive: boolean;
   isDemoMode: boolean;
@@ -38,10 +40,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [betaTester, setBetaTester] = useState<BetaTester | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const isSupabaseLive = isSupabaseConfigured;
   const isDemoMode = !isSupabaseLive || (user && user.id?.startsWith('usr-demo-'));
+  const isBetaTester = betaTester?.status === 'active';
 
   const clearError = () => setErrorMessage(null);
 
@@ -62,6 +66,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
             setProfile(null);
             setPreferences(null);
+            setBetaTester(null);
           }
         } else {
           // Sans Supabase, aucun utilisateur fictif n’est créé. Le site reste en lecture publique.
@@ -89,6 +94,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setProfile(null);
           setPreferences(null);
+          setBetaTester(null);
         }
       });
 
@@ -133,6 +139,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (prefData) {
         setPreferences(prefData);
       }
+
+      const { data: betaData } = await realSupabase
+        .from('beta_testers')
+        .select('user_id, status, cohort, joined_at, consent_at, created_at, updated_at')
+        .eq('user_id', userId)
+        .maybeSingle();
+      setBetaTester((betaData as BetaTester | null) || null);
     } catch (err: any) {
       console.warn('Note fetchSupabaseUserData:', err.message);
     }
@@ -301,6 +314,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setProfile(null);
       setPreferences(null);
+      setBetaTester(null);
     } catch (err) {
       console.error('Erreur déconnexion:', err);
     }
@@ -469,8 +483,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signOut,
         updateProfile,
-        updatePreferences,
-        switchDemoPersona,
+      updatePreferences,
+      betaTester,
+      isBetaTester,
+      switchDemoPersona,
       }}
     >
       {children}
