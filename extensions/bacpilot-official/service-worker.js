@@ -16,8 +16,11 @@ const RETRY_PERIOD_MINUTES = 5;
 const CHUNK_SIZE = 40;
 const MAX_DIAGNOSTICS = 40;
 const OFFICIAL_PAGE_PREFIX = 'https://apresmonbac.bj/Home/choice';
+const SYNC_TOKEN_PATTERN = /^[A-Za-z0-9._~-]{16,}$/;
+const INVALID_SYNC_TOKEN_MESSAGE = 'Jeton invalide : utilisez au moins 16 caractères ASCII (lettres, chiffres, ., _, ~ ou -), sans espace ni accent.';
 
 const nowIso = () => new Date().toISOString();
+const isValidSyncToken = (value) => typeof value === 'string' && SYNC_TOKEN_PATTERN.test(value);
 const newId = (prefix) => `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -147,6 +150,7 @@ async function enqueueCollection(state) {
 
 async function sendBatch(entry, config) {
   if (!config.syncToken) return { ok: false, permanent: true, stage: 'configuration', message: 'Synchronisation en attente : configurez le jeton de collecte dans la console officielle.' };
+  if (!isValidSyncToken(config.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
   let lastMessage = 'Échec réseau';
   let lastStatus = null;
   let responsePreview = '';
@@ -258,6 +262,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'BP_SET_CONFIG': {
         const current = (await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || DEFAULT_CONFIG;
         const suppliedToken = message.syncToken === null || message.syncToken === undefined ? current.syncToken : String(message.syncToken).trim();
+        if (suppliedToken && !isValidSyncToken(suppliedToken)) return { ok: false, configured: Boolean(current.syncToken), error: INVALID_SYNC_TOKEN_MESSAGE };
         const next = { ...current, endpoint: String(message.endpoint || DEFAULT_CONFIG.endpoint).trim(), syncToken: suppliedToken };
         await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
         await addDiagnostic('info', 'configuration', next.syncToken ? 'Configuration de synchronisation enregistrée localement.' : 'Jeton de synchronisation retiré ; les lots restent conservés localement.');

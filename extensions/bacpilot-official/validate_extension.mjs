@@ -33,5 +33,6 @@ assert(/chrome\.alarms/.test(worker), 'La reprise planifiée des lots est requis
 assert(/chrome\.windows\.create/.test(worker), 'La console Windows indépendante est requise.');
 assert(/syncToken:\s*''/.test(worker), 'Le package doit démarrer sans jeton de synchronisation.');
 assert(!/gsk_|AIza|service_role|MHM_SYNC_CONFIG/.test(joined), 'Une clé ou une configuration héritée sensible est présente dans le package.');
+assert(/SYNC_TOKEN_PATTERN/.test(worker) && /ASCII/.test(worker), 'La validation ASCII du jeton de synchronisation est requise.');
 
 console.log('Validation extension officielle : OK');

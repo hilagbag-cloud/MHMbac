@@ -92,5 +92,7 @@ const existingToken = 'local-test-token';
 storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: existingToken };
 const configResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: null });
 if (!configResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken) throw new Error('Un champ de jeton vide ne doit pas effacer le jeton local existant.');
+const invalidTokenResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: 'jeton-é-invalide' });
+if (invalidTokenResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingToken || !String(invalidTokenResult.error || '').includes('ASCII')) throw new Error('Un jeton Unicode doit être refusé avant toute requête HTTP.');
 
-console.log('Test de reprise après fermeture : OK');
+console.log('Test de reprise après fermeture et validation du jeton : OK');
