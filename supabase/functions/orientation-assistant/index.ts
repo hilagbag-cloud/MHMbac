@@ -67,6 +67,19 @@ function cleanText(value: unknown, maxLength: number): string {
   return typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, maxLength) : '';
 }
 
+function getSupabasePublishableKey(): string | null {
+  const modernKeys = Deno.env.get('SUPABASE_PUBLISHABLE_KEYS');
+  if (modernKeys) {
+    try {
+      const parsed = JSON.parse(modernKeys);
+      if (typeof parsed?.default === 'string' && parsed.default) return parsed.default;
+    } catch {
+      // Repli sur la variable legacy, utile aux projets Supabase existants.
+    }
+  }
+  return Deno.env.get('SUPABASE_ANON_KEY') || null;
+}
+
 function asObjective(value: unknown): Objective | null {
   return value === 'bourse' || value === 'carriere' || value === 'equilibre' ? value : null;
 }
@@ -167,9 +180,12 @@ async function callGemini(prompt: string, facts: unknown): Promise<string | null
   const timeout = setTimeout(() => controller.abort(), 8_000);
 
   try {
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       signal: controller.signal,
       body: JSON.stringify({
         system_instruction: { parts: [{ text: ASSISTANT_ROLE }] },
@@ -180,6 +196,7 @@ async function callGemini(prompt: string, facts: unknown): Promise<string | null
           }],
         }],
         generationConfig: { temperature: 0.25, maxOutputTokens: 240 },
+        store: false,
       }),
     });
 
@@ -268,8 +285,8 @@ Deno.serve(async (request) => {
   if (!authHeader?.startsWith('Bearer ')) return json(request, { ok: false, error: 'Connexion requise.' }, 401);
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
-  if (!supabaseUrl || !supabaseAnonKey) return json(request, { ok: false, error: 'Configuration serveur incomplète.' }, 500);
+  const supabasePublishableKey = getSupabasePublishableKey();
+  if (!supabaseUrl || !supabasePublishableKey) return json(request, { ok: false, error: 'Configuration serveur incomplète.' }, 500);
 
   let body: AssistantRequest;
   try {
@@ -280,7 +297,7 @@ Deno.serve(async (request) => {
 
   const action: AssistantAction = isAction(body?.action) ? body.action : 'answer';
   const userMessage = cleanText(body?.message, MAX_MESSAGE_LENGTH);
-  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     auth: { persistSession: false, autoRefreshToken: false },
     global: { headers: { Authorization: authHeader } },
   });

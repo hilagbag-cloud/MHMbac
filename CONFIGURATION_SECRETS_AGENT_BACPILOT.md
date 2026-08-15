@@ -1,51 +1,91 @@
 # Configuration sécurisée des clés API — Agent BacPilot
 
-L’agent BacPilot est déjà utilisable sans clé IA : l’onboarding conversationnel, la lecture des données réelles, la fraîcheur des observations, le calcul déterministe du Top 3 et les messages de base fonctionnent sans fournisseur externe.
+BacPilot fonctionne déjà sans fournisseur externe : le chat, la lecture de la fraîcheur des observations, le classement Top 3 et les explications factuelles sont calculés côté Supabase. Les clés IA activent seulement la **reformulation conversationnelle** demandée depuis le dashboard.
 
-Les clés API ne sont nécessaires que pour le bouton **« Besoin d’une explication plus précise ? »**. Elles doivent être stockées dans les secrets de l’Edge Function Supabase, jamais dans Vercel, le code React, un fichier `.env` commité, GitHub ou l’extension Chrome.
+> Les clés ne doivent apparaître ni dans React, ni dans Vercel, ni dans GitHub, ni dans l’extension Chrome. Elles sont lues uniquement par l’Edge Function Supabase `orientation-assistant` avec `Deno.env.get(...)`.[1]
 
-> **URL de configuration :** [Supabase — Edge Functions > Secrets](https://supabase.com/dashboard/project/uxdfrnogiuefoqjpobpf/functions/secrets)
+## Variables de production
 
-## Variables à créer
+| Secret Supabase | Valeur recommandée | Utilisation dans BacPilot |
+|---|---|---|
+| `GEMINI_API_KEY` | Nouvelle clé **auth** créée dans Google AI Studio, dédiée à BacPilot Production | Fournisseur principal de reformulation. |
+| `GEMINI_MODEL` | `gemini-2.5-flash-lite` | Modèle stable, rapide et économique. Cette valeur est déjà le défaut du code. [2] |
+| `GROQ_API_KEY` | Nouvelle clé dédiée à BacPilot Production dans GroqCloud | Secours unique si Gemini échoue. |
+| `GROQ_MODEL` | `llama-3.1-8b-instant` | Modèle de secours actuel défini par défaut dans le code. |
 
-| Variable Supabase | Requise ? | Valeur à renseigner | Rôle |
-|---|---:|---|---|
-| `GEMINI_API_KEY` | Non | Clé API créée dans Google AI Studio | Fournisseur principal pour reformuler une explication courte. |
-| `GEMINI_MODEL` | Non | `gemini-2.5-flash-lite` | Modèle principal ; cette valeur est déjà définie par défaut dans le code. |
-| `GROQ_API_KEY` | Non | Clé API créée dans GroqCloud | Secours unique si Gemini ne répond pas. |
-| `GROQ_MODEL` | Non | `llama-3.1-8b-instant` | Modèle de secours ; valeur déjà définie par défaut. |
+Ne créez aucune variable vide. Si `GEMINI_API_KEY` et `GROQ_API_KEY` sont absentes, BacPilot retourne une explication déterministe sans échec ni appel externe.
 
-La saisie des clés est volontaire : une variable vide ne doit pas être créée. Si aucune clé n’est configurée, l’assistant répond en mode **déterministe**, sans échec pour le candidat et sans consommation de tokens.
+## Méthode 1 — Dashboard Supabase
 
-## Procédure
+1. Ouvrir [Edge Functions → Secrets du projet BacPilot](https://supabase.com/dashboard/project/uxdfrnogiuefoqjpobpf/functions/secrets).
+2. Vérifier que le projet est bien **mhm-solutions-mvp1**.
+3. Cliquer sur **Add new secret** puis créer `GEMINI_API_KEY` et coller la nouvelle clé Gemini.
+4. Créer ensuite `GROQ_API_KEY` pour activer le secours.
+5. Enregistrer. Supabase rend les secrets immédiatement disponibles dans les Edge Functions : aucun redéploiement n’est requis pour cette seule opération.[1]
 
-1. Ouvrir le lien **Edge Functions > Secrets** ci-dessus et vérifier que le projet affiché est `mhm-solutions-mvp1`.
-2. Cliquer sur **Add new secret**.
-3. Créer `GEMINI_API_KEY` puis coller la clé provenant du compte Google AI Studio. Ne pas copier cette clé dans un message, un dépôt ou Vercel.
-4. Facultativement, créer `GROQ_API_KEY` avec une clé GroqCloud afin d’activer le secours.
-5. Laisser `GEMINI_MODEL` et `GROQ_MODEL` absents tant qu’un autre modèle n’est pas souhaité ; BacPilot applique ses valeurs par défaut.
-6. Ne jamais ajouter `SUPABASE_SERVICE_ROLE_KEY` à l’assistant. Cette fonction n’utilise pas cette clé et doit conserver l’identité du candidat afin que les politiques RLS s’appliquent.
+## Méthode 2 — CLI Supabase avec jeton personnel
 
-Les secrets sont lus par la fonction `orientation-assistant` via des variables d’environnement. Ils ne sont pas transmis au navigateur. La fonction exige un JWT Supabase valide, lit le profil et les observations avec le périmètre du candidat connecté, et limite les explications IA à **trois appels réussis par candidat et par jour**.
+Cette méthode permet un réglage direct sans navigateur, mais exige un **Personal Access Token** du propriétaire Supabase dans la variable locale `SUPABASE_ACCESS_TOKEN`. Le jeton n’est pas une clé du projet et ne doit jamais être intégré à BacPilot.
 
-## Comportement de repli
+```bash
+# Fichier local, jamais ajouté au dépôt
+cat > .env.secrets.local <<'EOF'
+GEMINI_API_KEY=nouvelle_cle_gemini
+GROQ_API_KEY=nouvelle_cle_groq
+EOF
 
-| Situation | Réponse BacPilot |
+# Avec un Personal Access Token stocké dans l’environnement local
+SUPABASE_ACCESS_TOKEN=... supabase secrets set \
+  --project-ref uxdfrnogiuefoqjpobpf \
+  --env-file .env.secrets.local
+
+rm .env.secrets.local
+```
+
+Le guide Supabase confirme que `supabase secrets set --env-file` pousse les secrets vers le projet et les rend visibles dans le dashboard.[1]
+
+## Architecture appliquée
+
+| Couche | Responsabilité | Autorisation |
+|---|---|---|
+| React | Affiche le chat et les états de calcul ; appelle une Edge Function avec le JWT de session. | Aucune clé IA. |
+| Edge Function `orientation-assistant` | Vérifie le JWT, lit les données RLS du candidat, calcule le Top 3, appelle Gemini puis Groq au besoin. | Lecture des données publiées ; écriture limitée aux propres données du candidat. |
+| Gemini | Reformule les trois résultats déjà calculés. | Reçoit un contexte compact et validé ; aucun outil, aucune base Supabase. |
+| Groq | Secours une seule fois si Gemini ne répond pas. | Même contexte borné, aucun outil. |
+
+La fonction reste déployée avec `verify_jwt = true`. Les opérations liées au candidat utilisent un client Supabase associé au jeton de l’utilisateur, de sorte que les politiques RLS continuent de s’appliquer.[3]
+
+## Format d’appel vérifié
+
+Gemini accepte un appel serveur `POST /v1beta/models/{model}:generateContent` avec la clé dans l’en-tête `x-goog-api-key`. Le code BacPilot utilise ce format et définit `store: false` pour ne pas demander de conservation de l’interaction côté fournisseur. Google recommande l’Interactions API pour les fonctions les plus récentes ; `generateContent` reste documenté et adapté au petit appel de reformulation actuellement utilisé.[2] [4]
+
+Groq utilise `POST https://api.groq.com/openai/v1/chat/completions` avec l’en-tête `Authorization: Bearer`. BacPilot utilise une température basse, une sortie limitée et une seule tentative de secours ; il n’active ni recherche web, ni outils, ni exécution de fonctions.[5] [6]
+
+## Limites et comportement de secours
+
+| Situation | Comportement BacPilot |
 |---|---|
-| Aucune clé API configurée | Explication déterministe courte à partir du Top 3 et des jauges observées. |
-| Gemini répond correctement | Reformulation concise et encourageante, fondée sur le JSON de score. |
-| Gemini est indisponible ou limité | Une tentative avec Groq, seulement si `GROQ_API_KEY` est configurée. |
-| Gemini et Groq indisponibles, ou quota candidat atteint | Retour immédiat au message déterministe ; aucune boucle ni rotation de clé. |
+| Gemini répond | La réponse est affichée en mode `ai_rephrased`. |
+| Gemini échoue, est limité ou dépasse le délai | Une unique tentative Groq est effectuée si `GROQ_API_KEY` existe. |
+| Groq échoue ou aucune clé n’est disponible | Explication déterministe à partir des mêmes facteurs Top 3. |
+| Trois reformulations réussies déjà consommées aujourd’hui | Le quota Supabase bloque le nouvel appel ; réponse déterministe immédiate. |
 
-Les API gratuites ou freemium ont des quotas variables. Le quota interne BacPilot reste donc plus strict que celui du fournisseur et l’application ne dépend jamais d’une clé pour calculer les recommandations.
+Aucun résultat IA ne peut modifier le score, ajouter une filière, sélectionner un choix officiel ou promettre une admission / une bourse.
 
-## Vérification après ajout d’une clé
+## Rotation à faire maintenant
 
-Après avoir ajouté une clé, connecte-toi à BacPilot, ouvre ton dashboard et pose une question courte dans « Besoin d’une explication plus précise ? ». La réponse doit rester brève, polie et fondée sur les cartes Top 3. Si aucune clé n’est active, le même bouton doit fournir l’explication déterministe sans afficher d’erreur de configuration.
+Les clés précédemment envoyées dans une conversation doivent être considérées comme exposées. Générer des remplaçantes, les ajouter avec l’une des deux méthodes ci-dessus, tester le dashboard, puis révoquer les anciennes dans Google AI Studio et GroqCloud. Google et Groq recommandent explicitement la rotation et la révocation en cas de suspicion d’exposition.[4] [7]
+
+## Test après activation
+
+Après avoir ajouté les nouvelles clés, se connecter à BacPilot puis ouvrir le dashboard. Dans **« Besoin d’une explication plus précise ? »**, poser une question telle que : *« Pourquoi la première piste est-elle mieux classée ? »*. Une réponse concise doit apparaître, sans changer les trois cartes et sans dépasser le quota de trois reformulations par jour.
 
 ## Références
 
-[1]: https://supabase.com/docs/guides/functions/secrets — *Supabase Edge Functions: Managing Secrets*.
-[2]: https://supabase.com/docs/guides/functions/auth-legacy-jwt — *Supabase Edge Functions: Auth with JWT and RLS*.
-[3]: https://ai.google.dev/gemini-api/docs/pricing — *Gemini Developer API pricing*.
-[4]: https://console.groq.com/docs/rate-limits — *Groq rate limits*.
+[1]: https://supabase.com/docs/guides/functions/secrets — *Supabase, Environment Variables and Edge Function Secrets*.
+[2]: https://ai.google.dev/api/generate-content — *Google AI for Developers, Generating content*.
+[3]: https://supabase.com/docs/guides/functions/auth — *Supabase, Securing Edge Functions*.
+[4]: https://ai.google.dev/gemini-api/docs/api-key — *Google AI for Developers, Using Gemini API keys*.
+[5]: https://console.groq.com/docs/quickstart — *GroqDocs, Quickstart*.
+[6]: https://console.groq.com/docs/api-reference — *GroqDocs, API Reference*.
+[7]: https://console.groq.com/docs/production-readiness/security-onboarding — *GroqDocs, Security Onboarding*.
