@@ -33,7 +33,7 @@ L’interface publique est disponible. L’onboarding est une conversation pas-�
 | Observations réelles | Tables Supabase `live_programmes`, `gauge_observations`, `gauge_alerts` | Toute donnée de démonstration ou donnée inventée. |
 | Données privées candidat | Tables Supabase `profiles`, `user_preferences`, `orientation_sessions`, `user_academic_signals` | Observations publiques ou données d’un autre candidat. |
 | Agent IA | Edge Function Supabase `orientation-assistant` | Un appel direct depuis React à Gemini ou Groq. |
-| Ingestion extension | Edge Function `mhmbac-sync` | Une écriture libre côté navigateur. |
+| Ingestion extension | Edge Function `mhmbac-sync` et source `extensions/bacpilot-official/` | Une écriture libre côté navigateur ou l’ancienne extension `/home/ubuntu/apresmonbac_extension/`. |
 
 ## 3. Architecture active
 
@@ -48,7 +48,7 @@ Extension Chrome autorisée
 
 | Composant | Rôle | Règle de sécurité |
 |---|---|---|
-| Extension Chrome | Collecter et envoyer les observations accessibles dans une session officielle active. | Ne contourne ni authentification, ni CAPTCHA, ni contrôle d’accès. Pas de profil candidat dans la collecte. |
+| Extension Chrome officielle | Collecter les observations brutes accessibles dans une session officielle active, les sauvegarder localement puis les synchroniser par lots. | Ne contourne ni authentification, ni CAPTCHA, ni contrôle d’accès. Pas de profil candidat, score, import ou soumission de choix. La fermeture de la console ne doit jamais supprimer les progrès sauvegardés. |
 | `mhmbac-sync` | Normaliser et écrire les observations collectées. | Jeton de synchronisation dédié ; aucune clé d’administration côté extension. |
 | Supabase | Stocker observations, profils, sessions et résultats. | RLS active ; droits privés limités au propriétaire. |
 | `orientation-assistant` | Lire les données autorisées, appeler le score déterministe, sauvegarder seulement les réponses du candidat connecté, expliquer un résultat. | JWT requis ; pas de SQL libre, pas de `service_role`, outils bornés. |
@@ -118,7 +118,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 |---:|---|---|
 | 1 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
 | 2 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
-| 3 | Refactorer l’extension vers la collecte brute et la couverture complète autorisée. | Collecte sans personnalisation, `collection_runs` exploité et données envoyées de manière robuste. |
+| 3 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
 | 4 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
 | 5 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
 | 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
@@ -145,6 +145,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | Performance et canonique déployées | Pages secondaires chargées à la demande ; bundle JavaScript initial réduit d’environ 12 % et logos publics ramenés de 3,5 Mo à des variantes de 12–94 Ko, avec transparence conservée. Mesure Lighthouse mobile : performance 83/100, SEO 100/100, accessibilité 95/100, FCP 2,4 s et LCP 2,8 s. `www` et `mhmbac.vercel.app`, y compris à la racine, redirigent en 308 vers `https://bacpilot.site`. | Surveiller les données terrain Core Web Vitals et l’indexation dans Search Console. |
 | 15 août 2026 | `0426632` déployé | Pages publiques À propos, Méthode, Contact, Confidentialité et Conditions complétées ; navigation/footer reliés à des destinations réelles et audités. Le portail `https://partenaires.bacpilot.site` est vérifié par Vercel et répond en HTTPS 200 avec titre, liens et canaux BacPilot cohérents. Les DNS publics exposent le MX LWS et SPF correspondant pour `bacpilot.site`. | Effectuer un test de réception/envoi des deux boîtes et activer DKIM/DMARC si proposé par LWS. |
 | 15 août 2026 | `91e9e3d` déployé | Logos des headers principal et partenaire corrigés : hauteur de navigation fixe, largeur automatique et `object-contain` afin de préserver le ratio source. Compilation TypeScript, build Vite et vérification visuelle HTTPS des deux headers validés. | Surveiller le rendu sur les appareils des utilisateurs lors des prochaines visites. |
+| 15 août 2026 | Prêt à versionner | Extension Chrome officielle créée dans `extensions/bacpilot-official/` : console Chrome Windows indépendante, collecte brute sans scoring/import/maintien de session, checkpoints `chrome.storage.local`, file de synchronisation réessayée et diagnostics persistants. Tests statiques et simulation de redémarrage du service worker réussis, sans secret dans le package. | Charger le package dans Chrome et effectuer une recette avec session officielle autorisée, jeton local configuré et accusé serveur réel. |
 
 ## 11. Règle de reprise de session
 

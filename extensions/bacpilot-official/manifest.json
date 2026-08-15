@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "BacPilot — Collecte officielle",
+  "version": "1.0.0",
+  "description": "Collecte des observations accessibles avec le consentement de l’utilisateur sur le portail officiel, avec reprise locale et synchronisation sécurisée vers BacPilot.",
+  "minimum_chrome_version": "120",
+  "permissions": [
+    "storage",
+    "alarms",
+    "tabs",
+    "scripting",
+    "windows"
+  ],
+  "host_permissions": [
+    "https://apresmonbac.bj/*",
+    "https://uxdfrnogiuefoqjpobpf.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Ouvrir la console BacPilot",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://apresmonbac.bj/Home/choice*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "console.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

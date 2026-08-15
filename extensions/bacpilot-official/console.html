@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Console officielle — BacPilot</title>
+    <link rel="stylesheet" href="console.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><div class="mark">BP</div><div><p class="eyebrow">MHM SOLUTIONS</p><h1>Console officielle BacPilot</h1><p class="subtitle">Collecte brute · reprise locale · validation humaine</p></div></div>
+        <div class="native-note" title="Cette fenêtre Chrome peut être déplacée, réduite ou fermée avec les contrôles Windows. Les données restent sauvegardées localement.">Fenêtre Windows indépendante</div>
+      </header>
+
+      <section class="notice"><strong>Votre progression est protégée.</strong> La fermeture accidentelle de cette fenêtre ne supprime pas la collecte ni les lots en attente. Rouvrez l’extension, reconnectez-vous vous-même au portail officiel, puis choisissez <em>Reprendre</em>.</section>
+
+      <section class="status-grid" aria-label="État de la collecte">
+        <article><span class="label">État</span><strong id="collectionStatus">Chargement…</strong><small id="collectionMessage">Lecture du stockage local.</small></article>
+        <article><span class="label">Progression conservée</span><strong id="collectionProgress">—</strong><small id="collectionMeta">Aucune collecte locale.</small></article>
+        <article><span class="label">Synchronisation</span><strong id="syncStatus">—</strong><small id="syncMessage">Aucun lot en attente.</small></article>
+      </section>
+
+      <section class="actions" aria-label="Actions de collecte">
+        <button id="startScan" class="primary">Nouvelle collecte</button>
+        <button id="resumeScan" class="secondary">Reprendre la collecte</button>
+        <button id="cancelScan" class="quiet">Mettre en pause</button>
+        <button id="syncNow" class="secondary">Synchroniser maintenant</button>
+        <button id="exportData" class="quiet">Exporter les observations</button>
+      </section>
+      <p id="actionFeedback" class="feedback" role="status"></p>
+
+      <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">Lecture uniquement</p><h2>Dernier relevé local</h2></div><button id="refresh" class="icon-button" aria-label="Actualiser l’état">↻</button></div>
+        <div id="collectionDetails" class="collection-details"><p>Aucune observation n’est encore conservée.</p></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head"><div><p class="eyebrow">Reprise automatique</p><h2>Lots conservés localement</h2></div><span id="queueBadge" class="badge">0 lot</span></div>
+        <div id="queueList" class="queue-list"><p>Aucun lot en attente.</p></div>
+      </section>
+
+      <details class="panel configuration">
+        <summary><span><p class="eyebrow">Administration locale</p><h2>Synchronisation BacPilot</h2></span><span id="configState" class="badge">Non configurée</span></summary>
+        <p>Le jeton de collecte ne figure pas dans le package. Il est enregistré uniquement dans le stockage local de ce navigateur par une personne autorisée.</p>
+        <label>Endpoint de synchronisation<input id="syncEndpoint" type="url" autocomplete="off" /></label>
+        <label>Nouveau jeton de collecte <input id="syncToken" type="password" autocomplete="new-password" placeholder="Laissez vide pour conserver le jeton local" /></label>
+        <button id="saveConfig" class="secondary">Enregistrer la configuration</button>
+      </details>
+
+      <details class="panel diagnostics">
+        <summary><span><p class="eyebrow">Contrôle technique</p><h2>Diagnostic persistant</h2></span><span id="diagnosticCount" class="badge">0</span></summary>
+        <div id="diagnosticList" class="diagnostic-list"><p>Aucun diagnostic enregistré.</p></div>
+      </details>
+
+      <section class="safety">
+        <strong>Limites de l’extension officielle</strong>
+        <p>Elle ne contourne jamais la connexion, les contrôles anti-robot ou l’expiration d’une session du portail officiel. Elle ne score pas les candidats, ne soumet aucun choix et ne remplace pas la validation manuelle du candidat.</p>
+        <button id="clearData" class="danger">Effacer les données locales de collecte</button>
+      </section>
+    </main>
+    <script src="console.js"></script>
+  </body>
+</html>
