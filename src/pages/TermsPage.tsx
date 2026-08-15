@@ -22,7 +22,7 @@ export const TermsPage: React.FC<{ navigate: (route: string) => void }> = ({ nav
             Conditions d’Utilisation
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Conditions applicables à la plateforme MHM SOLUTIONS — Après Mon Bac (MVP1).
+            Conditions applicables à BacPilot, une solution MHM SOLUTIONS.
           </p>
         </div>
 

@@ -6,7 +6,7 @@
 
 export const MHM_PROMOTION_CONFIG = {
   brandName: 'MHM SOLUTIONS',
-  tagline: 'Après Mon Bac',
+  tagline: 'BacPilot',
   creatorName: 'Hilarus GBAGOULE',
   creatorTitle: 'Fondateur & Ingénieur Concepteur MHM SOLUTIONS',
   headline: 'Ton orientation commence par une bonne décision.',

@@ -6,7 +6,6 @@
 
 import React, { useState } from 'react';
 import {
-  Compass,
   UserPlus,
   User,
   Mail,
@@ -72,13 +71,13 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
             onClick={() => navigate('/')}
             className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-xl shadow-rose-950/30 cursor-pointer hover:scale-105 transition-transform"
           >
-            <Compass className="w-8 h-8" />
+            <img src="/branding/bacpilot-mark-final.png" alt="" className="w-12 h-12 object-contain" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 dark:text-white tracking-tight">
             Créer mon compte
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Rejoins MHM SOLUTIONS pour personnaliser ton parcours d’orientation post-BAC.
+            Rejoins BacPilot, par MHM SOLUTIONS, pour personnaliser ton parcours d’orientation post-BAC.
           </p>
         </div>
 

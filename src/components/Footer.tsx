@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import { Compass, Heart, Shield, Mail, Globe, ExternalLink } from 'lucide-react';
+import { Shield, Mail } from 'lucide-react';
 import { MHM_PROMOTION_CONFIG } from '../lib/promotion';
 
 interface FooterProps {
@@ -22,14 +22,14 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
           {/* Colonne 1: Marque & Créateur */}
           <div className="md:col-span-2 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-indigo-700 flex items-center justify-center text-white shadow-md">
-                <Compass className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-indigo-700 flex items-center justify-center text-white shadow-md overflow-hidden">
+                <img src="/branding/bacpilot-mark-final.png" alt="" className="w-9 h-9 object-contain" />
               </div>
               <div>
                 <span className="font-bold text-lg text-white font-sans">
                   MHM <span className="text-rose-400">SOLUTIONS</span>
                 </span>
-                <span className="block text-xs text-slate-300">Après Mon Bac — Plateforme d’Orientation</span>
+                <span className="block text-xs text-slate-300">BacPilot — Plateforme d’Orientation</span>
               </div>
             </div>
 
