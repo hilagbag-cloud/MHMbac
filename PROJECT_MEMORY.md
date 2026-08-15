@@ -124,7 +124,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
 | 7 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
 | 8 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
-| 9 | Soumettre `https://bacpilot.site/sitemap.xml` dans Google Search Console, demander l’exploration de l’accueil et contrôler l’indexation. | Propriété de domaine vérifiée, sitemap accepté et état d’indexation surveillé dans Search Console. |
+| 9 | Contrôler l’état d’indexation et les performances organiques dans Google Search Console. | L’accueil est sélectionné par Google comme URL canonique/indexée et les requêtes, impressions et éventuelles erreurs sont suivies. |
 | 10 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
 
 ## 10. Journal de continuité
@@ -140,7 +140,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | Recherche terminée, achat non effectué | Comparaison de domaines : `bacpilot.com` chez Spaceship recommandé pour le coût, la lisibilité et le renouvellement prévisible ; `.xyz` est le coût minimal sur deux ans. | Attendre le choix et l’accord explicite avant tout achat. |
 | 15 août 2026 | Kit prêt, profil non configuré | Informations, photo de profil et bannière Facebook préparées pour le profil professionnel BacPilot existant. | Connexion au compte Facebook requise avant configuration. |
 | 15 août 2026 | Domaine actif | `bacpilot.site` et `www.bacpilot.site` associés au projet Vercel `hila2/mhmbac`. Les DNS sont validés ; un certificat Vercel couvre les deux variantes et chacune répond en HTTPS 200 avec HSTS. | Remplacer les liens de bios, contenus marketing et UTM par `https://bacpilot.site`. |
-| 15 août 2026 | SEO prêt à déployer | Ajout du sitemap, de `robots.txt`, des canoniques, métadonnées sociales, JSON-LD, routes publiques et directives d’exclusion des espaces privés ; compilation et typecheck réussis. | Déployer, contrôler les ressources publiques et soumettre le sitemap dans Google Search Console. |
+| 15 août 2026 | SEO déployé et soumis | Sitemap, `robots.txt`, canoniques, métadonnées sociales, JSON-LD, guide public et redirections vers `https://bacpilot.site` déployés. Lighthouse relève 100/100 pour les audits SEO ; Google Search Console confirme que l’accueil est accessible, indexable et demandé à l’indexation. Le sitemap est accepté et ses cinq URL publiques sont découvertes. | Attendre la décision d’indexation de Google puis surveiller couverture, canonique sélectionnée, requêtes et impressions dans Search Console. |
 
 ## 11. Règle de reprise de session
 
