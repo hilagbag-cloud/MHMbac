@@ -1,19 +1,28 @@
 const $ = (id) => document.getElementById(id);
 let snapshot = null;
 
+const REQUIRED_IDS = [
+  'actionFeedback', 'collectionStatus', 'collectionMessage', 'collectionProgress', 'collectionMeta',
+  'collectionDetails', 'startScan', 'resumeScan', 'cancelScan', 'syncNow', 'exportData', 'refresh',
+  'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage',
+  'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
+];
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const formatDate = (value) => value ? new Intl.DateTimeFormat('fr-BJ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
 
+function setFeedback(message, kind = '') {
+  const node = $('actionFeedback');
+  if (!node) return;
+  node.textContent = message || '';
+  node.className = `feedback ${kind}`;
+}
+
 async function request(type, payload = {}) {
+  if (!chrome?.runtime?.sendMessage) throw new Error('La console ne peut pas contacter le service de l’extension. Rechargez l’extension dans chrome://extensions.');
   const response = await chrome.runtime.sendMessage({ type, ...payload });
   if (!response?.ok) throw new Error(response?.error || 'Action impossible.');
   return response;
-}
-
-function setFeedback(message, kind = '') {
-  const node = $('actionFeedback');
-  node.textContent = message || '';
-  node.className = `feedback ${kind}`;
 }
 
 function renderCollection(state = {}, config = {}) {
@@ -40,6 +49,7 @@ function renderCollection(state = {}, config = {}) {
 
 function renderQueue(queue = [], config = {}, state = {}) {
   const count = queue.length;
+  const readyForScan = Boolean(config.readyForScan);
   $('queueBadge').textContent = `${count} lot${count > 1 ? 's' : ''}`;
   $('queueBadge').className = `badge ${count ? 'warning' : ''}`;
   $('syncStatus').textContent = count ? 'Reprise planifiée' : 'À jour';
@@ -50,6 +60,7 @@ function renderQueue(queue = [], config = {}, state = {}) {
   $('configState').className = `badge ${configState === 'verified' ? '' : 'warning'}`;
   $('configMessage').textContent = config.verificationMessage || 'Saisissez puis testez le jeton avant la collecte.';
   $('testConfig').disabled = config.tokenState !== 'ready';
+  $('syncNow').disabled = count > 0 && !readyForScan;
   if (!count) { $('queueList').innerHTML = '<p>Aucun lot en attente.</p>'; return; }
   $('queueList').innerHTML = queue.map((entry) => `<div class="queue-item"><strong>${escapeHtml(entry.payload?.items?.length || 0)} observation(s) · lot ${escapeHtml(entry.payload?.part || '—')}/${escapeHtml(entry.payload?.totalParts || '—')}</strong><small>Créé : ${escapeHtml(formatDate(entry.createdAt))} · Tentatives : ${escapeHtml(entry.attempts || 0)}</small><small>${escapeHtml(entry.lastError || `Prochaine tentative : ${entry.nextAttemptAt ? formatDate(entry.nextAttemptAt) : 'dès que possible'}`)}</small></div>`).join('');
 }
@@ -63,63 +74,44 @@ function renderDiagnostics(diagnostics = []) {
 function render(data) {
   snapshot = data;
   const state = data.state || {};
-  renderCollection(state, data.config || {});
-  renderQueue(data.queue || [], data.config || {}, state);
+  const config = data.config || {};
+  renderCollection(state, config);
+  renderQueue(data.queue || [], config, state);
   renderDiagnostics(data.diagnostics || []);
-  $('syncEndpoint').value = data.config?.endpoint || '';
+  $('syncEndpoint').value = config.endpoint || '';
 }
 
-async function refresh() {
+async function refresh({ quiet = false } = {}) {
   try {
     const data = await request('BP_GET_STATE');
     render(data);
-    setFeedback('État local actualisé.', 'success');
-  } catch (error) { setFeedback(error.message, 'error'); }
+    if (!quiet) setFeedback('Console prête. Vérifiez la configuration avant toute collecte.', 'success');
+  } catch (error) {
+    setFeedback(error.message || 'Impossible d’actualiser la console.', 'error');
+  }
 }
 
 async function withAction(buttonId, action) {
   const button = $(buttonId);
+  if (!button) return;
   button.disabled = true;
-  try { await action(); } catch (error) { setFeedback(error.message, 'error'); }
-  finally { button.disabled = false; await refresh(); }
+  try {
+    await action();
+  } catch (error) {
+    setFeedback(error.message || 'Action impossible.', 'error');
+  } finally {
+    await refresh({ quiet: true });
+    button.disabled = false;
+  }
 }
 
-$('refresh').addEventListener('click', refresh);
-$('startScan').addEventListener('click', () => withAction('startScan', async () => {
-  const state = snapshot?.state || {};
-  if (state.collectionId && ['running', 'paused'].includes(state.status) && state.totalCandidates > state.completedCandidates) {
-    const confirmed = confirm('Une collecte inachevée est déjà conservée. Voulez-vous réellement commencer une nouvelle collecte ? La progression actuelle restera visible mais ne sera plus reprise.');
-    if (!confirmed) return;
-  }
-  setFeedback('Demande envoyée. Vérifiez que l’onglet officiel est ouvert et que votre session est active.', '');
-  await request('BP_START_SCAN');
-}));
-$('resumeScan').addEventListener('click', () => withAction('resumeScan', async () => {
-  setFeedback('Reprise demandée depuis le dernier point sauvegardé.', '');
-  await request('BP_RESUME_SCAN');
-}));
-$('cancelScan').addEventListener('click', () => withAction('cancelScan', async () => {
-  await request('BP_CANCEL_SCAN');
-  setFeedback('Pause demandée. Le dernier point validé reste conservé localement.', '');
-}));
-$('syncNow').addEventListener('click', () => withAction('syncNow', async () => {
-  const result = await request('BP_SYNC_NOW');
-  setFeedback(result.pending ? `${result.pending} lot(s) restent conservés localement.` : `${result.sent || 0} observation(s) confirmée(s) par BacPilot.`, result.pending ? '' : 'success');
-}));
-$('saveConfig').addEventListener('click', () => withAction('saveConfig', async () => {
-  const endpoint = $('syncEndpoint').value.trim();
-  const token = $('syncToken').value.trim();
-  const result = await request('BP_SET_CONFIG', { endpoint, syncToken: token || null });
-  $('syncToken').value = '';
-  if (result.validation?.ok) setFeedback('Configuration enregistrée et test serveur validé. Vous pouvez lancer une collecte.', 'success');
-  else setFeedback(result.validation?.message || 'Configuration enregistrée, mais le test serveur doit être corrigé avant la collecte.', 'error');
-}));
-$('testConfig').addEventListener('click', () => withAction('testConfig', async () => {
-  const result = await request('BP_TEST_CONFIG');
-  if (result.validation?.ok) setFeedback('Jeton enregistré et serveur validé. Collecte autorisée.', 'success');
-  else setFeedback(result.validation?.message || 'Test serveur non validé.', 'error');
-}));
-$('exportData').addEventListener('click', () => {
+function bind(id, listener) {
+  const node = $(id);
+  if (!node) throw new Error(`Élément d’interface manquant : ${id}`);
+  node.addEventListener('click', listener);
+}
+
+function exportLocalData() {
   const state = snapshot?.state || {};
   const output = {
     schemaVersion: 'bacpilot-observation-export.v1',
@@ -134,12 +126,66 @@ $('exportData').addEventListener('click', () => {
   link.click();
   URL.revokeObjectURL(url);
   setFeedback('Export JSON des observations locales préparé.', 'success');
-});
-$('clearData').addEventListener('click', () => withAction('clearData', async () => {
-  if (!confirm('Effacer les observations locales et les lots en attente ? Cette action ne peut pas être annulée.')) return;
-  await request('BP_CLEAR_LOCAL_DATA');
-  setFeedback('Données locales effacées.', 'success');
-}));
+}
 
-chrome.storage.onChanged.addListener(() => { void refresh(); });
-void refresh();
+function initializeConsole() {
+  const missing = REQUIRED_IDS.filter((id) => !$(id));
+  if (missing.length) {
+    setFeedback(`Mise à jour incomplète : fichiers de console incompatibles (${missing.join(', ')}). Remplacez tous les fichiers du même dossier, puis rechargez l’extension.`, 'error');
+    console.error('BacPilot console: éléments manquants', missing);
+    return;
+  }
+
+  bind('refresh', () => { void refresh(); });
+  bind('startScan', () => withAction('startScan', async () => {
+    const state = snapshot?.state || {};
+    if (state.collectionId && ['running', 'paused'].includes(state.status) && state.totalCandidates > state.completedCandidates) {
+      const confirmed = confirm('Une collecte inachevée est déjà conservée. Voulez-vous réellement commencer une nouvelle collecte ? La progression actuelle restera visible mais ne sera plus reprise.');
+      if (!confirmed) return;
+    }
+    setFeedback('Prévol serveur puis démarrage de la collecte…', '');
+    await request('BP_START_SCAN');
+    setFeedback('Prévol validé. Collecte démarrée.', 'success');
+  }));
+  bind('resumeScan', () => withAction('resumeScan', async () => {
+    setFeedback('Prévol serveur puis reprise de la collecte…', '');
+    await request('BP_RESUME_SCAN');
+    setFeedback('Prévol validé. Reprise demandée.', 'success');
+  }));
+  bind('cancelScan', () => withAction('cancelScan', async () => {
+    await request('BP_CANCEL_SCAN');
+    setFeedback('Pause demandée. Le dernier point validé reste conservé localement.', 'success');
+  }));
+  bind('syncNow', () => withAction('syncNow', async () => {
+    setFeedback('Vérification de la configuration puis synchronisation des lots locaux…', '');
+    const result = await request('BP_SYNC_NOW');
+    setFeedback(result.pending ? `${result.pending} lot(s) restent conservés localement.` : `${result.sent || 0} observation(s) confirmée(s) par BacPilot.`, result.pending ? '' : 'success');
+  }));
+  bind('saveConfig', () => withAction('saveConfig', async () => {
+    const endpoint = $('syncEndpoint').value.trim();
+    const token = $('syncToken').value.trim();
+    setFeedback('Configuration enregistrée. Test du serveur en cours…', '');
+    const result = await request('BP_SET_CONFIG', { endpoint, syncToken: token || null });
+    $('syncToken').value = '';
+    if (result.validation?.ok) setFeedback('Configuration enregistrée et test serveur validé. Vous pouvez lancer une collecte.', 'success');
+    else setFeedback(result.validation?.message || 'Configuration enregistrée, mais le test serveur doit être corrigé avant la collecte.', 'error');
+  }));
+  bind('testConfig', () => withAction('testConfig', async () => {
+    setFeedback('Test du jeton enregistré en cours…', '');
+    const result = await request('BP_TEST_CONFIG');
+    if (result.validation?.ok) setFeedback('Jeton enregistré et serveur validé. Collecte autorisée.', 'success');
+    else setFeedback(result.validation?.message || 'Test serveur non validé.', 'error');
+  }));
+  bind('exportData', exportLocalData);
+  bind('clearData', () => withAction('clearData', async () => {
+    if (!confirm('Effacer les observations locales et les lots en attente ? Cette action ne peut pas être annulée.')) return;
+    await request('BP_CLEAR_LOCAL_DATA');
+    setFeedback('Données locales effacées.', 'success');
+  }));
+
+  if (chrome?.storage?.onChanged?.addListener) chrome.storage.onChanged.addListener(() => { void refresh({ quiet: true }); });
+  setFeedback('Console chargée. Actualisation de l’état local…', '');
+  void refresh({ quiet: true });
+}
+
+initializeConsole();

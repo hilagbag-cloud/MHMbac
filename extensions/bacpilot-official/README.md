@@ -81,6 +81,7 @@ Les tests inclus ne contactent pas le portail officiel. Ils contrôlent le manif
 ```bash
 node validate_extension.mjs .
 node test_persistence.mjs .
+node test_console_ui.mjs .
 ```
 
 ## Sources
