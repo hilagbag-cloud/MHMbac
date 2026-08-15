@@ -4,23 +4,24 @@
  * Créateur : Hilarus GBAGOULE
  */
 
-import React, { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { VerificationModal } from './components/VerificationModal';
 import { HomePage } from './pages/HomePage';
-import { OrientationGuidePage } from './pages/OrientationGuidePage';
-import { LoginPage } from './pages/LoginPage';
-import { RegisterPage } from './pages/RegisterPage';
-import { OnboardingPage } from './pages/OnboardingPage';
-import { DashboardPage } from './pages/DashboardPage';
-import { ProfilePage } from './pages/ProfilePage';
-import { AboutPage } from './pages/AboutPage';
-import { PrivacyPage } from './pages/PrivacyPage';
-import { TermsPage } from './pages/TermsPage';
-import { NotFoundPage } from './pages/NotFoundPage';
 import { Seo } from './components/Seo';
+
+const OrientationGuidePage = lazy(() => import('./pages/OrientationGuidePage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const AboutPage = lazy(() => import('./pages/AboutPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
+const TermsPage = lazy(() => import('./pages/TermsPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function AppContent() {
   const { user, isLoading } = useAuth();
@@ -105,7 +106,9 @@ function AppContent() {
 
       {/* Vue active */}
       <main className="flex-grow">
-        {renderCurrentView()}
+        <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center text-sm font-semibold text-slate-500">Chargement de la page…</div>}>
+          {renderCurrentView()}
+        </Suspense>
       </main>
 
       {/* Pied de page global */}
