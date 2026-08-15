@@ -61,7 +61,10 @@ async function send(onMessage, message) {
 }
 
 const firstWorker = makeRuntime();
+const immediateSave = await send(firstWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026' });
+if (!immediateSave.ok || storage.bacpilotOfficialConfig.syncToken !== 'stable-sync-token-2026') throw new Error('La configuration enregistrée au démarrage doit survivre à l’initialisation du stockage.');
 await waitFor(() => storage.bacpilotOfficialState);
+storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: '' };
 const collection = {
   collectionId: 'collection-test-001',
   status: 'completed',

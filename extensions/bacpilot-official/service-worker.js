@@ -24,6 +24,8 @@ const isValidSyncToken = (value) => typeof value === 'string' && SYNC_TOKEN_PATT
 const newId = (prefix) => `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+let storageInitialization = null;
+
 async function initStorage() {
   const current = await chrome.storage.local.get([STORAGE_KEYS.state, STORAGE_KEYS.queue, STORAGE_KEYS.config, STORAGE_KEYS.diagnostics]);
   await chrome.storage.local.set({
@@ -47,12 +49,25 @@ async function initStorage() {
   await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
 }
 
+function ensureStorage() {
+  if (!storageInitialization) {
+    storageInitialization = initStorage().catch((error) => {
+      storageInitialization = null;
+      throw error;
+    });
+  }
+  return storageInitialization;
+}
+
 async function getState() {
+  await ensureStorage();
   const data = await chrome.storage.local.get([STORAGE_KEYS.state, STORAGE_KEYS.queue, STORAGE_KEYS.config, STORAGE_KEYS.diagnostics, STORAGE_KEYS.sourceTabId]);
+  const syncToken = data[STORAGE_KEYS.config]?.syncToken || '';
+  const tokenState = !syncToken ? 'missing' : (isValidSyncToken(syncToken) ? 'ready' : 'invalid');
   return {
     state: data[STORAGE_KEYS.state],
     queue: data[STORAGE_KEYS.queue] || [],
-    config: { endpoint: data[STORAGE_KEYS.config]?.endpoint || DEFAULT_CONFIG.endpoint, configured: Boolean(data[STORAGE_KEYS.config]?.syncToken) },
+    config: { endpoint: data[STORAGE_KEYS.config]?.endpoint || DEFAULT_CONFIG.endpoint, configured: tokenState === 'ready', tokenState },
     diagnostics: data[STORAGE_KEYS.diagnostics] || [],
     sourceTabId: data[STORAGE_KEYS.sourceTabId] || null
   };
@@ -185,6 +200,7 @@ async function flushQueue(trigger = 'manual') {
   if (flushing) return { skipped: true, reason: 'already_running' };
   flushing = true;
   try {
+    await ensureStorage();
     const data = await chrome.storage.local.get([STORAGE_KEYS.queue, STORAGE_KEYS.config]);
     let queue = data[STORAGE_KEYS.queue] || [];
     const config = { ...DEFAULT_CONFIG, ...(data[STORAGE_KEYS.config] || {}) };
@@ -232,9 +248,9 @@ async function resumeScan(tabId = null) {
   return response;
 }
 
-chrome.runtime.onInstalled.addListener(() => { void initStorage(); });
-chrome.runtime.onStartup.addListener(() => { void initStorage(); });
-chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === RETRY_ALARM) void flushQueue('scheduled_retry'); });
+chrome.runtime.onInstalled.addListener(() => { void ensureStorage(); });
+chrome.runtime.onStartup.addListener(() => { void ensureStorage(); });
+chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === RETRY_ALARM) void ensureStorage().then(() => flushQueue('scheduled_retry')); });
 chrome.action.onClicked.addListener((tab) => {
   if (tab?.url?.startsWith(OFFICIAL_PAGE_PREFIX)) void chrome.storage.local.set({ [STORAGE_KEYS.sourceTabId]: tab.id });
   void openConsole();
@@ -242,6 +258,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const run = async () => {
+    await ensureStorage();
     switch (message?.type) {
       case 'BP_SOURCE_READY':
         if (sender.tab?.id) await chrome.storage.local.set({ [STORAGE_KEYS.sourceTabId]: sender.tab.id });
@@ -298,4 +315,4 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return true;
 });
 
-void initStorage();
+void ensureStorage();

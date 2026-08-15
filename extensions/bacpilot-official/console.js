@@ -42,8 +42,10 @@ function renderQueue(queue = [], config = {}, state = {}) {
   $('queueBadge').className = `badge ${count ? 'warning' : ''}`;
   $('syncStatus').textContent = count ? 'Reprise planifiée' : 'À jour';
   $('syncMessage').textContent = state.syncMessage || (count ? `${count} lot(s) conservé(s) localement et réessayé(s) automatiquement.` : 'Aucun lot en attente.');
-  $('configState').textContent = config.configured ? 'Configurée localement' : 'Jeton requis';
-  $('configState').className = `badge ${config.configured ? '' : 'warning'}`;
+  const configState = config.tokenState || (config.configured ? 'ready' : 'missing');
+  const configLabels = { ready: 'Configurée localement', missing: 'Jeton requis', invalid: 'Jeton à corriger' };
+  $('configState').textContent = configLabels[configState] || 'Jeton requis';
+  $('configState').className = `badge ${configState === 'ready' ? '' : 'warning'}`;
   if (!count) { $('queueList').innerHTML = '<p>Aucun lot en attente.</p>'; return; }
   $('queueList').innerHTML = queue.map((entry) => `<div class="queue-item"><strong>${escapeHtml(entry.payload?.items?.length || 0)} observation(s) · lot ${escapeHtml(entry.payload?.part || '—')}/${escapeHtml(entry.payload?.totalParts || '—')}</strong><small>Créé : ${escapeHtml(formatDate(entry.createdAt))} · Tentatives : ${escapeHtml(entry.attempts || 0)}</small><small>${escapeHtml(entry.lastError || `Prochaine tentative : ${entry.nextAttemptAt ? formatDate(entry.nextAttemptAt) : 'dès que possible'}`)}</small></div>`).join('');
 }
