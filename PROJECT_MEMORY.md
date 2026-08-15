@@ -123,6 +123,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 5 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
 | 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
 | 7 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
+| 8 | Choisir et acheter le domaine BacPilot. | `bacpilot.com` chez Spaceship recommandé, sous réserve de disponibilité au paiement ; ne procéder qu’après accord explicite. |
 
 ## 10. Journal de continuité
 
@@ -134,6 +135,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | En cours | Mémoire projet canonique créée. | Lire et mettre à jour ce fichier à chaque changement. |
 | 15 août 2026 | Kit prêt, non publié | Première campagne organique BacPilot préparée : Reel, voix-off, légende, Stories, UTM, tableau de suivi et couverture 4:5 adaptée au cadrage Instagram. | Obtenir l’accord explicite avant toute publication sur un réseau social. |
 | 15 août 2026 | Kit prêt, non publié | Post Assomption BacPilot créé après vérification du ton local : visuel 4:5, légende courte et signature discrète. | Publier séparément du Reel, sans lien ni CTA commercial. |
+| 15 août 2026 | Recherche terminée, achat non effectué | Comparaison de domaines : `bacpilot.com` chez Spaceship recommandé pour le coût, la lisibilité et le renouvellement prévisible ; `.xyz` est le coût minimal sur deux ans. | Attendre le choix et l’accord explicite avant tout achat. |
 
 ## 11. Règle de reprise de session
 
@@ -155,6 +157,7 @@ Au début de toute nouvelle session ou intervention :
 - `SPEC_UI_PREUVES_TOP3.md` — décision UX/UI et microcopies.
 - `MARKETING_JOUR1_LANCEMENT_BACPILOT.md` — kit de lancement organique du Jour 1.
 - `POST_ASSOMPTION_BACPILOT_2026.md` — kit de publication de vœux du 15 août 2026.
+- `RECOMMANDATION_DOMAINE_BACPILOT_2026.md` — comparaison de prix et recommandation d’achat de domaine.
 
 ---
 
