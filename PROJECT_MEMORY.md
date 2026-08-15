@@ -99,6 +99,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | Candidat | `profiles`, `user_preferences` | Série, mention, objectif et domaines. |
 | Agent | `orientation_sessions`, `user_academic_signals`, `recommendation_runs`, `ai_usage_daily` | Conversation, signaux volontaires, résultats et quota. |
 | Collecte | `collection_runs` | Couverture et métadonnées des scans ; à exploiter/compléter dans l’évolution extension. |
+| Synchronisation extension — incident au 15 août 2026 | Export local validé : 159 observations uniques, sans erreur de collecte, réparties en 4 lots conservés (40/40/40/39). Aucune écriture associée n’est encore présente dans `sync_batches` ni `collection_runs`. | L’endpoint `mhmbac-sync` répond et applique le contrat `x-mhm-sync-token` / `MHM_SYNC_TOKEN`. Reconfigurer le même jeton côté Supabase et console locale, puis déclencher « Synchroniser maintenant » et contrôler l’accusé serveur. |
 | Fonctions | `get_data_freshness`, `get_top_recommendations` et fonctions de quota | Fonctions bornées : base du Top 3 et de l’explication. |
 
 ## 8. Déploiement et vérification
@@ -116,17 +117,18 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 
 | Priorité | Action | Critère de fin |
 |---:|---|---|
-| 1 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
-| 2 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
-| 3 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
-| 4 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
-| 5 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
-| 6 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
-| 7 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
-| 8 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
-| 9 | Contrôler l’état d’indexation et les performances organiques dans Google Search Console. | L’accueil est sélectionné par Google comme URL canonique/indexée et les requêtes, impressions et éventuelles erreurs sont suivies. |
-| 10 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
-| 11 | Vérifier la réception et l’envoi réels des boîtes `contact@bacpilot.site` et `support@bacpilot.site`, puis activer DKIM/DMARC si LWS les propose. | Un message de test entrant et sortant est confirmé pour chaque boîte ; SPF/DKIM/DMARC sont documentés sans secret. |
+| 1 | Réactiver la synchronisation des quatre lots conservés par l’extension officielle. | La console affiche un accusé de réception ; `sync_batches` et `collection_runs` reçoivent une trace nouvelle ; les compteurs et horodatages Supabase progressent. |
+| 2 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
+| 3 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
+| 4 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
+| 5 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
+| 6 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
+| 7 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
+| 8 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
+| 9 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
+| 10 | Contrôler l’état d’indexation et les performances organiques dans Google Search Console. | L’accueil est sélectionné par Google comme URL canonique/indexée et les requêtes, impressions et éventuelles erreurs sont suivies. |
+| 11 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
+| 12 | Vérifier la réception et l’envoi réels des boîtes `contact@bacpilot.site` et `support@bacpilot.site`, puis activer DKIM/DMARC si LWS les propose. | Un message de test entrant et sortant est confirmé pour chaque boîte ; SPF/DKIM/DMARC sont documentés sans secret. |
 
 ## 10. Journal de continuité
 
@@ -146,6 +148,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | `0426632` déployé | Pages publiques À propos, Méthode, Contact, Confidentialité et Conditions complétées ; navigation/footer reliés à des destinations réelles et audités. Le portail `https://partenaires.bacpilot.site` est vérifié par Vercel et répond en HTTPS 200 avec titre, liens et canaux BacPilot cohérents. Les DNS publics exposent le MX LWS et SPF correspondant pour `bacpilot.site`. | Effectuer un test de réception/envoi des deux boîtes et activer DKIM/DMARC si proposé par LWS. |
 | 15 août 2026 | `91e9e3d` déployé | Logos des headers principal et partenaire corrigés : hauteur de navigation fixe, largeur automatique et `object-contain` afin de préserver le ratio source. Compilation TypeScript, build Vite et vérification visuelle HTTPS des deux headers validés. | Surveiller le rendu sur les appareils des utilisateurs lors des prochaines visites. |
 | 15 août 2026 | `23e0f41` publié | Extension Chrome officielle créée dans `extensions/bacpilot-official/` : console Chrome Windows indépendante, collecte brute sans scoring/import/maintien de session, checkpoints `chrome.storage.local`, file de synchronisation réessayée et diagnostics persistants. Tests statiques et simulation de redémarrage du service worker réussis, sans secret dans le package. L’archive de livraison à utiliser est désormais plate : `bacpilot_extension_officielle_chrome_ready.zip`, avec `manifest.json` directement à la racine après extraction. | Charger le package dans Chrome et effectuer une recette avec session officielle autorisée, jeton local configuré et accusé serveur réel. |
+| 15 août 2026 | Diagnostic d’intégration, non résolu | L’export local confirme une collecte complète de 159 observations entre 17:49 et 17:51 UTC, répartie dans quatre lots conservés. Supabase n’a reçu aucun de ces lots : `live_programmes` et `gauge_observations` restent à leur dernière écriture de 01:25 UTC, tandis que `sync_batches` et `collection_runs` sont vides. L’endpoint public répond correctement et refuse un jeton volontairement invalide en `401`, ce qui confirme le contrat d’authentification sans révéler le secret. | Enregistrer le même jeton de collecte dans les secrets Supabase et dans « Administration locale », puis cliquer sur « Synchroniser maintenant » et lire le diagnostic persistant. |
 
 ## 11. Règle de reprise de session
 
