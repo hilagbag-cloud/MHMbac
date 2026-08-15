@@ -125,6 +125,12 @@ const configs: Record<string, SeoConfig> = {
     path: '/profile',
     noindex: true,
   },
+  '/beta-access': {
+    title: 'Vérification bêta | BacPilot',
+    description: 'Vérifiez votre accès au programme bêta BacPilot.',
+    path: '/beta-access',
+    noindex: true,
+  },
 };
 
 function setMeta(selector: string, attributes: Record<string, string>) {
@@ -136,7 +142,14 @@ function setMeta(selector: string, attributes: Record<string, string>) {
   Object.entries(attributes).forEach(([key, value]) => element?.setAttribute(key, value));
 }
 
-export function Seo({ route, partnerPortal = false }: { route: string; partnerPortal?: boolean }) {
+export function Seo({ route, partnerPortal = false, betaPortal = false }: { route: string; partnerPortal?: boolean; betaPortal?: boolean }) {
+  const betaConfig: SeoConfig = {
+    title: 'Programme bêta BacPilot',
+    description: 'Portail d’accès au programme bêta BacPilot.',
+    path: '/',
+    canonicalUrl: 'https://beta.bacpilot.site/',
+    noindex: true,
+  };
   const partnerConfig: SeoConfig = {
     title: 'Devenir partenaire | BacPilot',
     description: 'Découvrez comment collaborer avec BacPilot pour rendre l’orientation post-baccalauréat plus accessible et vérifiable au Bénin.',
@@ -144,7 +157,7 @@ export function Seo({ route, partnerPortal = false }: { route: string; partnerPo
     canonicalUrl: 'https://partenaires.bacpilot.site/',
   };
   const config: SeoConfig =
-    partnerPortal ? partnerConfig : configs[route] ?? {
+    betaPortal ? betaConfig : partnerPortal ? partnerConfig : configs[route] ?? {
       title: 'Page introuvable | BacPilot',
       description: 'Cette page BacPilot est introuvable.',
       path: route,

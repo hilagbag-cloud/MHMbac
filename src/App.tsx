@@ -119,7 +119,7 @@ function AppContent() {
   };
 
   if (isBetaPortal) {
-    return <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Chargement du portail bêta…</div>}><BetaPortalPage accessUrl="https://bacpilot.site/beta-access" /></Suspense>;
+    return <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-slate-950 text-sm font-semibold text-slate-300">Chargement du portail bêta…</div>}><Seo route="/" betaPortal /><BetaPortalPage accessUrl="https://bacpilot.site/beta-access" /></Suspense>;
   }
 
   if (isPartnerPortal) {
