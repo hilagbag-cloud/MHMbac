@@ -669,6 +669,11 @@ function customEmailHtml(subject: string, displayName: string, bodyText: string)
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div><div style="text-align:center;margin:30px 0 24px"><a href="https://bacpilot.site" style="display:inline-block;background:#f43f5e;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:10px">Commencer dès maintenant</a></div><p style="font-size:13px;line-height:1.6;color:#778198;margin:0">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br><a href="https://bacpilot.site" style="color:#d52e59;word-break:break-all">https://bacpilot.site</a></p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS<br><a href="https://bacpilot.site" style="color:#d52e59">bacpilot.site</a></p></div></body></html>`;
 }
 
+function transactionalWelcomeHtml(displayName: string) {
+  const safeName = escapeHtml(displayName || 'utilisateur BacPilot', 120);
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Votre compte BacPilot est prêt</title></head><body style="margin:0;background:#ffffff;color:#1f2937;font-family:Arial,Helvetica,sans-serif"><main style="max-width:600px;margin:0 auto;padding:32px 20px"><p style="margin:0 0 24px;font-size:18px;font-weight:700;color:#111827">BacPilot</p><p style="margin:0 0 18px;font-size:16px;line-height:1.6">Bonjour ${safeName},</p><p style="margin:0 0 18px;font-size:16px;line-height:1.6">Votre compte BacPilot vient d’être créé.</p><p style="margin:0 0 22px;font-size:16px;line-height:1.6">Vous pouvez accéder à votre espace pour renseigner votre profil et consulter les données disponibles.</p><p style="margin:0 0 24px;font-size:16px;line-height:1.6"><a href="https://bacpilot.site" style="color:#1d4ed8;text-decoration:underline">Accéder à BacPilot</a></p><p style="margin:0;font-size:14px;line-height:1.6;color:#4b5563">Vous recevez ce message parce qu’un compte a été créé avec cette adresse. Besoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.</p><hr style="border:0;border-top:1px solid #e5e7eb;margin:28px 0 16px"><p style="margin:0;font-size:12px;line-height:1.5;color:#6b7280">BacPilot — par MHM SOLUTIONS</p></main></body></html>`;
+}
+
 async function beginEmailSubject(admin: any, chatId: string, user: ResolvedUser) {
   const { error } = await admin.from('operator_input_sessions').upsert({
     telegram_chat_id: chatId,
@@ -715,7 +720,7 @@ async function createPendingEmail(admin: any, chatId: string, user: ResolvedUser
   return [`Email préparé pour ${userLabel(user)} <${text(user.email, 180) || 'email absent'}>.`, `Sujet : ${safeSubject}`, '', '1. Confirmer l’envoi', '2. Annuler', `Expire : ${formatDate(expiresAt)}`].join('\n');
 }
 
-async function sendCustomEmail(email: string, displayName: string, subject: string, bodyText: string): Promise<BetaEmailResult> {
+async function sendCustomEmail(email: string, displayName: string, subject: string, bodyText: string, template = 'custom'): Promise<BetaEmailResult> {
   if (!email) return { status: 'skipped', error_message: 'Adresse email absente du profil.' };
   const apiKey = Deno.env.get('RESEND_API_KEY');
   if (!apiKey) return { status: 'not_configured', error_message: 'RESEND_API_KEY absente des secrets Edge Function.' };
@@ -736,10 +741,13 @@ async function sendCustomEmail(email: string, displayName: string, subject: stri
       signal: controller.signal,
       body: JSON.stringify({
         from,
+        reply_to: 'contact@bacpilot.site',
         to: [email],
-        subject: text(subject, 160),
-        html: customEmailHtml(subject, displayName, bodyText),
-        text: `Bonjour ${displayName || 'utilisateur BacPilot'},\n\n${messageText(bodyText, 6000)}\n\nBacPilot — par MHM SOLUTIONS`,
+        subject: template === 'welcome' ? 'Votre compte BacPilot est prêt' : text(subject, 160),
+        html: template === 'welcome' ? transactionalWelcomeHtml(displayName) : customEmailHtml(subject, displayName, bodyText),
+        text: template === 'welcome'
+          ? `Bonjour ${displayName || 'utilisateur BacPilot'},\n\nVotre compte BacPilot vient d’être créé. Vous pouvez accéder à votre espace : https://bacpilot.site\n\nBesoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.`
+          : `Bonjour ${displayName || 'utilisateur BacPilot'},\n\n${messageText(bodyText, 6000)}\n\nBacPilot — par MHM SOLUTIONS`,
       }),
     });
     const payload = await response.json().catch(() => null);
@@ -836,7 +844,7 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
     const bodyText = messageText(pending.payload?.body_text, 6000);
     const template = text(pending.payload?.template, 40) || 'custom';
     const recipientEmail = text(profile?.email, 180).toLowerCase();
-    const result: BetaEmailResult = await withTimeout(sendCustomEmail(recipientEmail, text(profile?.display_name, 120), subject, bodyText), 10_000)
+    const result: BetaEmailResult = await withTimeout(sendCustomEmail(recipientEmail, text(profile?.display_name, 120), subject, bodyText, template), 10_000)
       .catch((error): BetaEmailResult => ({ status: 'failed', error_message: error instanceof Error ? text(error.message, 180) : 'Délai email dépassé.' }));
     const { error: deliveryLogError } = await admin.from('operator_email_deliveries').insert({
       telegram_chat_id: chatId,
@@ -1433,8 +1441,8 @@ Deno.serve(async (request) => {
         }
       }
     } else if (command === '/welcome') {
-      const welcomeSubject = 'Bienvenue sur BacPilot — explore tes possibilités';
-      const welcomeBody = 'Tu viens de rejoindre BacPilot, une plateforme conçue pour t’aider à mieux comprendre tes possibilités après le bac. Explore les filières, compare les données disponibles et découvre les pistes qui correspondent le mieux à ton profil et à tes objectifs. Certaines formations peuvent proposer des possibilités de bourse, mais celles-ci évoluent et doivent toujours être vérifiées sur le portail officiel. La décision finale et la validation officielle restent entre tes mains.';
+      const welcomeSubject = 'Votre compte BacPilot est prêt';
+      const welcomeBody = 'Votre compte BacPilot vient d’être créé. Vous pouvez accéder à votre espace pour renseigner votre profil et consulter les données disponibles. Besoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.';
       if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/welcome'));
       else {
         const user = await withTimeout(resolveUser(admin, argument));
