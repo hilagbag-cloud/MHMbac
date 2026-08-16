@@ -395,3 +395,10 @@ Audit SEO public : la route historique `/a-propos` répondait 404 malgré une na
 ## Renforcement collecte continue — extension v1.2.2
 
 Après validation de l’enrôlement et de la reprise, le contrôle de fraîcheur a confirmé que les derniers reçus pouvaient correspondre à des reprises d’un même cycle plutôt qu’à de nouvelles observations. En plus de la déduplication des checkpoints v1.2.1, la v1.2.2 déclenche désormais un premier cycle dès l’activation de l’actualisation volontaire et exécute un prévol du collecteur avant chaque cycle planifié. La console enregistre `lastAutoRefreshAttemptAt` et un statut explicite de report ou de lancement. La cadence reste volontaire, avec un minimum de 10 minutes, un onglet officiel existant et une session autorisée : aucun maintien de session, aucune reconnexion ni résolution de CAPTCHA n’est implémenté.
+
+
+## 2026-08-16 — Console Telegram inline et welcome obligatoire
+
+Le bot Telegram évolue vers une console à boutons inline tout en conservant les commandes texte. Le menu principal propose maintenant statistiques, utilisateurs, bêta-testeurs, retours, état, templates, actions en attente et aide. Les fiches utilisateurs proposent Voir la fiche, Envoyer welcome, Ajouter bêta et Supprimer. Les actions sensibles utilisent les confirmations serveur existantes via les boutons Confirmer/Annuler.
+
+La table privée `welcome_email_deliveries` journalise le welcome automatique par utilisateur avec statut, tentatives, identifiant fournisseur et erreur éventuelle. `notify-new-user` tente l’envoi automatique à chaque nouvelle inscription ayant un e-mail valide, déduplique les envois déjà réussis et publie dans Telegram les boutons Renvoyer welcome, Voir la fiche, Valider bêta si demandé et Supprimer. Les utilisateurs sans adresse e-mail restent signalés avec un statut explicite afin qu’un contact puisse être complété ; aucun envoi ne peut être effectué sans adresse valide.

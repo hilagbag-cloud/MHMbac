@@ -54,7 +54,51 @@ const formatDate = (value: unknown) => {
   }).format(date);
 };
 
-async function sendTelegramMessage(token: string, chatId: string, text: string) {
+function escapeHtml(value: unknown, limit = 240) {
+  return cleanText(value, limit)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+function welcomeEmailHtml(displayName: string) {
+  const name = escapeHtml(displayName || 'utilisateur BacPilot', 120);
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Bienvenue sur BacPilot</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:28px;line-height:1.2">Bienvenue sur BacPilot</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${name},</p><p style="font-size:16px;line-height:1.75;color:#303b50">Tu viens de rejoindre BacPilot, une plateforme conçue pour t’aider à mieux comprendre tes possibilités après le bac. Explore les filières, compare les données disponibles et découvre les pistes qui correspondent à ton profil et à tes objectifs.</p><p style="font-size:14px;line-height:1.7;color:#58657d">Certaines formations peuvent proposer des possibilités de bourse. Ces informations évoluent et doivent toujours être vérifiées sur le portail officiel. BacPilot ne garantit ni admission ni bourse.</p><div style="text-align:center;margin:30px 0 24px"><a href="https://bacpilot.site" style="display:inline-block;background:#f43f5e;color:#fff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:10px">Commencer dès maintenant</a></div><p style="font-size:13px;line-height:1.6;color:#778198;margin:0">Si le bouton ne fonctionne pas, copie ce lien :<br><a href="https://bacpilot.site" style="color:#d52e59;word-break:break-all">https://bacpilot.site</a></p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS</p></div></body></html>`;
+}
+
+async function sendWelcomeEmail(apiKey: string, email: string, displayName: string) {
+  const configuredFrom = cleanText(Deno.env.get('BETA_EMAIL_FROM'), 180);
+  const from = configuredFrom && !configuredFrom.toLowerCase().includes('@send.bacpilot.site')
+    ? configuredFrom
+    : 'BacPilot <contact@bacpilot.site>';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'User-Agent': 'BacPilot/1.0 (https://bacpilot.site)' },
+      signal: controller.signal,
+      body: JSON.stringify({
+        from,
+        to: [email],
+        subject: 'Bienvenue sur BacPilot — explore tes possibilités',
+        html: welcomeEmailHtml(displayName),
+        text: `Bonjour ${displayName || 'utilisateur BacPilot'},\n\nTu viens de rejoindre BacPilot. Commence dès maintenant : https://bacpilot.site`,
+      }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(`Resend HTTP ${response.status}: ${cleanText(payload?.message || payload?.name || 'réponse fournisseur inconnue', 180)}`);
+    return { status: 'sent', providerMessageId: typeof payload?.id === 'string' ? payload.id : null, error: null };
+  } catch (error) {
+    return { status: 'failed', providerMessageId: null, error: error instanceof Error ? cleanText(error.message, 240) : 'Erreur réseau email.' };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function sendTelegramMessage(token: string, chatId: string, text: string, replyMarkup?: Record<string, unknown>) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
@@ -66,6 +110,7 @@ async function sendTelegramMessage(token: string, chatId: string, text: string) 
         chat_id: chatId,
         text,
         disable_web_page_preview: true,
+        ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
       }),
     });
     if (!response.ok) throw new Error(`Telegram HTTP ${response.status}`);
@@ -154,6 +199,40 @@ Deno.serve(async (request) => {
   const technicalContext = betaRequested && contextConsentAt && (deviceClass || browser)
     ? `${deviceClass || 'type inconnu'} · ${browser || 'navigateur inconnu'}`
     : 'non communiqué';
+  const emailAddress = cleanText(payload.record?.email, 180).toLowerCase();
+  const resendKey = Deno.env.get('RESEND_API_KEY');
+  let welcomeStatus = emailAddress ? 'à envoyer' : 'en attente — adresse e-mail absente';
+  if (emailAddress && resendKey) {
+    const { data: existingWelcome } = await admin.from('welcome_email_deliveries').select('id, status, attempts').eq('user_id', userId).maybeSingle();
+    if (existingWelcome?.status === 'sent') {
+      welcomeStatus = 'déjà envoyé';
+    } else {
+      const attempts = Math.min(Number(existingWelcome?.attempts || 0) + 1, 9);
+      const { data: ledger } = await admin.from('welcome_email_deliveries').upsert({
+        id: existingWelcome?.id,
+        user_id: userId,
+        recipient_email: emailAddress,
+        status: 'pending',
+        attempts,
+        error_message: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' }).select('id').single();
+      if (ledger?.id) {
+        const delivery = await sendWelcomeEmail(resendKey, emailAddress, displayName);
+        welcomeStatus = delivery.status === 'sent' ? 'envoyé automatiquement' : `échec — ${delivery.error || 'à reprendre'}`;
+        await admin.from('welcome_email_deliveries').update({
+          status: delivery.status,
+          provider_message_id: delivery.providerMessageId,
+          error_message: delivery.error,
+          sent_at: delivery.status === 'sent' ? new Date().toISOString() : null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', ledger.id);
+      }
+    }
+  } else if (!resendKey && emailAddress) {
+    welcomeStatus = 'à envoyer — Resend non configuré';
+  }
+
   const text = [
     'BacPilot — nouvelle inscription',
     '',
@@ -166,16 +245,25 @@ Deno.serve(async (request) => {
     `Entrée : ${entrypoint} · ${route}`,
     `Contexte technique consenti : ${technicalContext}`,
     `Statut bêta actuel : ${status}`,
+    `Welcome : ${welcomeStatus}`,
     '',
     betaRequested
-      ? `Action proposée : /beta_add ${userId} — puis /confirm et choisis 1 pour valider ou 2 pour annuler.`
-      : `Contrôle possible : /user ${userId}`,
+      ? `Action proposée : appuie sur « Valider bêta » pour préparer l’action.`
+      : `Contrôle possible : appuie sur « Voir la fiche »`,
     `Fiche complète : /user ${userId}`,
     'Le statut bêta est attribué uniquement par validation serveur.',
   ].join('\n');
 
+  const replyMarkup = {
+    inline_keyboard: [
+      [{ text: '✉️ Renvoyer welcome', callback_data: `welcome:${userId}` }, { text: '👤 Voir la fiche', callback_data: `user:${userId}` }],
+      ...(betaRequested ? [[{ text: '✅ Valider bêta', callback_data: `beta_add:${userId}` }]] : []),
+      [{ text: '🗑️ Supprimer', callback_data: `delete:${userId}` }],
+    ],
+  };
+
   try {
-    await sendTelegramMessage(telegramToken, telegramChatId, text);
+    await sendTelegramMessage(telegramToken, telegramChatId, text, replyMarkup);
     const { error: sentError } = await admin
       .from('operator_notifications')
       .update({ delivery_status: 'sent', sent_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() })

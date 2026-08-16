@@ -5,6 +5,11 @@ type TelegramUpdate = {
     chat?: { id?: unknown };
     text?: unknown;
   };
+  callback_query?: {
+    id?: unknown;
+    data?: unknown;
+    message?: { chat?: { id?: unknown } };
+  };
 };
 
 type OperatorCommand =
@@ -15,6 +20,7 @@ type OperatorCommand =
   | '/health'
   | '/test'
   | '/user'
+  | '/user_list'
   | '/user_delete'
   | '/beta_add'
   | '/beta_pause'
@@ -225,12 +231,62 @@ async function telegramApi(token: string, method: string, body: Record<string, u
   }
 }
 
-async function sendMessage(token: string, chatId: string, message: string) {
+type InlineKeyboard = { inline_keyboard: Array<Array<{ text: string; callback_data: string }>> };
+
+async function sendMessage(token: string, chatId: string, message: string, replyMarkup?: InlineKeyboard) {
   await telegramApi(token, 'sendMessage', {
     chat_id: chatId,
     text: message.slice(0, 4000),
     disable_web_page_preview: true,
+    ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
+}
+
+async function answerCallbackQuery(token: string, callbackQueryId: string) {
+  if (!callbackQueryId) return;
+  await telegramApi(token, 'answerCallbackQuery', { callback_query_id: callbackQueryId }).catch(() => undefined);
+}
+
+function mainInlineKeyboard(): InlineKeyboard {
+  return { inline_keyboard: [
+    [{ text: '📊 Statistiques', callback_data: 'menu:stats' }, { text: '👥 Utilisateurs', callback_data: 'menu:users' }],
+    [{ text: '🧪 Bêta-testeurs', callback_data: 'menu:beta' }, { text: '💬 Retours bêta', callback_data: 'menu:feedback' }],
+    [{ text: '✅ État plateforme', callback_data: 'menu:status' }, { text: '✉️ Templates e-mail', callback_data: 'menu:templates' }],
+    [{ text: '⏳ Actions en attente', callback_data: 'menu:pending' }, { text: '❓ Aide', callback_data: 'menu:help' }],
+  ] };
+}
+
+function confirmationInlineKeyboard(isDeletion = false): InlineKeyboard {
+  return { inline_keyboard: [[
+    { text: isDeletion ? '✅ Confirmer SUPPRIMER' : '✅ Confirmer', callback_data: 'confirm:1' },
+    { text: '❌ Annuler', callback_data: 'confirm:2' },
+  ]] };
+}
+
+function userDetailInlineKeyboard(userId: string): InlineKeyboard {
+  return { inline_keyboard: [
+    [{ text: '✉️ Envoyer welcome', callback_data: `welcome:${userId}` }],
+    [{ text: '✅ Ajouter bêta', callback_data: `beta_add:${userId}` }, { text: '🗑️ Supprimer', callback_data: `delete:${userId}` }],
+    [{ text: '⬅️ Menu principal', callback_data: 'menu:main' }],
+  ] };
+}
+
+function callbackToCommand(data: string): { command: OperatorCommand | null; argument: string } {
+  const [action = '', value = ''] = data.split(':');
+  if (action === 'menu') {
+    const map: Record<string, OperatorCommand> = {
+      main: '/menu', stats: '/stats', users: '/user_list', beta: '/beta_list', feedback: '/feedback',
+      status: '/status', templates: '/templates', pending: '/pending', help: '/help',
+    };
+    return { command: map[value] || null, argument: '' };
+  }
+  if (action === 'welcome') return { command: '/welcome', argument: value };
+  if (action === 'user') return { command: '/user', argument: value };
+  if (action === 'beta_add') return { command: '/beta_add', argument: value };
+  if (action === 'delete') return { command: '/user_delete', argument: value };
+  if (action === 'confirm') return { command: '/confirm', argument: value };
+  if (action === 'cancel') return { command: '/cancel', argument: value };
+  return { command: null, argument: '' };
 }
 
 function escapeHtml(value: unknown, limit = 240) {
@@ -1097,9 +1153,12 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: 'Update Telegram invalide.' }, 400);
   }
 
-  const sourceChatId = String(update.message?.chat?.id ?? '');
-  const parsed = parseCommand(update.message?.text);
+  const callbackQueryId = String(update.callback_query?.id ?? '');
+  const callbackData = text(update.callback_query?.data, 120);
+  const sourceChatId = String(update.callback_query?.message?.chat?.id ?? update.message?.chat?.id ?? '');
+  const parsed = callbackData ? callbackToCommand(callbackData) : parseCommand(update.message?.text);
   if (sourceChatId !== operatorChatId) return json({ ok: true, ignored: true });
+  if (callbackQueryId) await answerCallbackQuery(telegramToken, callbackQueryId);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   let command: OperatorCommand | null = parsed.command;
@@ -1160,6 +1219,14 @@ Deno.serve(async (request) => {
         await withTimeout(createPendingEmail(admin, sourceChatId, user, subject, messageText(argument, 6000)));
         reply = await withTimeout(beginConfirmationSession(admin, sourceChatId));
       }
+    } else if (activeSession?.expected_input === 'menu_choice' && activeSession.menu_state === 'confirm_action' && command === '/confirm') {
+      if (argument === '1') {
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(confirmActionById(admin, sourceChatId, activeSession.pending_action_id || ''));
+      } else if (argument === '2') {
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(cancelActionById(admin, sourceChatId, activeSession.pending_action_id || ''));
+      } else reply = 'Choisis un bouton : confirmer ou annuler.';
     } else if (activeSession?.expected_input === 'menu_choice' && command === '/menu') {
       reply = await withTimeout(handleMenuChoice(admin, sourceChatId, activeSession, argument));
     } else if (activeSession?.expected_input === 'confirmation_ack' && command === '/confirm' && activeSession.pending_action_id) {
@@ -1203,6 +1270,8 @@ Deno.serve(async (request) => {
     } else if (command === '/collector_revoke') {
       if (!argument) reply = 'Envoie `/collector_revoke <ID>` avec l’identifiant affiché par /collector_list.';
       else reply = await withTimeout(createCollectorRevokePending(admin, sourceChatId, argument));
+    } else if (command === '/user_list') {
+      reply = await withTimeout(showUserList(admin, sourceChatId));
     } else if (command === '/user') {
       if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user'));
       else {
@@ -1281,7 +1350,16 @@ Deno.serve(async (request) => {
         console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
       });
     }
-    await withTimeout(sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.'), 8_000);
+    const inlineMarkup = command === '/menu' || command === '/start'
+      ? mainInlineKeyboard()
+      : command === '/user' && targetUserId
+        ? userDetailInlineKeyboard(targetUserId)
+        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/user_delete' || command === '/collector_revoke'
+          ? confirmationInlineKeyboard(command === '/user_delete')
+          : (command === '/confirm' || command === '/cancel')
+            ? mainInlineKeyboard()
+            : undefined;
+    await withTimeout(sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.', inlineMarkup), 8_000);
     return json({ ok: true, command });
   } catch (error) {
     console.error('Erreur de commande Telegram:', error instanceof Error ? error.message : JSON.stringify(error));
