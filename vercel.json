@@ -28,21 +28,6 @@
   ],
   "rewrites": [
     {
-      "source": "/robots.txt",
-      "has": [{ "type": "host", "value": "partenaires.bacpilot.site" }],
-      "destination": "/partenaires-robots.txt"
-    },
-    {
-      "source": "/sitemap.xml",
-      "has": [{ "type": "host", "value": "partenaires.bacpilot.site" }],
-      "destination": "/partenaires-sitemap.xml"
-    },
-    {
-      "source": "/robots.txt",
-      "has": [{ "type": "host", "value": "beta.bacpilot.site" }],
-      "destination": "/beta-robots.txt"
-    },
-    {
       "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|site\\.webmanifest|favicon\\.ico).*)",
       "destination": "/index.html"
     }
