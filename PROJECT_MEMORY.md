@@ -319,3 +319,14 @@ Le commit `d754528` (*feat: extend ranking matrix to A1 A2 B and E*) est poussé
 
 Recette sans écriture réalisée dans le navigateur : `/onboarding` expose distinctement « Série A1 (Lettres & Langues) », « Série A2 (Lettres & Sciences humaines) », B, C, D et E. Le relais SQL accepte `A1` et retourne une piste issue des observations existantes ; une règle A2 contrôlée retourne Français coefficient 4, Langue vivante 1 coefficient 3 et Philosophie coefficient 3 avec la page MESRS 24. La recette de moyenne complète reste réservée à un compte réel avec la série et les trois notes concernés, sans création de profil fictif.
 
+
+
+## 12. Mise à jour du 16 août 2026 — diagnostic et correction Resend
+
+Le composeur Telegram d’emails fonctionne jusqu’à l’appel fournisseur et journalise désormais les erreurs Resend détaillées. Le premier `HTTP 403` était lié à l’utilisation de `send.bacpilot.site` comme domaine expéditeur alors que la session Resend connectée à `hilagbag@gmail.com` ne contient qu’un domaine vérifié : `bacpilot.site`.
+
+La fonction `bacpilot-telegram` ajoute maintenant un en-tête `User-Agent` explicite, conserve le message JSON Resend borné dans le journal et utilise automatiquement `BacPilot <contact@bacpilot.site>` si `BETA_EMAIL_FROM` pointe encore vers `@send.bacpilot.site`. Le template HTML conserve le logo, les informations BacPilot/MHM SOLUTIONS et la version texte de secours. La table `operator_email_deliveries` journalise chaque tentative personnalisée.
+
+La migration `20260816_bacpilot_email_send_pending_action.sql` autorise `email_send` dans le circuit d’actions confirmées. Deno, build Vite et TypeScript passent ; la fonction est republiée. Le prochain essai contrôlé doit vérifier l’envoi avec le domaine racine vérifié et retourner une référence Resend si l’API accepte la clé.
+
+Sources de diagnostic conservées dans `/tmp/bacpilot-guide-2026/resend_403_diagnostic.md` et `/tmp/bacpilot-guide-2026/resend_domain_verification_finding.md`.
