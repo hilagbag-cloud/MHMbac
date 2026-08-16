@@ -366,7 +366,7 @@ async function resumeScan(tabId = null) {
   return response;
 }
 
-async function runAutomaticRefresh() {
+async function runAutomaticRefresh(trigger = 'alarm') {
   await ensureStorage();
   const snapshot = await getState();
   const autoRefresh = snapshot.config.autoRefresh;
@@ -381,11 +381,13 @@ async function runAutomaticRefresh() {
     return { skipped: true, reason: 'collection_pending' };
   }
   try {
+    await updateState({ lastAutoRefreshAttemptAt: nowIso(), autoRefreshStatus: 'Prévol automatique en cours avant nouvelle collecte.' });
+    await requireVerifiedConfiguration(`automatic_refresh_${trigger}`);
     const tab = await findSourceTab();
     await updateState({ autoRefreshStartedAt: nowIso(), autoRefreshStatus: 'Collecte automatique lancée avec la session officielle ouverte.' });
     const response = await sendToContent(tab.id, { type: 'BP_START_COLLECTION' });
     if (!response?.ok) throw new Error(response?.error || 'La collecte automatique ne peut pas démarrer.');
-    await addDiagnostic('info', 'automatic_refresh', `Collecte automatique demandée toutes les ${autoRefresh.periodMinutes} minutes.`, { tabId: tab.id });
+    await addDiagnostic('info', 'automatic_refresh', `Collecte automatique demandée toutes les ${autoRefresh.periodMinutes} minutes.`, { tabId: tab.id, trigger });
     return { ok: true };
   } catch (error) {
     const message = String(error?.message || error);
@@ -491,8 +493,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const next = { ...current, autoRefresh };
         await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
         await ensureAlarms(next);
-        await addDiagnostic('info', 'automatic_refresh', autoRefresh.enabled ? `Actualisation automatique activée toutes les ${autoRefresh.periodMinutes} minutes ; elle exige un onglet officiel et une session valides.` : 'Actualisation automatique désactivée.', {});
-        return { ok: true, autoRefresh };
+        await addDiagnostic('info', 'automatic_refresh', autoRefresh.enabled ? `Actualisation automatique activée toutes les ${autoRefresh.periodMinutes} minutes ; un premier cycle est demandé maintenant, puis l’onglet officiel et la session doivent rester disponibles.` : 'Actualisation automatique désactivée.', {});
+        const kickoff = autoRefresh.enabled ? await runAutomaticRefresh('configuration_enabled') : null;
+        return { ok: true, autoRefresh, kickoff };
       }
       case 'BP_CLEAR_LOCAL_DATA':
         await chrome.storage.local.set({ [STORAGE_KEYS.state]: { status: 'idle', collectionId: null, observedAt: null, startedAt: null, updatedAt: nowIso(), totalCandidates: 0, completedCandidates: 0, items: [], errors: [], confirmedObservationKeys: [], message: 'Données locales effacées par l’utilisateur.' }, [STORAGE_KEYS.queue]: [] });
