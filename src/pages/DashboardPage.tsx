@@ -139,6 +139,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
 
   const toggle = (id: number) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const recommendations = assistant?.recommendations || [];
+  const guideReferences = assistant?.guide_references || [];
   const freshness = assistant?.freshness?.age_minutes ?? null;
   const proofSteps = assistant?.thinking_steps || ['En attente des données observées.'];
 
@@ -236,6 +237,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                 {recommendations.map((item, index) => {
                   const factors = factorText(item);
                   const isOpen = openFactors === item.programme_id;
+                  const guideReference = guideReferences.find((reference) => reference.recommendation_programme === item.programme);
                   return <article key={item.programme_id} className={`px-5 py-6 sm:px-7 ${index === 0 ? 'bg-amber-300/[0.035]' : ''}`}>
                     <div className="grid gap-5 md:grid-cols-[100px_minmax(0,1fr)_190px] md:items-start">
                       <div className="flex items-center gap-3 md:block">
@@ -250,11 +252,25 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                         <button onClick={() => setOpenFactors(isOpen ? null : item.programme_id)} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200">
                           {isOpen ? 'Masquer les éléments comparés' : 'Voir pourquoi cette piste ressort'} <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         </button>
-                        {isOpen && <div className="mt-4 grid gap-3 border-l-2 border-amber-300/70 pl-4 text-sm leading-6 text-slate-300 sm:grid-cols-2">
-                          <p><strong className="text-white">{factors.scholarships}</strong> bourse(s) observée(s) dans cette filière.</p>
-                          <p><strong className="text-white">{factors.applicants}</strong> inscription(s) observée(s) au dernier passage.</p>
-                          <p><strong className="text-white">{factors.mentionApplicants}</strong> inscription(s) observée(s) pour ta mention.</p>
-                          <p className={freshnessTone(item.confidence)}>{freshnessLabel(item.confidence)} · {formatAssistantFreshness(item.freshness_minutes)}</p>
+                        {isOpen && <div className="mt-4 space-y-4 border-l-2 border-amber-300/70 pl-4 text-sm leading-6 text-slate-300">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <p><strong className="text-white">{factors.scholarships}</strong> bourse(s) observée(s) dans cette filière.</p>
+                            <p><strong className="text-white">{factors.applicants}</strong> inscription(s) observée(s) au dernier passage.</p>
+                            <p><strong className="text-white">{factors.mentionApplicants}</strong> inscription(s) observée(s) pour ta mention.</p>
+                            <p className={freshnessTone(item.confidence)}>{freshnessLabel(item.confidence)} · {formatAssistantFreshness(item.freshness_minutes)}</p>
+                          </div>
+                          {guideReference?.match_type === 'exact' && <div className="border-t border-slate-800 pt-4">
+                            <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-300">Repères du guide officiel</p>
+                            <p className="mt-1 text-xs text-slate-500">Guide MESRS 2026-2027 · page {guideReference.source_pdf_page}{guideReference.completeness === 'partial' ? ' · fiche incomplète' : ''}</p>
+                            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                              {guideReference.entry_mode && <p><strong className="text-white">Accès :</strong> {guideReference.entry_mode}.</p>}
+                              {guideReference.recommended_baccalaureates.length > 0 && <p><strong className="text-white">Séries recommandées :</strong> {guideReference.recommended_baccalaureates.join(', ')}.</p>}
+                              {guideReference.scholarship_quota !== null && <p><strong className="text-white">Quota bourse du guide :</strong> {guideReference.scholarship_quota}.</p>}
+                              {guideReference.aid_or_fpp_quota !== null && <p><strong className="text-white">Quota aide/FPP du guide :</strong> {guideReference.aid_or_fpp_quota}.</p>}
+                            </div>
+                            {guideReference.career_outcomes.length > 0 && <p className="mt-3"><strong className="text-white">Débouchés indiqués :</strong> {guideReference.career_outcomes.slice(0, 5).join(' · ')}.</p>}
+                          </div>}
+                          {guideReference?.match_type === 'search' && <p className="border-t border-slate-800 pt-4 text-xs text-amber-100">Le guide contient une fiche proche ; son rattachement à cette piste doit encore être vérifié avant affichage des débouchés.</p>}
                         </div>}
                       </div>
                       <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">

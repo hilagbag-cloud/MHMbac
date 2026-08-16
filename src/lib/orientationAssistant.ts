@@ -29,6 +29,23 @@ export interface AssistantRecommendation {
   caveats: string[];
 }
 
+export interface AssistantGuideReference {
+  recommendation_programme: string;
+  match_type: 'exact' | 'search';
+  source_pdf_page: number;
+  establishment: string;
+  programme: string;
+  entry_mode: string;
+  scholarship_quota: number | null;
+  aid_or_fpp_quota: number | null;
+  recommended_baccalaureates: string[];
+  key_subjects: string[];
+  career_outcomes: string[];
+  source_excerpt: string;
+  completeness: 'complete' | 'partial';
+  verification_status: 'extracted' | 'needs_source_check' | 'verified';
+}
+
 export interface AssistantResponse {
   ok: boolean;
   error?: string;
@@ -43,6 +60,7 @@ export interface AssistantResponse {
     status?: 'fresh' | 'aging' | 'stale' | 'missing' | 'unknown';
   };
   recommendations?: AssistantRecommendation[];
+  guide_references?: AssistantGuideReference[];
   thinking_steps?: string[];
   ai_explanations_remaining_today?: number | null;
   manual_validation_required?: boolean;
