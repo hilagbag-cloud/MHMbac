@@ -13,7 +13,28 @@ import {
   isSupabaseConfigured,
   realSupabase,
 } from '../lib/supabase';
-import { BetaTester, UserPreferences, UserProfile } from '../types/orientation';
+import {
+  BetaTester,
+  SignupBrowser,
+  SignupDeviceClass,
+  SignupEntrypoint,
+  SignupIntent,
+  UserPreferences,
+  UserProfile,
+} from '../types/orientation';
+
+export interface SignupRequest {
+  displayName: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+  signupIntent: SignupIntent;
+  signupEntrypoint: SignupEntrypoint;
+  signupRoute?: string | null;
+  signupDeviceClass?: SignupDeviceClass;
+  signupBrowser?: SignupBrowser;
+  signupContextConsent?: boolean;
+}
 
 interface AuthContextType {
   user: any | null;
@@ -26,7 +47,7 @@ interface AuthContextType {
   isDemoMode: boolean;
   errorMessage: string | null;
   clearError: () => void;
-  signUp: (displayName: string, email: string, pass: string, confirmPass: string) => Promise<{ success: boolean; error?: string }>;
+  signUp: (request: SignupRequest) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
@@ -60,7 +81,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (session?.user) {
             setUser(session.user);
-            await fetchSupabaseUserData(session.user.id);
+            await fetchSupabaseUserData(session.user.id, session.user);
           } else {
             // Aucun utilisateur connecté
             setUser(null);
@@ -89,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { data: { subscription } } = realSupabase.auth.onAuthStateChange(async (event, session) => {
         if (session?.user) {
           setUser(session.user);
-          await fetchSupabaseUserData(session.user.id);
+          await fetchSupabaseUserData(session.user.id, session.user);
         } else if (event === 'SIGNED_OUT') {
           setUser(null);
           setProfile(null);
@@ -105,7 +126,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [isSupabaseLive]);
 
   // Récupère le profil et les préférences depuis Supabase
-  const fetchSupabaseUserData = async (userId: string) => {
+  const fetchSupabaseUserData = async (userId: string, authUser?: any) => {
     if (!realSupabase) return;
     try {
       // 1. Profil
@@ -121,7 +142,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Profil non encore créé
         const newProf: UserProfile = {
           id: userId,
-          display_name: user?.user_metadata?.display_name || 'Nouveau Bachelier',
+          display_name: authUser?.user_metadata?.display_name || user?.user_metadata?.display_name || 'Nouveau Bachelier',
+          email: authUser?.email || user?.email || undefined,
+          signup_intent: authUser?.user_metadata?.signup_intent || 'standard',
+          signup_entrypoint: authUser?.user_metadata?.signup_entrypoint || 'direct',
+          signup_route: authUser?.user_metadata?.signup_route || null,
+          signup_device_class: authUser?.user_metadata?.signup_device_class || 'unknown',
+          signup_browser: authUser?.user_metadata?.signup_browser || 'Other',
+          signup_context_consent_at: authUser?.user_metadata?.signup_context_consent_at || null,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -152,7 +180,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Inscription
-  const signUp = async (displayName: string, email: string, pass: string, confirmPass: string) => {
+  const signUp = async (request: SignupRequest) => {
+    const {
+      displayName,
+      email,
+      password: pass,
+      confirmPassword: confirmPass,
+      signupIntent,
+      signupEntrypoint,
+      signupRoute = null,
+      signupDeviceClass = 'unknown',
+      signupBrowser = 'Other',
+      signupContextConsent = false,
+    } = request;
     setErrorMessage(null);
 
     if (!displayName.trim()) {
@@ -184,6 +224,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           options: {
             data: {
               display_name: displayName,
+              signup_intent: signupIntent,
+              signup_entrypoint: signupEntrypoint,
+              signup_route: signupRoute,
+              signup_device_class: signupDeviceClass,
+              signup_browser: signupBrowser,
+              signup_context_consent_at: signupIntent === 'beta_interest' && signupContextConsent ? new Date().toISOString() : null,
             },
           },
         });
@@ -200,6 +246,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const initialProf: UserProfile = {
             id: data.user.id,
             display_name: displayName,
+            email,
+            signup_intent: signupIntent,
+            signup_entrypoint: signupEntrypoint,
+            signup_route: signupRoute,
+            signup_device_class: signupDeviceClass,
+            signup_browser: signupBrowser,
+            signup_context_consent_at: signupIntent === 'beta_interest' && signupContextConsent ? new Date().toISOString() : null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           };

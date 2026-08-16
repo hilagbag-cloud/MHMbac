@@ -13,6 +13,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     display_name TEXT NOT NULL,
     series TEXT CHECK (series IN ('A', 'B', 'C', 'D', 'E', 'Autre') OR series IS NULL),
     mention TEXT CHECK (mention IN ('Passable', 'Assez bien', 'Bien', 'Très bien') OR mention IS NULL),
+    signup_intent TEXT NOT NULL DEFAULT 'standard' CHECK (signup_intent IN ('standard', 'beta_interest')),
+    signup_entrypoint TEXT NOT NULL DEFAULT 'direct' CHECK (signup_entrypoint IN ('direct', 'beta_portal', 'partner_portal', 'other')),
+    signup_route TEXT CHECK (signup_route IS NULL OR char_length(signup_route) <= 160),
+    signup_device_class TEXT CHECK (signup_device_class IS NULL OR signup_device_class IN ('mobile', 'tablet', 'desktop', 'unknown')),
+    signup_browser TEXT CHECK (signup_browser IS NULL OR signup_browser IN ('Chrome', 'Safari', 'Firefox', 'Edge', 'Other')),
+    signup_context_consent_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
 );

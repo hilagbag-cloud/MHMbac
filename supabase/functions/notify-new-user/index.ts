@@ -4,6 +4,12 @@ type ProfileRecord = {
   id?: unknown;
   display_name?: unknown;
   email?: unknown;
+  signup_intent?: unknown;
+  signup_entrypoint?: unknown;
+  signup_route?: unknown;
+  signup_device_class?: unknown;
+  signup_browser?: unknown;
+  signup_context_consent_at?: unknown;
   created_at?: unknown;
 };
 
@@ -138,14 +144,32 @@ Deno.serve(async (request) => {
   const status = betaTester?.status === 'active' ? 'Bêta actif' : 'Standard';
   const displayName = cleanText(payload.record?.display_name, 120) || 'Non renseigné';
   const email = cleanText(payload.record?.email, 180) || 'Non renseigné';
+  const signupIntent = cleanText(payload.record?.signup_intent, 40);
+  const betaRequested = signupIntent === 'beta_interest';
+  const entrypoint = cleanText(payload.record?.signup_entrypoint, 40) || 'direct';
+  const route = cleanText(payload.record?.signup_route, 160) || 'non renseignée';
+  const contextConsentAt = cleanText(payload.record?.signup_context_consent_at, 80);
+  const deviceClass = cleanText(payload.record?.signup_device_class, 20);
+  const browser = cleanText(payload.record?.signup_browser, 20);
+  const technicalContext = betaRequested && contextConsentAt && (deviceClass || browser)
+    ? `${deviceClass || 'type inconnu'} · ${browser || 'navigateur inconnu'}`
+    : 'non communiqué';
   const text = [
-    'BacPilot — nouveau compte',
+    'BacPilot — nouvelle inscription',
     '',
+    `Intention : ${betaRequested ? 'Demande bêta — à valider' : 'Utilisation standard'}`,
     `Nom : ${displayName}`,
     `E-mail : ${email}`,
-    `Statut au moment de l’inscription : ${status}`,
+    `ID BacPilot : ${userId}`,
     `Créé le : ${formatDate(payload.record?.created_at)}`,
     '',
+    `Entrée : ${entrypoint} · ${route}`,
+    `Contexte technique consenti : ${technicalContext}`,
+    `Statut bêta actuel : ${status}`,
+    '',
+    betaRequested
+      ? `Action proposée : /beta_add ${userId} puis /confirm CODE`
+      : 'Aucune action bêta demandée.',
     'Le statut bêta est attribué uniquement par validation serveur.',
   ].join('\n');
 

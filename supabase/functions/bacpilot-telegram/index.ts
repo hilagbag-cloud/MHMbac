@@ -30,6 +30,12 @@ type ResolvedUser = {
   email: string | null;
   series: string | null;
   mention: string | null;
+  signup_intent: string | null;
+  signup_entrypoint: string | null;
+  signup_route: string | null;
+  signup_device_class: string | null;
+  signup_browser: string | null;
+  signup_context_consent_at: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -153,7 +159,7 @@ async function audit(admin: ReturnType<typeof createClient>, chatId: string, com
 async function resolveUser(admin: ReturnType<typeof createClient>, identifier: string): Promise<ResolvedUser | null> {
   const lookup = text(identifier, 180);
   if (!lookup) return null;
-  const query = admin.from('profiles').select('id, display_name, email, series, mention, created_at, updated_at');
+  const query = admin.from('profiles').select('id, display_name, email, series, mention, signup_intent, signup_entrypoint, signup_route, signup_device_class, signup_browser, signup_context_consent_at, created_at, updated_at');
   const { data, error } = lookup.includes('@')
     ? await query.ilike('email', lookup.toLowerCase()).maybeSingle()
     : await query.eq('id', lookup).maybeSingle();
@@ -281,6 +287,9 @@ async function getUserMessage(admin: ReturnType<typeof createClient>, user: Reso
     `E-mail : ${text(user.email, 180) || 'Non renseigné'}`,
     `ID BacPilot : ${user.id}`,
     `Créé le : ${formatDate(user.created_at)}`,
+    `Intention : ${user.signup_intent === 'beta_interest' ? 'Demande bêta — à valider' : 'Utilisation standard'}`,
+    `Entrée : ${text(user.signup_entrypoint, 40) || 'direct'} · ${text(user.signup_route, 160) || 'non renseignée'}`,
+    `Contexte technique : ${user.signup_intent === 'beta_interest' && user.signup_context_consent_at ? `${text(user.signup_device_class, 20) || 'type inconnu'} · ${text(user.signup_browser, 20) || 'navigateur inconnu'}` : 'non communiqué'}`,
     `Profil : série ${text(user.series, 30) || '—'} · mention ${text(user.mention, 40) || '—'}`,
     '',
     `Objectif : ${text(preferences?.primary_goal, 40) || 'Non renseigné'}`,

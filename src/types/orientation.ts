@@ -9,6 +9,10 @@ export type BacSeries = 'A' | 'B' | 'C' | 'D' | 'E' | 'Autre';
 export type BacMention = 'Passable' | 'Assez bien' | 'Bien' | 'Très bien';
 
 export type PrimaryGoal = 'bourse' | 'carriere' | 'equilibre';
+export type SignupIntent = 'standard' | 'beta_interest';
+export type SignupEntrypoint = 'direct' | 'beta_portal' | 'partner_portal' | 'other';
+export type SignupDeviceClass = 'mobile' | 'tablet' | 'desktop' | 'unknown';
+export type SignupBrowser = 'Chrome' | 'Safari' | 'Firefox' | 'Edge' | 'Other';
 
 export interface UserProfile {
   id: string;
@@ -16,6 +20,12 @@ export interface UserProfile {
   email?: string;
   series?: BacSeries | null;
   mention?: BacMention | null;
+  signup_intent?: SignupIntent;
+  signup_entrypoint?: SignupEntrypoint;
+  signup_route?: string | null;
+  signup_device_class?: SignupDeviceClass | null;
+  signup_browser?: SignupBrowser | null;
+  signup_context_consent_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }

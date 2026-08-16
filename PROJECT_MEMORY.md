@@ -223,3 +223,14 @@ Au début de toute nouvelle session ou intervention :
 ---
 
 **Responsable de la mise à jour :** toute personne ou tout agent qui modifie BacPilot. Une livraison sans mise à jour de cette mémoire est incomplète.
+
+## 14. Mise à jour du 16 août 2026 — demande bêta contextualisée et diagnostic opérateur
+La table `public.profiles` contient désormais, grâce à la migration `20260816_bacpilot_signup_context.sql`, les champs rétrocompatibles suivants : `signup_intent` (`standard` ou `beta_interest`), `signup_entrypoint`, `signup_route`, `signup_device_class`, `signup_browser` et `signup_context_consent_at`. Les anciennes inscriptions conservent les valeurs sûres par défaut `standard` et `direct`. Ces champs ne confèrent jamais le statut bêta ; seul `beta_testers` est modifié par la console opérateur après confirmation.
+
+Le formulaire `/register` demande explicitement à chaque candidat s’il veut utiliser BacPilot normalement ou demander à devenir bêta-testeur. Une demande bêta requiert un consentement séparé au contexte technique minimal : point d’entrée, catégorie d’appareil et famille de navigateur. Aucune adresse IP, mot de passe, cookie, jeton, identifiant de session brut, contenu privé ou user-agent brut n’est enregistré ni transmis à Telegram. Le profil initial est désormais créé dès l’inscription avec l’e-mail, le nom et l’intention, ce qui évite que le webhook `notify-new-user` alerte sur une fiche incomplète.
+
+La fonction `notify-new-user` est active en version 7. La notification Telegram présente : intention, nom, e-mail, ID BacPilot, date, point d’entrée, contexte technique seulement si consenti, statut bêta actuel et, pour une demande bêta, la commande préparée `/beta_add <ID>`. La console `bacpilot-telegram` est active en version 11 ; `/user` réaffiche les mêmes informations pour contrôler le compte avant l’activation. Les deux webhooks restent à authentification personnalisée (`verify_jwt=false`) et refusent une requête non signée en HTTP 401.
+
+Validation réalisée : migration Supabase appliquée et six colonnes vérifiées, compilation Vite réussie, `git diff --check` réussi, versions Edge actives, tests de gardes HTTP 401 réussis. Les 12 profils existants ne sont pas modifiés ; le diagnostic agrégé antérieur indiquait 5 profils sans e-mail et 5 sans série. La recette finale consiste à créer volontairement un prochain compte réel, choisir « Demander à devenir bêta-testeur », vérifier le message Telegram puis utiliser `/beta_add <ID>` et `/confirm CODE`.
+
+À faire après ce commit : pousser le frontend vers `origin/main` pour le déploiement Vercel, puis effectuer la recette réelle sans créer de données fictives. Groq reste à configurer séparément.

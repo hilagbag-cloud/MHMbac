@@ -1,39 +1,65 @@
-/**
- * MHM SOLUTIONS — Après Mon Bac (MVP1)
- * Page de création de compte rapide avec Supabase Auth & validation
- * Créateur : Hilarus GBAGOULE
- */
-
 import React, { useState } from 'react';
 import {
-  UserPlus,
-  User,
-  Mail,
-  Lock,
-  ArrowRight,
-  AlertCircle,
   CheckCircle2,
+  AlertCircle,
+  FlaskConical,
+  Laptop,
+  Lock,
+  Mail,
   ShieldCheck,
+  User,
+  UserPlus,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import {
+  SignupBrowser,
+  SignupDeviceClass,
+  SignupEntrypoint,
+} from '../types/orientation';
 
 interface RegisterPageProps {
   navigate: (route: string) => void;
 }
 
+function detectDeviceClass(): SignupDeviceClass {
+  const agent = navigator.userAgent;
+  if (/iPad|Tablet|Android(?!.*Mobile)/i.test(agent)) return 'tablet';
+  if (/Mobi|Android|iPhone|iPod/i.test(agent)) return 'mobile';
+  if (agent) return 'desktop';
+  return 'unknown';
+}
+
+function detectBrowser(): SignupBrowser {
+  const agent = navigator.userAgent;
+  if (/Edg\//i.test(agent)) return 'Edge';
+  if (/Firefox\//i.test(agent)) return 'Firefox';
+  if (/Chrome\//i.test(agent) || /CriOS\//i.test(agent)) return 'Chrome';
+  if (/Safari\//i.test(agent)) return 'Safari';
+  return 'Other';
+}
+
 export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   const { signUp, errorMessage, clearError } = useAuth();
+  const returnToBeta = new URLSearchParams(window.location.search).get('returnTo') === 'beta';
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [wantsBeta, setWantsBeta] = useState(returnToBeta);
+  const [signupContextConsent, setSignupContextConsent] = useState(returnToBeta);
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
-  const returnToBeta = new URLSearchParams(window.location.search).get('returnTo') === 'beta';
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const resolveEntrypoint = (): SignupEntrypoint => {
+    const hostname = window.location.hostname.toLowerCase();
+    if (returnToBeta || hostname.startsWith('beta.')) return 'beta_portal';
+    if (hostname.startsWith('partenaires.')) return 'partner_portal';
+    return hostname.endsWith('bacpilot.site') || hostname.includes('vercel.app') ? 'direct' : 'other';
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
     setLocalError(null);
     clearError();
 
@@ -41,17 +67,31 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
       setLocalError('Le mot de passe doit contenir au moins 6 caractères.');
       return;
     }
-
     if (password !== confirmPassword) {
       setLocalError('Les deux mots de passe ne correspondent pas.');
+      return;
+    }
+    if (wantsBeta && !signupContextConsent) {
+      setLocalError('Pour demander la bêta, confirme le partage du contexte technique minimal décrit ci-dessous.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await signUp(displayName, email, password, confirmPassword);
+      const res = await signUp({
+        displayName,
+        email,
+        password,
+        confirmPassword,
+        signupIntent: wantsBeta ? 'beta_interest' : 'standard',
+        signupEntrypoint: resolveEntrypoint(),
+        signupRoute: window.location.pathname.slice(0, 160),
+        signupDeviceClass: detectDeviceClass(),
+        signupBrowser: detectBrowser(),
+        signupContextConsent,
+      });
       if (res.success) {
-        navigate(returnToBeta ? '/beta-access' : '/onboarding');
+        navigate(wantsBeta || returnToBeta ? '/beta-access' : '/onboarding');
       } else {
         setLocalError(res.error || 'Erreur lors de l’inscription.');
       }
@@ -63,131 +103,121 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center bg-slate-50 dark:bg-slate-950 px-4 py-12">
+    <div className="flex min-h-[85vh] items-center justify-center bg-slate-50 px-4 py-12 dark:bg-slate-950">
       <div className="w-full max-w-md space-y-6">
-        
-        {/* Logo & Titre */}
-        <div className="text-center space-y-2">
-          <div
+        <div className="space-y-2 text-center">
+          <button
+            type="button"
             onClick={() => navigate('/')}
-            className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-xl shadow-rose-950/30 cursor-pointer hover:scale-105 transition-transform"
+            className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-xl shadow-rose-950/30 transition-transform hover:scale-105"
+            aria-label="Retour à l’accueil"
           >
-            <img src="/branding/bacpilot-mark-256.webp" alt="" className="w-12 h-12 object-contain" />
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-serif font-bold text-slate-900 dark:text-white tracking-tight">
-            Créer mon compte
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            {returnToBeta ? 'Crée ton compte puis BacPilot vérifiera ton invitation bêta.' : 'Rejoins BacPilot, par MHM SOLUTIONS, pour personnaliser ton parcours d’orientation post-BAC.'}
+            <img src="/branding/bacpilot-mark-256.webp" alt="" className="h-12 w-12 object-contain" />
+          </button>
+          <h1 className="font-serif text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">Créer mon compte</h1>
+          <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+            {returnToBeta ? 'Demande ton accès bêta ; l’équipe BacPilot le validera côté serveur.' : 'Prépare ton parcours d’orientation post-BAC avec BacPilot, par MHM SOLUTIONS.'}
           </p>
         </div>
 
-        {/* Formulaire d'Inscription */}
-        <div className="rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 sm:p-8 shadow-xl space-y-6">
-          
+        <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:p-8">
           {(localError || errorMessage) && (
-            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs sm:text-sm text-rose-600 dark:text-rose-400 flex items-start gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 text-xs text-rose-600 dark:text-rose-400 sm:text-sm">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
               <span>{localError || errorMessage}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            
-            {/* Nom complet */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                Nom complet ou Prénom
-              </label>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nom complet ou prénom</label>
               <div className="relative">
-                <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 <input
                   type="text"
                   value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Ex: Stéphane Dossou"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="Ex. Stéphane Dossou"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
                 />
               </div>
             </div>
 
-            {/* Email */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                Adresse e-mail
-              </label>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Adresse e-mail</label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   placeholder="ton.email@exemple.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
                 />
               </div>
             </div>
 
-            {/* Mot de passe */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                Mot de passe (min. 6 caractères)
-              </label>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mot de passe <span className="normal-case tracking-normal">(min. 6 caractères)</span></label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 <input
                   type="password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
                 />
               </div>
             </div>
 
-            {/* Confirmation mot de passe */}
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">
-                Confirmer le mot de passe
-              </label>
+              <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Confirmer le mot de passe</label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                 <input
                   type="password"
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-rose-500 focus:outline-none"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   required
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-rose-500 hover:bg-rose-600 text-white shadow-lg shadow-rose-950/40 flex items-center justify-center gap-2 hover:scale-[1.02] disabled:opacity-50 transition-all"
-            >
-              <UserPlus className="w-4 h-4" />
-              <span>{isLoading ? 'Création en cours...' : 'Créer mon compte & continuer'}</span>
+            <fieldset className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-700 dark:bg-slate-800/60">
+              <legend className="px-1 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Comment veux-tu commencer ?</legend>
+              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${!wantsBeta ? 'border-rose-300 bg-white dark:border-rose-700 dark:bg-slate-900' : 'border-transparent'}`}>
+                <input type="radio" name="signup-intent" checked={!wantsBeta} onChange={() => setWantsBeta(false)} className="mt-1 accent-rose-500" />
+                <span><strong className="block text-sm text-slate-900 dark:text-white">Utiliser BacPilot</strong><span className="mt-0.5 block text-xs leading-5 text-slate-500 dark:text-slate-400">Je souhaite travailler directement sur ma préparation d’orientation.</span></span>
+              </label>
+              <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${wantsBeta ? 'border-rose-300 bg-white dark:border-rose-700 dark:bg-slate-900' : 'border-transparent'}`}>
+                <input type="radio" name="signup-intent" checked={wantsBeta} onChange={() => setWantsBeta(true)} className="mt-1 accent-rose-500" />
+                <FlaskConical className="mt-0.5 h-4 w-4 shrink-0 text-rose-500" />
+                <span><strong className="block text-sm text-slate-900 dark:text-white">Demander à devenir bêta-testeur</strong><span className="mt-0.5 block text-xs leading-5 text-slate-500 dark:text-slate-400">Je souhaite tester, signaler des problèmes et aider BacPilot à s’améliorer. Cette demande n’active pas automatiquement l’accès bêta.</span></span>
+              </label>
+            </fieldset>
+
+            {wantsBeta && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-indigo-200 bg-indigo-50/60 p-3.5 text-xs leading-5 text-slate-600 dark:border-indigo-900/50 dark:bg-indigo-950/20 dark:text-slate-300">
+                <input type="checkbox" checked={signupContextConsent} onChange={(event) => setSignupContextConsent(event.target.checked)} className="mt-0.5 accent-rose-500" />
+                <span><ShieldCheck className="mr-1 inline-block h-3.5 w-3.5 text-indigo-500" />J’accepte que BacPilot transmette à l’équipe, uniquement pour traiter ma demande bêta, mon point d’entrée, la catégorie de mon appareil et mon navigateur. <strong>Ni adresse IP, ni mot de passe, ni cookie, ni jeton, ni contenu de session</strong> ne sont collectés ou envoyés sur Telegram.</span>
+              </label>
+            )}
+
+            <button type="submit" disabled={isLoading} className="flex w-full items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-rose-950/40 transition-all hover:scale-[1.02] hover:bg-rose-600 disabled:opacity-50">
+              {wantsBeta ? <FlaskConical className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
+              <span>{isLoading ? 'Création en cours…' : wantsBeta ? 'Envoyer ma demande bêta' : 'Créer mon compte & continuer'}</span>
             </button>
           </form>
 
-          <div className="pt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-            Déjà inscrit ?{' '}
-            <button
-              onClick={() => navigate(returnToBeta ? '/login?returnTo=beta' : '/login')}
-              className="text-rose-500 hover:text-rose-600 font-bold underline"
-            >
-              Se connecter ici
-            </button>
-          </div>
-
+          <p className="pt-2 text-center text-xs text-slate-500 dark:text-slate-400">Déjà inscrit ? <button onClick={() => navigate(returnToBeta ? '/login?returnTo=beta' : '/login')} className="font-bold text-rose-500 underline hover:text-rose-600">Se connecter ici</button></p>
+          <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-400"><Laptop className="h-3.5 w-3.5" />Le contexte technique est collecté uniquement après consentement à une demande bêta.</p>
         </div>
-
       </div>
     </div>
   );
