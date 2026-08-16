@@ -26,6 +26,8 @@ type OperatorCommand =
   | '/cancel'
   | '/menu'
   | '/email'
+  | '/welcome'
+  | '/templates'
   | '/collector_issue'
   | '/collector_list'
   | '/collector_revoke';
@@ -49,7 +51,7 @@ type ResolvedUser = {
 type InputSession = {
   telegram_chat_id: string;
   expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_subject' | 'email_body';
-  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
+  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
   pending_action_id?: string | null;
   menu_state?: string | null;
   menu_context?: Record<string, unknown> | null;
@@ -64,7 +66,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const commandNames = new Set<OperatorCommand>([
   '/start', '/help', '/status', '/stats', '/health', '/test', '/user', '/user_delete',
   '/beta_add', '/beta_pause', '/beta_revoke', '/beta_list', '/feedback',
-  '/pending', '/confirm', '/cancel', '/menu', '/email', '/collector_issue', '/collector_list', '/collector_revoke',
+  '/pending', '/confirm', '/cancel', '/menu', '/email', '/welcome', '/templates', '/collector_issue', '/collector_list', '/collector_revoke',
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
@@ -487,7 +489,7 @@ function customEmailHtml(subject: string, displayName: string, bodyText: string)
   const safeSubject = escapeHtml(subject, 160);
   const safeName = escapeHtml(displayName || 'utilisateur BacPilot', 120);
   const safeBody = messageText(bodyText, 6000).split('\n').map((line) => escapeHtml(line, 6000)).join('<br>');
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS<br><a href="https://bacpilot.site" style="color:#d52e59">bacpilot.site</a></p></div></body></html>`;
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div><div style="text-align:center;margin:30px 0 24px"><a href="https://bacpilot.site" style="display:inline-block;background:#f43f5e;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:10px">Commencer dès maintenant</a></div><p style="font-size:13px;line-height:1.6;color:#778198;margin:0">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br><a href="https://bacpilot.site" style="color:#d52e59;word-break:break-all">https://bacpilot.site</a></p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS<br><a href="https://bacpilot.site" style="color:#d52e59">bacpilot.site</a></p></div></body></html>`;
 }
 
 async function beginEmailSubject(admin: any, chatId: string, user: ResolvedUser) {
@@ -518,7 +520,7 @@ async function prepareCustomEmail(admin: any, chatId: string, userId: string, su
   return ['Étape 2/2 — écris le contenu du mail.', '', 'Tu peux utiliser plusieurs lignes. Le HTML, le CSS, le logo et les informations BacPilot seront ajoutés automatiquement.', 'Réponds /cancel pour annuler.'].join('\n');
 }
 
-async function createPendingEmail(admin: any, chatId: string, user: ResolvedUser, subject: string, bodyText: string) {
+async function createPendingEmail(admin: any, chatId: string, user: ResolvedUser, subject: string, bodyText: string, template = 'custom') {
   const safeSubject = text(subject, 160);
   const safeBody = messageText(bodyText, 6000);
   if (!safeSubject || !safeBody) throw new Error('Sujet ou contenu email vide.');
@@ -528,11 +530,11 @@ async function createPendingEmail(admin: any, chatId: string, user: ResolvedUser
     action: 'email_send',
     target_user_id: user.id,
     confirmation_code: makeConfirmationCode(),
-    payload: { label: userLabel(user), subject: safeSubject, body_text: safeBody },
+    payload: { label: userLabel(user), subject: safeSubject, body_text: safeBody, template },
     expires_at: expiresAt,
   });
   if (error) throw new Error('Email en attente non créé.');
-  await audit(admin, chatId, '/email', 'pending', user.id, { action: 'email_send', subject: safeSubject, expires_at: expiresAt });
+  await audit(admin, chatId, template === 'welcome' ? '/welcome' : '/email', 'pending', user.id, { action: 'email_send', template, subject: safeSubject, expires_at: expiresAt });
   return [`Email préparé pour ${userLabel(user)} <${text(user.email, 180) || 'email absent'}>.`, `Sujet : ${safeSubject}`, '', '1. Confirmer l’envoi', '2. Annuler', `Expire : ${formatDate(expiresAt)}`].join('\n');
 }
 
@@ -1029,6 +1031,21 @@ async function handleMenuChoice(admin: any, chatId: string, session: InputSessio
   return showMainMenu(admin, chatId);
 }
 
+function emailTemplatesMessage() {
+  return [
+    'BacPilot — templates e-mail',
+    '',
+    '1. welcome — bienvenue, découverte de BacPilot et bouton « Commencer dès maintenant »',
+    '2. beta_accepted — confirmation d’accès bêta et lien vers l’espace bêta',
+    '3. feedback_received — accusé de réception d’un retour bêta',
+    '4. reminder — rappel personnalisé avec bouton BacPilot',
+    '5. custom — rédaction libre avec habillage BacPilot et bouton d’accès',
+    '',
+    'Utilisation immédiate : /welcome <e-mail ou ID>',
+    'Pour un message libre : /email <e-mail ou ID>',
+  ].join('\n');
+}
+
 function helpMessage() {
   return [
     'BacPilot — console opérateur privée',
@@ -1047,7 +1064,9 @@ function helpMessage() {
     '/confirm — confirmer l’action la plus récente ; OUI/NON pour bêta, SUPPRIMER/NON pour suppression',
     '/cancel — annuler une saisie en cours',
     '/test — vérifier le bot',
-    '/collector_issue [libellé] — générer un code d’activation à usage unique',
+    '/welcome [e-mail|ID] — préparer le mail de bienvenue avec bouton BacPilot',
+    '/templates — afficher les templates e-mail disponibles',
+    '/collector_issue [libellé] — générer un code d’activation à usage unique', 
     '/collector_list — afficher les appareils enrôlés et leur état',
     '/collector_revoke [ID] — préparer la révocation d’un appareil ; confirmation 1/2',
     '',
@@ -1194,6 +1213,21 @@ Deno.serve(async (request) => {
           reply = await withTimeout(getUserMessage(admin, user));
         }
       }
+    } else if (command === '/welcome') {
+      const welcomeSubject = 'Bienvenue sur BacPilot — explore tes possibilités';
+      const welcomeBody = 'Tu viens de rejoindre BacPilot, une plateforme conçue pour t’aider à mieux comprendre tes possibilités après le bac. Explore les filières, compare les données disponibles et découvre les pistes qui correspondent le mieux à ton profil et à tes objectifs. Certaines formations peuvent proposer des possibilités de bourse, mais celles-ci évoluent et doivent toujours être vérifiées sur le portail officiel. La décision finale et la validation officielle restent entre tes mains.';
+      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/welcome'));
+      else {
+        const user = await withTimeout(resolveUser(admin, argument));
+        if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie avec /welcome.';
+        else {
+          targetUserId = user.id;
+          await withTimeout(createPendingEmail(admin, sourceChatId, user, welcomeSubject, welcomeBody, 'welcome'));
+          reply = await withTimeout(beginConfirmationSession(admin, sourceChatId));
+        }
+      }
+    } else if (command === '/templates') {
+      reply = emailTemplatesMessage();
     } else if (command === '/email') {
       if (!argument) reply = await withTimeout(showUserList(admin, sourceChatId));
       else {
@@ -1242,7 +1276,7 @@ Deno.serve(async (request) => {
       reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }
 
-    if (!['/user_delete', '/email', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel'].includes(command)) {
+    if (!['/user_delete', '/email', '/welcome', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel'].includes(command)) {
       await withTimeout(audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) })).catch((error) => {
         console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
       });
