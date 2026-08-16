@@ -12,7 +12,14 @@ type ChatStep = 'name' | 'series' | 'mention' | 'goal' | 'career' | 'notes_promp
 
 type QuickReply = { label: string; value: string };
 
-const seriesReplies: QuickReply[] = ['A', 'B', 'C', 'D', 'E'].map((value) => ({ label: `Série ${value}`, value }));
+const seriesReplies: QuickReply[] = [
+  { label: 'Série A1 (Lettres & Langues)', value: 'A1' },
+  { label: 'Série A2 (Lettres & Sciences humaines)', value: 'A2' },
+  { label: 'Série B (Économie & Gestion)', value: 'B' },
+  { label: 'Série C (Mathématiques & Physique)', value: 'C' },
+  { label: 'Série D (Sciences de la vie)', value: 'D' },
+  { label: 'Série E (Mathématiques & Technique)', value: 'E' },
+];
 const mentionReplies: QuickReply[] = ['Passable', 'Assez bien', 'Bien', 'Très bien'].map((value) => ({ label: value, value }));
 const goalReplies: QuickReply[] = [
   { label: 'Priorité bourse', value: 'bourse' },
@@ -106,7 +113,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
   const { user, profile, preferences, academicSignals, updateProfile, updatePreferences, updateAcademicSignals } = useAuth();
   const initialStep = useMemo<ChatStep>(() => {
     if (!profile?.display_name) return 'name';
-    if (!profile?.series) return 'series';
+    // Les anciens profils « A » doivent distinguer A1 et A2 : les coefficients officiels ne sont pas identiques.
+    if (!profile?.series || profile.series === 'A') return 'series';
     if (!profile?.mention) return 'mention';
     if (!preferences?.primary_goal) return 'goal';
     if (preferences.primary_goal !== 'bourse' && !preferences.career_keywords?.length) return 'career';
@@ -162,7 +170,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
         appendAgent(questions.series);
       } else if (step === 'series') {
         const series = answer as BacSeries;
-        if (!['A', 'B', 'C', 'D', 'E', 'Autre'].includes(series)) throw new Error('Choisis une série proposée ou écris « Autre ».');
+        if (!['A1', 'A2', 'B', 'C', 'D', 'E', 'Autre'].includes(series)) throw new Error('Choisis précisément A1, A2, B, C, D, E ou « Autre » : A1 et A2 ont des coefficients différents.');
         const saved = await updateProfile({ series });
         if (!saved) throw new Error('Je n’ai pas pu enregistrer ta série. Réessaie.');
         await askOrientationAssistant({ action: 'answer', message: answer, profile_patch: { series } });

@@ -5,10 +5,15 @@ export type RankingSubject = { key: string; label: string; coefficient: number }
 // Coefficients publiés par l’Office du Baccalauréat du Bénin.
 // Le guide MESRS utilise ensuite trois matières principales adaptées à la filière.
 export const rankingSubjectsBySeries: Partial<Record<BacSeries, RankingSubject[]>> = {
-  A: [
+  A1: [
     { key: 'francais', label: 'Français', coefficient: 5 },
     { key: 'philosophie', label: 'Philosophie', coefficient: 4 },
     { key: 'histoire_geographie', label: 'Histoire-Géographie', coefficient: 3 },
+  ],
+  A2: [
+    { key: 'francais', label: 'Français', coefficient: 4 },
+    { key: 'philosophie', label: 'Philosophie', coefficient: 3 },
+    { key: 'histoire_geographie', label: 'Histoire-Géographie', coefficient: 5 },
   ],
   B: [
     { key: 'francais', label: 'Français', coefficient: 4 },
@@ -33,7 +38,14 @@ export const rankingSubjectsBySeries: Partial<Record<BacSeries, RankingSubject[]
 };
 
 const additionalSubjectsBySeries: Partial<Record<BacSeries, RankingSubject[]>> = {
-  A: [
+  A1: [
+    { key: 'langue_vivante_1', label: 'Langue vivante 1', coefficient: 3 },
+    { key: 'langue_vivante_2', label: 'Langue vivante 2', coefficient: 2 },
+    { key: 'mathematiques', label: 'Mathématiques', coefficient: 2 },
+    { key: 'svt', label: 'SVT', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+  A2: [
     { key: 'langue_vivante_1', label: 'Langue vivante 1', coefficient: 3 },
     { key: 'langue_vivante_2', label: 'Langue vivante 2', coefficient: 2 },
     { key: 'mathematiques', label: 'Mathématiques', coefficient: 2 },

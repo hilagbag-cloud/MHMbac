@@ -301,3 +301,14 @@ Le commit canonique `afa8f0b` (*feat: add per-programme ranking matrix with offi
 
 La recette complète de l’affichage de moyenne nécessite une session réelle dont la série est C ou D et dont les notes requises sont déjà enregistrées. Le compte actuellement ouvert dans le navigateur ne possède pas de série, donc aucune recommandation ne peut être calculée et aucun profil de démonstration ne doit être créé. Dès qu’un compte réel compatible est disponible, lancer « Mettre à jour mes pistes », ouvrir « Voir pourquoi cette piste ressort » sur une correspondance exacte, puis vérifier la présence de la moyenne `/20`, des trois matières avec coefficients et de la page MESRS.
 
+
+## 21. Mise à jour du 16 août 2026 — extension A1, A2, B et E de la matrice
+
+La grille officielle de l’Office du Baccalauréat distingue **A1** et **A2** : le Français, la Philosophie et l’Histoire-Géographie n’ont pas les mêmes coefficients. BacPilot ne doit donc plus calculer une moyenne de filière avec la valeur générique `A`. Le type applicatif, le parcours conversationnel, le profil, l’assistant et le schéma de référence reconnaissent désormais `A1` et `A2`. Les profils historiques enregistrés sous `A` restent lisibles mais doivent préciser A1 ou A2 avant d’obtenir une moyenne de classement ; aucun coefficient A1 n’est appliqué par défaut à un profil A historique.
+
+La migration `20260816_bacpilot_a1_a2_series_support.sql` étend la contrainte de `programme_ranking_rules` aux séries `A1` et `A2`. Elle ajoute `get_top_recommendations_for_profile()`, qui maintient le Top 3 issu des observations réelles pour A1/A2 en le relayant vers la compatibilité historique `A` ; cette adaptation ne fabrique aucune observation et ne modifie pas le score `/100`.
+
+Après audit du corpus MESRS et de la grille officielle, 40 règles explicites ont été générées dans `programme_ranking_rules_remaining_v2.json`. Deux règles existaient déjà et sont mises à jour idempotemment ; la matrice active contient donc maintenant **115 règles** : A1 **11**, A2 **12**, B **13**, C **38**, D **37**, E **4**. Les 21 fiches candidates restantes sont volontairement différées, car elles comportent une matière technique non couverte, une alternative non isolable par série, une formulation ambiguë ou une fiche incomplète. Elles ne doivent pas être chargées sans nouvelle source précise.
+
+Le générateur d’extension `build_remaining_series_rules.py` applique une liste blanche de correspondances filière × série × trois matières, conserve l’extrait et la page de chaque fiche, valide les coefficients de l’Office du Baccalauréat et échoue si une matière n’est pas disponible dans la grille officielle. L’audit et la liste des cas différés sont documentés dans `remaining_series_audit.md` et `programme_ranking_rules_remaining_v2.json` hors dépôt, avec la source officielle : `https://www.officedubacbenin.bj/spip.php?article11`.
+

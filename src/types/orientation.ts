@@ -4,7 +4,9 @@
  * Créateur : Hilarus GBAGOULE
  */
 
-export type BacSeries = 'A' | 'B' | 'C' | 'D' | 'E' | 'Autre';
+// `A` est conservée uniquement pour les anciens profils ; les nouveaux parcours distinguent A1 et A2,
+// dont les coefficients officiels de Français, Philosophie et Histoire-Géographie diffèrent.
+export type BacSeries = 'A' | 'A1' | 'A2' | 'B' | 'C' | 'D' | 'E' | 'Autre';
 
 export type BacMention = 'Passable' | 'Assez bien' | 'Bien' | 'Très bien';
 

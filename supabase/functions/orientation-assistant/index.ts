@@ -1,7 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 type Objective = 'bourse' | 'carriere' | 'equilibre';
-type Series = 'A' | 'B' | 'C' | 'D' | 'E' | 'Autre';
+// `A` reste lisible pour les anciens profils mais ne possède plus de grille de moyenne : l’élève doit préciser A1 ou A2.
+type Series = 'A' | 'A1' | 'A2' | 'B' | 'C' | 'D' | 'E' | 'Autre';
 type Mention = 'Passable' | 'Assez bien' | 'Bien' | 'Très bien';
 type AssistantAction = 'answer' | 'recommend' | 'explain' | 'programme_details';
 
@@ -122,15 +123,16 @@ function asObjective(value: unknown): Objective | null {
 }
 
 function asSeries(value: unknown): Series | null {
-  return value === 'A' || value === 'B' || value === 'C' || value === 'D' || value === 'E' || value === 'Autre' ? value : null;
+  return value === 'A' || value === 'A1' || value === 'A2' || value === 'B' || value === 'C' || value === 'D' || value === 'E' || value === 'Autre' ? value : null;
 }
 
 function asMention(value: unknown): Mention | null {
   return value === 'Passable' || value === 'Assez bien' || value === 'Bien' || value === 'Très bien' ? value : null;
 }
 
-const RANKING_CONFIG: Record<Exclude<Series, 'Autre'>, Array<{ key: string; coefficient: number }>> = {
-  A: [{ key: 'francais', coefficient: 5 }, { key: 'philosophie', coefficient: 4 }, { key: 'histoire_geographie', coefficient: 3 }],
+const RANKING_CONFIG: Partial<Record<Exclude<Series, 'Autre'>, Array<{ key: string; coefficient: number }>>> = {
+  A1: [{ key: 'francais', coefficient: 5 }, { key: 'philosophie', coefficient: 4 }, { key: 'histoire_geographie', coefficient: 3 }],
+  A2: [{ key: 'francais', coefficient: 4 }, { key: 'philosophie', coefficient: 3 }, { key: 'histoire_geographie', coefficient: 5 }],
   B: [{ key: 'francais', coefficient: 4 }, { key: 'economie', coefficient: 4 }, { key: 'histoire_geographie', coefficient: 4 }],
   C: [{ key: 'mathematiques', coefficient: 6 }, { key: 'sciences_physiques', coefficient: 5 }, { key: 'svt', coefficient: 2 }],
   D: [{ key: 'svt', coefficient: 5 }, { key: 'mathematiques', coefficient: 4 }, { key: 'sciences_physiques', coefficient: 4 }],
@@ -149,9 +151,9 @@ function cleanScoreMap(value: unknown): Record<string, number> | null {
 }
 
 function calculateRankingAverage(series: Series | null, scores: Record<string, number>): number | null {
-  if (!series || series === 'Autre' || !RANKING_CONFIG[series as Exclude<Series, 'Autre'>]) return null;
-  const config = RANKING_CONFIG[series as Exclude<Series, 'Autre'>];
-  if (config.some((item) => typeof scores[item.key] !== 'number')) return null;
+  if (!series || series === 'Autre') return null;
+  const config = RANKING_CONFIG[series];
+  if (!config || config.length !== 3 || config.some((item) => typeof scores[item.key] !== 'number')) return null;
   const coefficientTotal = config.reduce((sum, item) => sum + item.coefficient, 0);
   const weightedTotal = config.reduce((sum, item) => sum + scores[item.key] * item.coefficient, 0);
   return Math.round((weightedTotal / coefficientTotal) * 100) / 100;
@@ -589,7 +591,7 @@ Deno.serve(async (request) => {
 
   const objective = asObjective(preferences?.primary_goal) || 'bourse';
   const keywords = Array.isArray(preferences?.career_keywords) ? preferences.career_keywords : [];
-  const { data: recommendations, error: recommendationError } = await supabase.rpc('get_top_recommendations', {
+  const { data: recommendations, error: recommendationError } = await supabase.rpc('get_top_recommendations_for_profile', {
     p_objective: objective,
     p_series: asSeries(profile?.series),
     p_mention: asMention(profile?.mention),

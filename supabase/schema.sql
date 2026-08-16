@@ -11,7 +11,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     display_name TEXT NOT NULL,
-    series TEXT CHECK (series IN ('A', 'B', 'C', 'D', 'E', 'Autre') OR series IS NULL),
+    series TEXT CHECK (series IN ('A', 'A1', 'A2', 'B', 'C', 'D', 'E', 'Autre') OR series IS NULL),
     mention TEXT CHECK (mention IN ('Passable', 'Assez bien', 'Bien', 'Très bien') OR mention IS NULL),
     signup_intent TEXT NOT NULL DEFAULT 'standard' CHECK (signup_intent IN ('standard', 'beta_interest')),
     signup_entrypoint TEXT NOT NULL DEFAULT 'direct' CHECK (signup_entrypoint IN ('direct', 'beta_portal', 'partner_portal', 'other')),

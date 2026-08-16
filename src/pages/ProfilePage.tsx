@@ -170,7 +170,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
                 >
                   <option value="D">Série D (Scientifique polyvalente)</option>
                   <option value="C">Série C (Mathématiques & Physique)</option>
-                  <option value="A">Série A (Lettres & Humaines)</option>
+                  {series === 'A' && <option value="A">Série A — à préciser (ancien profil)</option>}
+                  <option value="A1">Série A1 (Lettres & Langues)</option>
+                  <option value="A2">Série A2 (Lettres & Sciences humaines)</option>
                   <option value="B">Série B (Économie & Gestion)</option>
                   <option value="E">Série E (Mathématiques & Technique)</option>
                   <option value="Autre">Autre Série / Équivalence</option>
