@@ -179,7 +179,15 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 16 août 2026 | `f517db9` — correctif Telegram v7 | Les commandes Telegram échouaient car elles s’appuyaient sur la clé `service_role` legacy alors que le projet fournit les clés Edge modernes. `bacpilot-telegram` et `notify-new-user` utilisent désormais `SUPABASE_SECRET_KEYS` avec repli legacy. Le bot conserve une session privée de dix minutes lorsqu’une commande `/user` ou bêta est envoyée sans argument, puis demande et traite l’e-mail ou l’ID au message suivant. La table `operator_input_sessions` est RLS, sans accès navigateur. | Vérifier les réponses en chat sur la version 7, puis préparer de nouvelles clés Gemini/Groq. |
 | 16 août 2026 | État v8 à versionner — diagnostic et anti-boucle | Les journaux ont confirmé `42501 permission denied for table profiles` : le rôle `service_role` n’avait aucun SELECT explicite sur plusieurs tables créées par les migrations RLS. Une migration accorde uniquement au rôle serveur les SELECT nécessaires sur les tables de lecture et les droits CRUD sur les tables opérateur ; aucun droit navigateur n’est ajouté. La fonction limite les opérations DB à 6 s, les envois Telegram à 8 s et acquitte HTTP 200 même après une erreur authentifiée afin que Telegram cesse de renvoyer la même mise à jour. Version Edge active : 8. | Tester une nouvelle commande Telegram après les droits, puis préparer les clés Gemini/Groq. |
 
-## 11. Règle de reprise de session
+## 11. Mise à jour du 16 août 2026 — stabilité Telegram v8
+
+Les journaux ont confirmé l’erreur racine `42501 permission denied for table profiles` : le rôle `service_role` n’avait pas de privilège `SELECT` explicite sur les tables RLS de données utilisateur. La migration `20260816_bacpilot_telegram_service_role_grants.sql` accorde désormais au seul rôle serveur les droits minimaux requis pour les lectures de la console et le CRUD de ses tables privées ; aucun droit supplémentaire n’est accordé à `anon` ou `authenticated`.
+
+La fonction `bacpilot-telegram` est active en version 8. Chaque opération de base est limitée à 6 secondes, chaque appel Telegram à 8 secondes, et toute mise à jour Telegram authentifiée qui échoue est acquittée en HTTP 200 afin d’éviter les répétitions infinies. Le build Vite et la transpilation Edge ont réussi avant le déploiement. Le webhook et le menu Telegram ont été reconfigurés après rotation des secrets `TELEGRAM_WEBHOOK_SECRET` et `BACPILOT_TELEGRAM_CONTROL_SECRET` depuis le navigateur local Supabase.
+
+Tests serveur réalisés après configuration : `/status` a répondu `{\"ok\":true,\"command\":\"/status\"}`, `/user` sans argument a répondu `{\"ok\":true,\"command\":\"/user\"}` et `/stats` a répondu `{\"ok\":true,\"command\":\"/stats\"}`. Les messages correspondants ont été envoyés au chat opérateur. Les fichiers temporaires contenant des secrets ont été supprimés. Le commit GitHub est `0d4bb73`.
+
+## 12. Règle de reprise de session
 
 Au début de toute nouvelle session ou intervention :
 
