@@ -50,6 +50,7 @@ interface AuthContextType {
   signUp: (request: SignupRequest) => Promise<{ success: boolean; error?: string }>;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
+  leaveBetaProgram: () => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   updatePreferences: (updates: Partial<UserPreferences>) => Promise<boolean>;
   switchDemoPersona: (personaKey: 'dossou_d' | 'amina_c' | 'junior_a' | 'new_empty') => void;
@@ -124,6 +125,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
     }
   }, [isSupabaseLive]);
+
+  useEffect(() => {
+    if (!isSupabaseLive || !realSupabase || !user?.id) return;
+
+    const refreshBetaStatus = () => {
+      void fetchSupabaseUserData(user.id, user);
+    };
+    const channel = realSupabase
+      .channel(`bacpilot-beta-status-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'beta_testers',
+        filter: `user_id=eq.${user.id}`,
+      }, refreshBetaStatus)
+      .subscribe();
+    const fallbackPoll = window.setInterval(refreshBetaStatus, 30_000);
+
+    return () => {
+      window.clearInterval(fallbackPoll);
+      void realSupabase.removeChannel(channel);
+    };
+  }, [isSupabaseLive, user?.id]);
 
   // Récupère le profil et les préférences depuis Supabase
   const fetchSupabaseUserData = async (userId: string, authUser?: any) => {
@@ -373,6 +397,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const leaveBetaProgram = async (): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Connexion requise.' };
+    try {
+      if (isSupabaseLive && realSupabase) {
+        const { data, error } = await realSupabase.rpc('leave_beta_program');
+        if (error) throw error;
+        const changed = Boolean((data as any)?.changed);
+        setBetaTester((current) => current ? { ...current, status: 'revoked', updated_at: new Date().toISOString() } : null);
+        return { success: true, error: changed ? undefined : 'Le mode bêta était déjà inactif.' };
+      }
+      setBetaTester(null);
+      return { success: true };
+    } catch (err: any) {
+      const message = err.message || 'Impossible de quitter le programme bêta.';
+      setErrorMessage(message);
+      return { success: false, error: message };
+    }
+  };
+
   // Mise à jour du profil
   const updateProfile = async (updates: Partial<UserProfile>): Promise<boolean> => {
     try {
@@ -535,6 +578,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signUp,
         signIn,
         signOut,
+        leaveBetaProgram,
         updateProfile,
       updatePreferences,
       betaTester,

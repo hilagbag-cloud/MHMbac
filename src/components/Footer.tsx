@@ -19,8 +19,8 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
         <div className="grid grid-cols-1 gap-8 md:grid-cols-4 lg:gap-12">
           <div className="space-y-4 md:col-span-2">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-md">
-                <img src="/branding/bacpilot-mark-256.webp" alt="Logo BacPilot" className="h-9 w-9 object-contain" />
+              <div className="flex h-10 w-10 items-center justify-center">
+                <img src="/branding/bacpilot-mark-512.png" alt="Logo BacPilot" className="h-10 w-auto object-contain" />
               </div>
               <div>
                 <span className="font-sans text-lg font-bold text-white">MHM <span className="text-rose-400">SOLUTIONS</span></span>

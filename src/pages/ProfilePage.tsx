@@ -30,7 +30,7 @@ interface ProfilePageProps {
 }
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
-  const { user, profile, preferences, isBetaTester, updateProfile, updatePreferences, signOut } = useAuth();
+  const { user, profile, preferences, isBetaTester, leaveBetaProgram, updateProfile, updatePreferences, signOut } = useAuth();
 
   const [displayName, setDisplayName] = useState(profile?.display_name || 'Bachelier');
   const [series, setSeries] = useState<BacSeries>((profile?.series as BacSeries) || 'D');
@@ -44,6 +44,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [isLeavingBeta, setIsLeavingBeta] = useState(false);
+  const [betaStatusMessage, setBetaStatusMessage] = useState<string | null>(null);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,6 +73,20 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleLeaveBeta = async () => {
+    setBetaStatusMessage(null);
+    if (!window.confirm('Quitter le programme bêta ? Tes retours déjà envoyés restent conservés, mais les outils bêta seront désactivés sur ce compte.')) return;
+    setIsLeavingBeta(true);
+    const result = await leaveBetaProgram();
+    if (result.success) {
+      setBetaStatusMessage('Le mode bêta est désormais désactivé sur ce compte.');
+      navigate('/dashboard');
+    } else {
+      setBetaStatusMessage(result.error || 'La sortie du programme bêta a échoué.');
+    }
+    setIsLeavingBeta(false);
   };
 
   return (
@@ -114,6 +130,9 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({ navigate }) => {
             <span>Profil et préférences sauvegardés avec succès dans la base de données !</span>
           </div>
         )}
+
+        {isBetaTester && <section className="flex flex-col justify-between gap-4 rounded-3xl border border-rose-200 bg-rose-50 p-6 dark:border-rose-900/50 dark:bg-rose-950/20 sm:flex-row sm:items-center"><div><div className="flex items-center gap-2 text-sm font-black text-rose-700 dark:text-rose-200"><FlaskConical className="h-4 w-4" /> Programme bêta actif</div><p className="mt-1 max-w-2xl text-xs leading-5 text-rose-700/80 dark:text-rose-100/75">Tu peux quitter volontairement la bêta à tout moment. Cette action désactive les outils de test sur ce compte ; elle n’efface pas tes retours déjà envoyés.</p></div><button type="button" onClick={handleLeaveBeta} disabled={isLeavingBeta} className="shrink-0 rounded-xl border border-rose-300 bg-white px-4 py-2.5 text-sm font-bold text-rose-700 transition-colors hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-rose-800 dark:bg-slate-950 dark:text-rose-200 dark:hover:bg-rose-950">{isLeavingBeta ? 'Désactivation…' : 'Quitter le programme bêta'}</button></section>}
+        {betaStatusMessage && <div role="status" className="rounded-2xl border border-slate-200 bg-white p-4 text-sm font-semibold text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200">{betaStatusMessage}</div>}
 
         {/* Formulaire Principal */}
         <form onSubmit={handleSave} className="space-y-8">

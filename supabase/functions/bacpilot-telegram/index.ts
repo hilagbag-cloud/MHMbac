@@ -42,8 +42,9 @@ type ResolvedUser = {
 
 type InputSession = {
   telegram_chat_id: string;
-  expected_input: 'user_identifier' | 'beta_user_identifier';
-  origin_command: '/user' | '/beta_add' | '/beta_pause' | '/beta_revoke';
+  expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack';
+  origin_command: '/user' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm';
+  pending_action_id?: string | null;
   expires_at: string;
 };
 
@@ -202,7 +203,7 @@ async function beginInputSession(admin: ReturnType<typeof createClient>, chatId:
 async function getInputSession(admin: ReturnType<typeof createClient>, chatId: string) {
   const { data, error } = await admin
     .from('operator_input_sessions')
-    .select('telegram_chat_id, expected_input, origin_command, expires_at')
+    .select('telegram_chat_id, expected_input, origin_command, pending_action_id, expires_at')
     .eq('telegram_chat_id', chatId)
     .gt('expires_at', new Date().toISOString())
     .maybeSingle();
@@ -327,10 +328,10 @@ async function createPendingAction(admin: ReturnType<typeof createClient>, chatI
   await audit(admin, chatId, command, 'pending', user.id, { action, expires_at: expiresAt });
   const label = action === 'beta_activate' ? 'activer' : action === 'beta_pause' ? 'mettre en pause' : 'révoquer';
   return [
-    `Confirmation requise : ${label} le statut bêta de ${userLabel(user)}.`,
-    `Code : ${code}`,
+    `Action préparée : ${label} le statut bêta de ${userLabel(user)}.`,
     `Expire : ${formatDate(expiresAt)}`,
-    `Exécute /confirm ${code} ou /cancel ${code}`,
+    '',
+    'Envoie simplement /confirm : le bot te demandera ensuite de répondre OUI ou NON.',
   ].join('\n');
 }
 
@@ -350,24 +351,19 @@ async function listPending(admin: ReturnType<typeof createClient>, chatId: strin
   const byId = new Map((profiles || []).map((profile: any) => [profile.id, profile]));
   return ['BacPilot — actions en attente', '', ...pending.map((item: any) => {
     const profile = byId.get(item.target_user_id) || { id: item.target_user_id };
-    return `• ${item.confirmation_code} · ${item.action} · ${userLabel(profile)} · expire ${formatDate(item.expires_at)}`;
-  })].join('\n');
+    return `• ${item.action} · ${userLabel(profile)} · expire ${formatDate(item.expires_at)}`;
+  }), '', 'Envoie /confirm pour valider l’action la plus récente, puis réponds OUI ou NON.'].join('\n');
 }
 
-async function confirmAction(admin: ReturnType<typeof createClient>, chatId: string, code: string) {
-  const normalized = text(code, 20).toUpperCase();
-  if (!/^[A-Z0-9]{8}$/.test(normalized)) return 'Code de confirmation invalide.';
-  const { data: pending } = await admin
-    .from('operator_pending_actions')
-    .select('id, action, target_user_id, payload, expires_at')
-    .eq('telegram_chat_id', chatId)
-    .eq('confirmation_code', normalized)
-    .is('executed_at', null)
-    .is('cancelled_at', null)
-    .gt('expires_at', new Date().toISOString())
-    .maybeSingle();
-  if (!pending) return 'Aucune action valide trouvée pour ce code. Il a peut-être expiré ou été annulé.';
+type PendingAction = {
+  id: string;
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke';
+  target_user_id: string;
+  payload: Record<string, unknown> | null;
+  expires_at: string;
+};
 
+async function executePendingAction(admin: ReturnType<typeof createClient>, chatId: string, pending: PendingAction) {
   const now = new Date().toISOString();
   const { data: lock, error: lockError } = await admin
     .from('operator_pending_actions')
@@ -389,12 +385,90 @@ async function confirmAction(admin: ReturnType<typeof createClient>, chatId: str
   }
 
   await audit(admin, chatId, '/confirm', 'confirmed', pending.target_user_id, { action: pending.action, status: desiredStatus });
-  return `Action confirmée : statut bêta ${desiredStatus} pour ${text((pending.payload as any)?.label, 140) || pending.target_user_id}.`;
+  return `Action confirmée : statut bêta ${desiredStatus} pour ${text(pending.payload?.label, 140) || pending.target_user_id}.`;
+}
+
+async function beginConfirmationSession(admin: ReturnType<typeof createClient>, chatId: string) {
+  const { data: pending } = await admin
+    .from('operator_pending_actions')
+    .select('id, action, target_user_id, payload, expires_at')
+    .eq('telegram_chat_id', chatId)
+    .is('executed_at', null)
+    .is('cancelled_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!pending) return 'Aucune action à confirmer. Utilise d’abord /beta_add, /beta_pause ou /beta_revoke.';
+
+  const expiresAt = new Date(Math.min(new Date(pending.expires_at).getTime(), Date.now() + 10 * 60 * 1000)).toISOString();
+  const { error } = await admin.from('operator_input_sessions').upsert({
+    telegram_chat_id: chatId,
+    expected_input: 'confirmation_ack',
+    origin_command: '/confirm',
+    pending_action_id: pending.id,
+    expires_at: expiresAt,
+  }, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Confirmation conversationnelle indisponible.');
+
+  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : 'révoquer';
+  return [
+    `Tu vas ${label} le statut bêta de ${text((pending.payload as any)?.label, 140) || pending.target_user_id}.`,
+    `Cette demande expire : ${formatDate(expiresAt)}`,
+    '',
+    'Réponds simplement OUI pour confirmer ou NON pour annuler.',
+  ].join('\n');
+}
+
+async function confirmActionById(admin: ReturnType<typeof createClient>, chatId: string, pendingActionId: string) {
+  const { data: pending } = await admin
+    .from('operator_pending_actions')
+    .select('id, action, target_user_id, payload, expires_at')
+    .eq('id', pendingActionId)
+    .eq('telegram_chat_id', chatId)
+    .is('executed_at', null)
+    .is('cancelled_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (!pending) return 'Cette action n’est plus disponible. Prépare une nouvelle action si nécessaire.';
+  return executePendingAction(admin, chatId, pending as PendingAction);
+}
+
+async function cancelActionById(admin: ReturnType<typeof createClient>, chatId: string, pendingActionId: string) {
+  const { data: pending } = await admin
+    .from('operator_pending_actions')
+    .update({ cancelled_at: new Date().toISOString() })
+    .eq('id', pendingActionId)
+    .eq('telegram_chat_id', chatId)
+    .is('executed_at', null)
+    .is('cancelled_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .select('target_user_id, action')
+    .maybeSingle();
+  if (!pending) return 'Cette action n’est plus disponible.';
+  await audit(admin, chatId, '/cancel', 'cancelled', pending.target_user_id, { action: pending.action });
+  return 'Action annulée.';
+}
+
+async function confirmAction(admin: ReturnType<typeof createClient>, chatId: string, code: string) {
+  const normalized = text(code, 20).toUpperCase();
+  if (!/^[A-Z0-9]{8}$/.test(normalized)) return 'Envoie /confirm sans code : le bot te demandera simplement OUI ou NON.';
+  const { data: pending } = await admin
+    .from('operator_pending_actions')
+    .select('id, action, target_user_id, payload, expires_at')
+    .eq('telegram_chat_id', chatId)
+    .eq('confirmation_code', normalized)
+    .is('executed_at', null)
+    .is('cancelled_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (!pending) return 'Aucune action valide trouvée pour ce code. Elle a peut-être expiré ou été annulée.';
+  return executePendingAction(admin, chatId, pending as PendingAction);
 }
 
 async function cancelAction(admin: ReturnType<typeof createClient>, chatId: string, code: string) {
   const normalized = text(code, 20).toUpperCase();
-  if (!/^[A-Z0-9]{8}$/.test(normalized)) return 'Code de confirmation invalide.';
+  if (!/^[A-Z0-9]{8}$/.test(normalized)) return 'Envoie /cancel seul pour annuler une saisie en cours.';
   const { data: pending } = await admin
     .from('operator_pending_actions')
     .update({ cancelled_at: new Date().toISOString() })
@@ -407,7 +481,7 @@ async function cancelAction(admin: ReturnType<typeof createClient>, chatId: stri
     .maybeSingle();
   if (!pending) return 'Aucune action active trouvée pour ce code.';
   await audit(admin, chatId, '/cancel', 'cancelled', pending.target_user_id, { action: pending.action });
-  return `Action ${normalized} annulée.`;
+  return 'Action annulée.';
 }
 
 async function listBeta(admin: ReturnType<typeof createClient>, statusArgument: string) {
@@ -464,8 +538,8 @@ function helpMessage() {
     '/beta_list [active|paused|revoked|invited] — 10 derniers',
     '/feedback — 8 derniers retours bêta',
     '/pending — actions à confirmer',
-    '/confirm CODE — exécuter une action préparée',
-    '/cancel CODE — annuler une action préparée ou une saisie',
+    '/confirm — confirmer l’action la plus récente, puis répondre OUI ou NON',
+    '/cancel — annuler une saisie en cours',
     '/test — vérifier le bot',
     '',
     'Les statuts bêta exigent une confirmation et toutes les actions sont journalisées.',
@@ -515,9 +589,11 @@ Deno.serve(async (request) => {
   if (!command && activeSession) {
     command = activeSession.origin_command;
     argument = text(update.message?.text, 180);
-    await clearInputSession(admin, sourceChatId).catch((error) => {
-      console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
-    });
+    if (activeSession.expected_input !== 'confirmation_ack') {
+      await clearInputSession(admin, sourceChatId).catch((error) => {
+        console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
+      });
+    }
   }
 
   if (!command) {
@@ -535,7 +611,18 @@ Deno.serve(async (request) => {
   let targetUserId: string | null = null;
 
   try {
-    if (command === '/start' || command === '/help') {
+    if (activeSession?.expected_input === 'confirmation_ack' && command === '/confirm' && activeSession.pending_action_id) {
+      const acknowledgement = text(argument, 20).toLowerCase();
+      if (['oui', 'o', 'yes'].includes(acknowledgement)) {
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(confirmActionById(admin, sourceChatId, activeSession.pending_action_id));
+      } else if (['non', 'n', 'no'].includes(acknowledgement)) {
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(cancelActionById(admin, sourceChatId, activeSession.pending_action_id));
+      } else {
+        reply = 'Réponds simplement OUI pour confirmer ou NON pour annuler. Tu peux aussi envoyer /cancel.';
+      }
+    } else if (command === '/start' || command === '/help') {
       reply = helpMessage();
     } else if (command === '/status' || command === '/health') {
       reply = await withTimeout(getStatusMessage(admin));
@@ -574,7 +661,9 @@ Deno.serve(async (request) => {
       await clearInputSession(admin, sourceChatId);
       reply = 'Saisie en cours annulée.';
     } else if (command === '/confirm') {
-      reply = await withTimeout(confirmAction(admin, sourceChatId, argument));
+      reply = argument
+        ? await withTimeout(confirmAction(admin, sourceChatId, argument))
+        : await withTimeout(beginConfirmationSession(admin, sourceChatId));
     } else if (command === '/cancel') {
       reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }

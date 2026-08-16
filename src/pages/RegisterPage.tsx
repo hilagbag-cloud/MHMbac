@@ -109,10 +109,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-rose-500 to-indigo-700 text-white shadow-xl shadow-rose-950/30 transition-transform hover:scale-105"
+            className="inline-flex h-14 w-14 items-center justify-center transition-transform hover:scale-105"
             aria-label="Retour à l’accueil"
           >
-            <img src="/branding/bacpilot-mark-256.webp" alt="" className="h-12 w-12 object-contain" />
+            <img src="/branding/bacpilot-mark-512.png" alt="" className="h-12 w-auto object-contain" />
           </button>
           <h1 className="font-serif text-2xl font-bold tracking-tight text-slate-900 dark:text-white sm:text-3xl">Créer mon compte</h1>
           <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">

@@ -8,7 +8,7 @@ La console Telegram BacPilot est un canal d’administration réservé à **un s
 
 Le webhook Telegram est vérifié avec un secret serveur. La fonction vérifie en plus que le `chat_id` reçu est strictement identique à celui configuré dans `TELEGRAM_CHAT_ID`. Une commande émise depuis tout autre chat est ignorée.
 
-Les commandes qui modifient un statut bêta ne s’exécutent pas directement. Elles créent une action temporaire avec un code de huit caractères. L’opérateur doit ensuite confirmer explicitement le code avec `/confirm CODE`. Une action non confirmée expire au bout de dix minutes et peut être annulée avec `/cancel CODE`.
+Les commandes qui modifient un statut bêta ne s’exécutent pas directement. Elles créent une action temporaire expirant au bout de dix minutes. L’opérateur envoie ensuite simplement `/confirm` ; le bot récapitule l’action et demande de répondre **OUI** ou **NON**. Ce parcours évite de recopier un code depuis Telegram. `/cancel` annule toute saisie conversationnelle en cours. L’ancien format `/confirm CODE` reste accepté uniquement comme compatibilité de secours.
 
 ## Commandes de lecture
 
@@ -35,8 +35,9 @@ Une fiche `/user` affiche les données administratives nécessaires au suivi : n
 | 1 | `/beta_add eleve@exemple.bj` | Prépare l’activation du compte en bêta-testeur. |
 | 1 | `/beta_pause eleve@exemple.bj` | Prépare une suspension temporaire des outils bêta. |
 | 1 | `/beta_revoke eleve@exemple.bj` | Prépare la révocation des outils bêta. |
-| 2 | `/confirm CODE` | Exécute l’action temporaire correspondante. |
-| Option | `/cancel CODE` | Annule l’action en attente. |
+| 2 | `/confirm` | Le bot récapitule l’action bêta la plus récente et demande une réponse. |
+| 3 | `OUI` | Exécute l’action temporaire récapitulée. |
+| Option | `NON` ou `/cancel` | Annule l’action en attente ou la saisie en cours. |
 
 Les commandes de gestion acceptent également l’identifiant BacPilot exact au lieu de l’e-mail. La confirmation répond par le statut effectivement écrit côté serveur : `active`, `paused` ou `revoked`.
 
@@ -44,7 +45,7 @@ Les commandes de gestion acceptent également l’identifiant BacPilot exact au 
 
 ## Notifications d’inscription
 
-Quand le webhook `public.profiles INSERT` est configuré, chaque nouveau profil déclenche une alerte Telegram contenant le nom, l’e-mail, la date de création et le statut **Standard** ou **Bêta actif** déterminé côté serveur. Le journal `operator_notifications` rend l’envoi idempotent afin d’éviter les doublons lors d’une reprise de webhook.
+Quand le webhook `public.profiles INSERT` est configuré, chaque nouveau profil déclenche une alerte Telegram contenant le nom, l’e-mail, l’ID BacPilot, la date de création, l’intention déclarée (**Utiliser BacPilot** ou **Demande bêta**), le point d’entrée et le contexte technique minimal seulement s’il a été explicitement consenti. La demande bêta ne vaut jamais activation : l’opérateur conserve la décision via la confirmation conversationnelle. Le journal `operator_notifications` rend l’envoi idempotent afin d’éviter les doublons lors d’une reprise de webhook.
 
 ## Exploitation responsable
 

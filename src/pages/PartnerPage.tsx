@@ -34,7 +34,7 @@ export const PartnerPage: React.FC<PartnerPageProps> = ({ partnerPortal = false 
       <header className="border-b border-white/10 bg-slate-950/95 px-4 py-4 backdrop-blur sm:px-6">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4">
           <a href="https://bacpilot.site" className="flex items-center gap-3" aria-label="Retour vers BacPilot">
-            <span className="flex h-10 min-w-10 items-center justify-center overflow-hidden rounded-xl bg-rose-500"><img src="/branding/bacpilot-mark-256.webp" alt="Logo BacPilot" className="h-9 w-auto shrink-0 object-contain" /></span>
+            <span className="flex h-10 w-10 items-center justify-center"><img src="/branding/bacpilot-mark-512.png" alt="Logo BacPilot" className="h-10 w-auto shrink-0 object-contain" /></span>
             <span><strong className="block text-lg tracking-tight">Bac<span className="text-rose-400">Pilot</span></strong><small className="text-xs text-slate-400">Espace partenaire</small></span>
           </a>
           <a href="https://bacpilot.site" className="text-sm font-semibold text-slate-300 underline underline-offset-4 hover:text-white">Découvrir BacPilot</a>
