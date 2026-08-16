@@ -330,3 +330,14 @@ La fonction `bacpilot-telegram` ajoute maintenant un en-tête `User-Agent` expli
 La migration `20260816_bacpilot_email_send_pending_action.sql` autorise `email_send` dans le circuit d’actions confirmées. Deno, build Vite et TypeScript passent ; la fonction est republiée. Le prochain essai contrôlé doit vérifier l’envoi avec le domaine racine vérifié et retourner une référence Resend si l’API accepte la clé.
 
 Sources de diagnostic conservées dans `/tmp/bacpilot-guide-2026/resend_403_diagnostic.md` et `/tmp/bacpilot-guide-2026/resend_domain_verification_finding.md`.
+
+
+## 13. Mise à jour du 16 août 2026 — retours bêta, alertes événementielles et SEO
+
+L’erreur client `permission denied for table beta_feedback` provenait de privilèges SQL absents pour le rôle `authenticated`, malgré les politiques RLS déjà correctement limitées au propriétaire actif. La migration `20260816_bacpilot_feedback_notifications.sql` accorde uniquement `SELECT, INSERT` aux tables `beta_feedback` et `beta_test_events`, ainsi que `SELECT` sur `beta_testers`. Les vérifications serveur confirment que ces droits sont actifs ; les règles RLS continuent à empêcher l’accès aux retours d’autrui.
+
+Chaque nouveau retour bêta déclenche désormais, de manière asynchrone et non bloquante, la fonction `notify-beta-feedback`. Elle journalise la livraison dans `operator_feedback_deliveries`, alerte le chat Telegram autorisé avec les détails pertinents et envoie un email HTML à l’opérateur lorsque `OPERATOR_NOTIFICATION_EMAIL` est présent. Le secret de destinataire est configuré dans Supabase ; sa valeur ne doit jamais être enregistrée dans le dépôt ou la mémoire.
+
+`notify-new-user` affiche désormais l’action bêta immédiatement exploitable : `/beta_add <ID>`, puis `/confirm` et choix `1` ou `2`, ainsi que la commande de fiche utilisateur. L’email de bienvenue est toujours envoyé seulement après confirmation serveur du statut bêta.
+
+L’audit SEO de production a confirmé que `bacpilot.site` sert un robots.txt et un sitemap valides, mais que le sous-domaine partenaires renvoyait auparavant vers le sitemap du domaine principal. Les fichiers de découverte sont maintenant séparés : domaine principal indexable, `partenaires.bacpilot.site` avec son propre robots/sitemap, et `beta.bacpilot.site` exclu par robots et X-Robots-Tag. Les données structurées de l’accueil ont été enrichies seulement avec les contacts publics et le périmètre réel de BacPilot. Le SEO facilite crawl et compréhension ; il ne garantit pas un classement sur une requête générique.

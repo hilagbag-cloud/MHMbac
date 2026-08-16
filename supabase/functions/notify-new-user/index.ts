@@ -168,8 +168,9 @@ Deno.serve(async (request) => {
     `Statut bêta actuel : ${status}`,
     '',
     betaRequested
-      ? `Action proposée : /beta_add ${userId} puis /confirm CODE`
-      : 'Aucune action bêta demandée.',
+      ? `Action proposée : /beta_add ${userId} — puis /confirm et choisis 1 pour valider ou 2 pour annuler.`
+      : `Contrôle possible : /user ${userId}`,
+    `Fiche complète : /user ${userId}`,
     'Le statut bêta est attribué uniquement par validation serveur.',
   ].join('\n');
 

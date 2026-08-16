@@ -2,37 +2,30 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://bacpilot.site/</loc>
-    <changefreq>daily</changefreq>
-    <priority>1.0</priority>
+    <lastmod>2026-08-16</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/orientation-bac-benin</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
+    <lastmod>2026-08-16</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/methodologie</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/about</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/contact</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/privacy</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
+    <lastmod>2026-08-15</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/terms</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
+    <lastmod>2026-08-15</lastmod>
   </url>
 </urlset>

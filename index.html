@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0f172a" />
+    <meta name="application-name" content="BacPilot" />
     <title>Orientation après le bac au Bénin | BacPilot</title>
     <meta name="description" content="BacPilot aide les nouveaux bacheliers béninois à comparer des filières selon leur série, leur mention et leur objectif, à partir d’observations disponibles à vérifier." />
     <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -19,6 +20,8 @@
     <meta property="og:url" content="https://bacpilot.site/" />
     <meta property="og:image" content="https://bacpilot.site/branding/bacpilot-mark-512.png" />
     <meta property="og:image:alt" content="Logo BacPilot" />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Orientation après le bac au Bénin | BacPilot" />
     <meta name="twitter:description" content="Comparez des pistes d’orientation à partir d’observations disponibles, puis vérifiez et validez vous-même sur le portail officiel." />
@@ -31,10 +34,19 @@
           {
             "@type": "Organization",
             "@id": "https://bacpilot.site/#organization",
-            "name": "BacPilot — par MHM SOLUTIONS",
+            "name": "BacPilot",
+            "alternateName": ["BacPilot — par MHM SOLUTIONS", "BacPilot Orientation"],
             "url": "https://bacpilot.site/",
             "logo": "https://bacpilot.site/branding/bacpilot-mark-512.png",
             "description": "Initiative de MHM SOLUTIONS qui aide les nouveaux bacheliers béninois à comparer des pistes d’orientation à partir d’observations disponibles.",
+            "email": "contact@bacpilot.site",
+            "areaServed": { "@type": "Country", "name": "Bénin" },
+            "knowsAbout": ["orientation après le bac", "filières universitaires", "bourses d’études", "Bénin"],
+            "contactPoint": [
+              { "@type": "ContactPoint", "contactType": "service client", "email": "support@bacpilot.site", "availableLanguage": ["fr"] },
+              { "@type": "ContactPoint", "contactType": "partenariats", "email": "contact@bacpilot.site", "availableLanguage": ["fr"] }
+            ],
+            "parentOrganization": { "@type": "Organization", "name": "MHM SOLUTIONS" },
             "founder": {
               "@type": "Person",
               "name": "Hilarus GBAGOULE"
