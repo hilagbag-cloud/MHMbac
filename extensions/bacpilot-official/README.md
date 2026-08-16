@@ -12,8 +12,9 @@
 | Reprise locale | Chaque étape de collecte est enregistrée dans `chrome.storage.local`. Une fermeture accidentelle de la console, de l’onglet ou le redémarrage du service worker ne supprime pas les observations déjà sauvegardées. |
 | Reprise volontaire | Après avoir rouvert la page officielle et rétabli sa session soi-même, l’utilisateur clique sur **Reprendre la collecte**. La lecture continue après le dernier point sauvegardé. |
 | Données collectées | Université, école, filière et jauges accessibles, avec horodatage d’observation. Les données sont envoyées telles qu’elles sont observées. |
-| Synchronisation | Les observations terminées sont découpées en lots, conservées localement puis réessayées automatiquement tant que Chrome reste ouvert. |
-| Diagnostic | La console affiche les lots conservés, les erreurs, l’étape qui a échoué et la prochaine tentative. |
+| Synchronisation progressive | Chaque observation sauvegardée rejoint une file locale, est découpée en lots, puis reçoit un accusé serveur idempotent. Une réponse perdue peut être rejouée sans double écriture. |
+| Cadence volontaire | Désactivée par défaut. L’opérateur peut l’activer à partir de 10 minutes ; elle n’agit que si l’onglet officiel est déjà ouvert et la session toujours autorisée. |
+| Diagnostic de fraîcheur | La console affiche le dernier point local, la dernière confirmation serveur, le dernier lot confirmé, l’état de session, les lots conservés et la prochaine tentative. |
 
 ## Ce que l’extension ne fait jamais
 
@@ -47,7 +48,8 @@
 | 5 | Cliquer sur **Nouvelle collecte**. |
 | 6 | Laisser l’onglet officiel ouvert pendant la lecture. La console peut être réduite, déplacée ou fermée : l’état est conservé. |
 | 7 | En cas d’interruption, rouvrir le portail officiel, se reconnecter si besoin, puis cliquer sur **Reprendre la collecte**. |
-| 8 | Vérifier le panneau **Lots conservés localement** jusqu’à confirmation de synchronisation. |
+| 8 | Vérifier le panneau **Lots conservés localement** jusqu’à confirmation de synchronisation, puis contrôler l’horodatage **Confirmation serveur** dans le dernier relevé local. |
+| 9 | Facultatif : après une première collecte validée, activer **Actualisation automatique volontaire** et choisir une cadence de 10 minutes minimum. L’onglet officiel connecté doit rester ouvert. |
 
 ## Configuration de synchronisation réservée à l’opérateur autorisé
 
@@ -63,7 +65,7 @@ L’endpoint BacPilot est prérempli. Le **jeton de collecte** doit être rensei
 
 Manifest V3 peut arrêter son service worker lorsqu’il est inactif. C’est pourquoi la collecte, les diagnostics et les lots sont persistés dans `chrome.storage.local`, plutôt que conservés dans des variables temporaires. Cette zone est accessible aux contextes de l’extension et n’est pas effacée lorsque l’utilisateur vide l’historique ou le cache Chrome ; elle est toutefois supprimée si l’extension est désinstallée.[1] [2]
 
-Les nouvelles tentatives de synchronisation sont déclenchées régulièrement par Chrome, ainsi qu’après une collecte terminée ou une action manuelle. Une fermeture de Chrome stoppe toute activité ; au prochain démarrage, la console réinstalle sa planification et retrouve l’état local.
+Les nouvelles tentatives de synchronisation sont déclenchées régulièrement par Chrome, ainsi qu’après un checkpoint, une collecte terminée ou une action manuelle. Une fermeture de Chrome stoppe toute activité ; au prochain démarrage, la console réinstalle sa planification et retrouve l’état local. La cadence de collecte automatique reste explicitement désactivée tant qu’elle n’est pas activée dans la console ; elle ne peut ni ouvrir le portail, ni reconnecter l’utilisateur, ni résoudre un contrôle anti-robot.
 
 ## Contrôles avant utilisation réelle
 
@@ -71,8 +73,9 @@ Les nouvelles tentatives de synchronisation sont déclenchées régulièrement p
 2. Fermez la console pendant la collecte, puis rouvrez-la : la progression doit rester visible.
 3. Rechargez l’onglet officiel ou fermez-le accidentellement, rouvrez-le, puis testez **Reprendre la collecte**.
 4. Coupez temporairement le réseau après une collecte : un lot doit rester affiché comme conservé localement.
-5. Rétablissez le réseau et utilisez **Synchroniser maintenant** ; vérifiez l’accusé de réception dans la console, puis dans Supabase.
-6. Confirmez qu’aucun choix n’est modifié ni soumis par l’extension.
+5. Rétablissez le réseau et utilisez **Synchroniser maintenant** ; vérifiez l’accusé de réception, la date **Confirmation serveur** et le dernier lot confirmé dans la console, puis dans Supabase.
+6. Activez temporairement la cadence volontaire avec un intervalle de 10 minutes ou plus, en laissant l’onglet officiel connecté ouvert ; vérifiez qu’elle ne démarre rien si l’onglet est fermé ou la session expirée.
+7. Confirmez qu’aucun choix n’est modifié ni soumis par l’extension.
 
 ## Développement et validation locale
 

@@ -341,3 +341,18 @@ Chaque nouveau retour bêta déclenche désormais, de manière asynchrone et non
 `notify-new-user` affiche désormais l’action bêta immédiatement exploitable : `/beta_add <ID>`, puis `/confirm` et choix `1` ou `2`, ainsi que la commande de fiche utilisateur. L’email de bienvenue est toujours envoyé seulement après confirmation serveur du statut bêta.
 
 L’audit SEO de production a confirmé que `bacpilot.site` sert un robots.txt et un sitemap valides, mais que le sous-domaine partenaires renvoyait auparavant vers le sitemap du domaine principal. Les fichiers de découverte sont maintenant séparés : domaine principal indexable, `partenaires.bacpilot.site` avec son propre robots/sitemap, et `beta.bacpilot.site` exclu par robots et X-Robots-Tag. Les données structurées de l’accueil ont été enrichies seulement avec les contacts publics et le périmètre réel de BacPilot. Le SEO facilite crawl et compréhension ; il ne garantit pas un classement sur une requête générique.
+
+
+## 14. Mise à jour du 16 août 2026 — extension officielle v1.1.0, reçus et fraîcheur
+
+La migration `20260816_bacpilot_sync_receipts.sql` est appliquée au projet Supabase `uxdfrnogiuefoqjpobpf`. Elle ajoute la table privée `public.sync_batch_receipts` avec RLS activée et sans droit `anon` ou `authenticated`, ainsi qu’une contrainte unique sur `gauge_alerts.event_hash`. L’Edge Function `mhmbac-sync` est active en version **20** avec `verify_jwt=false`, ce qui est requis parce qu’elle utilise un jeton de synchronisation spécifique, lu uniquement dans le corps JSON. Une requête de prévol sans jeton valide est refusée en HTTP 401 ; aucun relevé de démonstration n’a été ajouté.
+
+La source d’extension `extensions/bacpilot-official/` est préparée en version **1.1.0**. À chaque checkpoint, les observations déjà lues sont conservées localement, découpées en lots et envoyées progressivement. Le serveur mémorise le résultat par `batchId` et `payload_hash` : une réémission identique renvoie le reçu existant, tandis qu’un même identifiant avec un contenu divergent renvoie HTTP 409. Les alertes de variation sont dédupliquées par empreinte d’événement. Le délai de lecture est adaptatif entre 700 ms et 8 s, et un HTTP 401/403 arrête la collecte avec un message demandant à l’utilisateur de se reconnecter lui-même au portail officiel.
+
+L’actualisation périodique de la console est désactivée par défaut. Lorsqu’elle est activée volontairement, elle accepte un minimum de 10 minutes, attend un onglet officiel préexistant, exige un prévol de synchronisation déjà validé et refuse de remplacer une collecte inachevée. Elle ne crée pas d’onglet, ne se connecte pas, ne maintient pas une session expirée et ne contourne aucun CAPTCHA. La console expose le dernier checkpoint local, la dernière confirmation serveur, le dernier lot confirmé, l’état de session, la file persistante et l’état de cette cadence.
+
+Contrôles réalisés : `node --check` réussi pour le service worker, le collecteur et la console ; `deno check` réussi pour `mhmbac-sync` ; présence de `sync_batch_receipts` et de `gauge_alerts.event_hash` vérifiée dans le schéma de production ; fonction version 20 active. Restent à finaliser : générer l’archive plate avec checksum, pousser le commit, puis réaliser une recette de collecte avec un compte officiel réel autorisé, sans créer de données fictives.
+
+| Date | Commit / état | Changement confirmé | Suite |
+|---|---|---|---|
+| 16 août 2026 | v1.1.0 locale, migration appliquée et fonction v20 active | File locale incrémentale, reçus idempotents, alertes sans doublon, cadence volontaire et indicateurs de fraîcheur. | Construire le ZIP, charger l’extension, valider le prévol et faire la recette réelle de reprise. |

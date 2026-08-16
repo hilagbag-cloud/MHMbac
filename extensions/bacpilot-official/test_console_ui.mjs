@@ -7,18 +7,18 @@ const code = await readFile(resolve(root, 'console.js'), 'utf8');
 const ids = [
   'actionFeedback', 'collectionStatus', 'collectionMessage', 'collectionProgress', 'collectionMeta',
   'collectionDetails', 'startScan', 'resumeScan', 'cancelScan', 'syncNow', 'exportData', 'refresh',
-  'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage',
+  'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage', 'autoRefreshEnabled', 'autoRefreshMinutes', 'saveAutoRefresh', 'autoRefreshState',
   'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
 ];
 const nodes = Object.fromEntries(ids.map((id) => [id, {
-  id, textContent: '', className: '', innerHTML: '', value: '', disabled: false, listeners: {},
+  id, textContent: '', className: '', innerHTML: '', value: '', checked: false, disabled: false, listeners: {},
   addEventListener(type, callback) { this.listeners[type] = callback; }, click() { this.clicked = true; }
 }]));
 const statePayload = {
   ok: true,
   state: { status: 'idle', totalCandidates: 0, completedCandidates: 0, items: [], errors: [], updatedAt: new Date().toISOString() },
   queue: [],
-  config: { endpoint: 'https://example.test/sync', tokenState: 'ready', verificationStatus: 'verified', verificationMessage: 'Jeton validé et serveur prêt pour la collecte.', readyForScan: true },
+  config: { endpoint: 'https://example.test/sync', tokenState: 'ready', verificationStatus: 'verified', verificationMessage: 'Jeton validé et serveur prêt pour la collecte.', readyForScan: true, autoRefresh: { enabled: false, periodMinutes: 15 } },
   diagnostics: []
 };
 const sent = [];
@@ -27,6 +27,7 @@ const chrome = {
     sent.push(message.type);
     if (message.type === 'BP_GET_STATE') return statePayload;
     if (message.type === 'BP_SET_CONFIG' || message.type === 'BP_TEST_CONFIG') return { ok: true, validation: { ok: true } };
+    if (message.type === 'BP_SET_AUTO_REFRESH') return { ok: true, autoRefresh: { enabled: Boolean(message.enabled), periodMinutes: Number(message.periodMinutes) } };
     if (message.type === 'BP_SYNC_NOW') return { ok: true, sent: 0, pending: 0 };
     return { ok: true };
   } },
@@ -43,7 +44,7 @@ const context = vm.createContext({
 });
 vm.runInContext(code, context, { filename: 'console.js' });
 await new Promise((resolve) => setTimeout(resolve, 25));
-for (const id of ['refresh', 'saveConfig', 'testConfig', 'syncNow', 'startScan', 'resumeScan', 'exportData', 'clearData']) {
+for (const id of ['refresh', 'saveConfig', 'testConfig', 'saveAutoRefresh', 'syncNow', 'startScan', 'resumeScan', 'exportData', 'clearData']) {
   if (typeof nodes[id].listeners.click !== 'function') throw new Error(`Bouton non relié : ${id}`);
 }
 if (nodes.startScan.disabled) throw new Error('Le scan devrait être disponible après une prévalidation réussie.');
@@ -55,4 +56,9 @@ if (!sent.includes('BP_SET_CONFIG') || !nodes.actionFeedback.textContent.include
 await nodes.testConfig.listeners.click();
 await new Promise((resolve) => setTimeout(resolve, 25));
 if (!sent.includes('BP_TEST_CONFIG') || !nodes.actionFeedback.textContent.includes('Collecte autorisée')) throw new Error('Le bouton de test ne produit pas le retour attendu.');
+nodes.autoRefreshEnabled.checked = true;
+nodes.autoRefreshMinutes.value = '10';
+await nodes.saveAutoRefresh.listeners.click();
+await new Promise((resolve) => setTimeout(resolve, 25));
+if (!sent.includes('BP_SET_AUTO_REFRESH') || !nodes.actionFeedback.textContent.includes('activée toutes les 10 minutes')) throw new Error('La cadence automatique n’est pas enregistrée correctement.');
 console.log('Test interface console : OK');

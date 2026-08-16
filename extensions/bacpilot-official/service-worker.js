@@ -9,13 +9,17 @@ const STORAGE_KEYS = Object.freeze({
 const DEFAULT_CONFIG = Object.freeze({
   endpoint: 'https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/mhmbac-sync',
   syncToken: '',
-  verification: { status: 'unverified', checkedAt: null, message: 'Saisissez puis testez le jeton avant la collecte.' }
+  verification: { status: 'unverified', checkedAt: null, message: 'Saisissez puis testez le jeton avant la collecte.' },
+  autoRefresh: { enabled: false, periodMinutes: 15 }
 });
 
 const RETRY_ALARM = 'bacpilot-official-retry';
+const AUTO_REFRESH_ALARM = 'bacpilot-official-auto-refresh';
 const RETRY_PERIOD_MINUTES = 5;
+const DEFAULT_AUTO_REFRESH_MINUTES = 15;
+const MIN_AUTO_REFRESH_MINUTES = 10;
 const CHUNK_SIZE = 40;
-const MAX_DIAGNOSTICS = 40;
+const MAX_DIAGNOSTICS = 60;
 const OFFICIAL_PAGE_PREFIX = 'https://apresmonbac.bj/Home/choice';
 const INVALID_SYNC_TOKEN_MESSAGE = 'Jeton requis : saisissez une valeur non vide avant la synchronisation.';
 
@@ -23,6 +27,25 @@ const nowIso = () => new Date().toISOString();
 const isValidSyncToken = (value) => typeof value === 'string' && value.trim().length > 0;
 const newId = (prefix) => `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function normalizeAutoRefresh(value) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const requestedPeriod = Number(raw.periodMinutes);
+  return {
+    enabled: Boolean(raw.enabled),
+    periodMinutes: Number.isFinite(requestedPeriod) ? Math.max(MIN_AUTO_REFRESH_MINUTES, Math.round(requestedPeriod)) : DEFAULT_AUTO_REFRESH_MINUTES,
+  };
+}
+
+async function ensureAlarms(config = DEFAULT_CONFIG) {
+  await chrome.alarms.create(RETRY_ALARM, { periodInMinutes: RETRY_PERIOD_MINUTES });
+  const autoRefresh = normalizeAutoRefresh(config.autoRefresh);
+  if (autoRefresh.enabled) {
+    await chrome.alarms.create(AUTO_REFRESH_ALARM, { periodInMinutes: autoRefresh.periodMinutes });
+  } else {
+    await chrome.alarms.clear(AUTO_REFRESH_ALARM);
+  }
+}
 
 let storageInitialization = null;
 
@@ -42,10 +65,11 @@ async function initStorage() {
       message: 'Prête. Ouvrez le portail officiel puis lancez une collecte volontaire.'
     },
     [STORAGE_KEYS.queue]: current[STORAGE_KEYS.queue] || [],
-    [STORAGE_KEYS.config]: { ...DEFAULT_CONFIG, ...(current[STORAGE_KEYS.config] || {}) },
+    [STORAGE_KEYS.config]: { ...DEFAULT_CONFIG, ...(current[STORAGE_KEYS.config] || {}), autoRefresh: normalizeAutoRefresh(current[STORAGE_KEYS.config]?.autoRefresh) },
     [STORAGE_KEYS.diagnostics]: current[STORAGE_KEYS.diagnostics] || []
   });
-  await chrome.alarms.create(RETRY_ALARM, { periodInMinutes: RETRY_PERIOD_MINUTES });
+  const config = { ...DEFAULT_CONFIG, ...(current[STORAGE_KEYS.config] || {}), autoRefresh: normalizeAutoRefresh(current[STORAGE_KEYS.config]?.autoRefresh) };
+  await ensureAlarms(config);
   await chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
 }
 
@@ -77,7 +101,8 @@ async function getState() {
       verificationStatus,
       verificationMessage: verification.message || '',
       verificationCheckedAt: verification.checkedAt || null,
-      readyForScan: tokenState === 'ready' && verificationStatus === 'verified'
+      readyForScan: tokenState === 'ready' && verificationStatus === 'verified',
+      autoRefresh: normalizeAutoRefresh(config.autoRefresh)
     },
     diagnostics: data[STORAGE_KEYS.diagnostics] || [],
     sourceTabId: data[STORAGE_KEYS.sourceTabId] || null
@@ -153,6 +178,7 @@ function toBatches(state) {
     nextAttemptAt: Date.now(),
     payload: {
       batchId: newId('batch'),
+      collectionId,
       part: index + 1,
       totalParts,
       source: 'bacpilot_chrome_official',
@@ -164,14 +190,31 @@ function toBatches(state) {
   }));
 }
 
-async function enqueueCollection(state) {
+async function enqueueItems(state, items, reason = 'collection') {
+  const safeItems = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!safeItems.length) return [];
   const { [STORAGE_KEYS.queue]: current = [] } = await chrome.storage.local.get(STORAGE_KEYS.queue);
-  const alreadyQueued = current.some((entry) => entry.collectionId === state.collectionId);
-  if (alreadyQueued || !Array.isArray(state.items) || !state.items.length) return current;
-  const next = [...current, ...toBatches(state)];
+  const itemKey = (item) => `${String(item?.programmeId || '')}|${String(item?.observedAt || '')}`;
+  const queuedObservationKeys = new Set(current.flatMap((entry) => (entry.payload?.items || []).map(itemKey)));
+  const missingItems = safeItems.filter((item) => !queuedObservationKeys.has(itemKey(item)));
+  if (!missingItems.length) return [];
+  const batches = toBatches({ ...state, collectionId: state.collectionId || newId('collection'), items: missingItems });
+  const next = [...current, ...batches];
   await chrome.storage.local.set({ [STORAGE_KEYS.queue]: next });
-  await addDiagnostic('info', 'queue', `${state.items.length} observation(s) conservée(s) dans ${next.length - current.length} lot(s) avant synchronisation.`, { collectionId: state.collectionId });
-  return next;
+  if (reason !== 'checkpoint') {
+    await addDiagnostic('info', 'queue', `${missingItems.length} observation(s) ajoutée(s) à ${batches.length} lot(s) de reprise.`, { collectionId: state.collectionId, reason });
+  }
+  return batches;
+}
+
+async function enqueueCollection(state) {
+  return enqueueItems(state, state.items, 'collection_completed');
+}
+
+async function enqueueCheckpoint(state) {
+  const queued = await enqueueItems(state, state.items, 'checkpoint');
+  if (queued.length) void flushQueue('checkpoint');
+  return queued;
 }
 
 async function testSyncConfiguration(config) {
@@ -266,7 +309,8 @@ async function flushQueue(trigger = 'manual') {
         sent += entry.payload.items.length;
         queue = queue.filter((candidate) => candidate.queueId !== entry.queueId);
         await chrome.storage.local.set({ [STORAGE_KEYS.queue]: queue });
-        await addDiagnostic('success', 'sync', `${entry.payload.items.length} observation(s) confirmée(s) par BacPilot.`, { queueId: entry.queueId, httpStatus: result.httpStatus });
+        await updateState({ lastServerConfirmedAt: nowIso(), lastConfirmedCollectionId: entry.collectionId || null, lastConfirmedBatchId: entry.payload?.batchId || null });
+        await addDiagnostic('success', 'sync', `${entry.payload.items.length} observation(s) confirmée(s) par BacPilot.`, { queueId: entry.queueId, httpStatus: result.httpStatus, replayed: Boolean(result.replayed) });
         continue;
       }
       const attempts = Number(entry.attempts || 0) + 1;
@@ -304,9 +348,41 @@ async function resumeScan(tabId = null) {
   return response;
 }
 
+async function runAutomaticRefresh() {
+  await ensureStorage();
+  const snapshot = await getState();
+  const autoRefresh = snapshot.config.autoRefresh;
+  const state = snapshot.state || {};
+  if (!autoRefresh.enabled) return { skipped: true, reason: 'disabled' };
+  if (!snapshot.config.readyForScan) {
+    await addDiagnostic('warning', 'automatic_refresh', 'Actualisation automatique reportée : le test de synchronisation doit être validé.', {});
+    return { skipped: true, reason: 'configuration' };
+  }
+  if (state.status === 'running' || (state.status === 'paused' && Number(state.totalCandidates || 0) > Number(state.completedCandidates || 0))) {
+    await addDiagnostic('info', 'automatic_refresh', 'Actualisation automatique reportée : une collecte inachevée doit être reprise ou annulée manuellement.', {});
+    return { skipped: true, reason: 'collection_pending' };
+  }
+  try {
+    const tab = await findSourceTab();
+    await updateState({ autoRefreshStartedAt: nowIso(), autoRefreshStatus: 'Collecte automatique lancée avec la session officielle ouverte.' });
+    const response = await sendToContent(tab.id, { type: 'BP_START_COLLECTION' });
+    if (!response?.ok) throw new Error(response?.error || 'La collecte automatique ne peut pas démarrer.');
+    await addDiagnostic('info', 'automatic_refresh', `Collecte automatique demandée toutes les ${autoRefresh.periodMinutes} minutes.`, { tabId: tab.id });
+    return { ok: true };
+  } catch (error) {
+    const message = String(error?.message || error);
+    await updateState({ autoRefreshStatus: `Actualisation automatique reportée : ${message}` });
+    await addDiagnostic('warning', 'automatic_refresh', message, {});
+    return { ok: false, reason: 'source_unavailable', message };
+  }
+}
+
 chrome.runtime.onInstalled.addListener(() => { void ensureStorage(); });
 chrome.runtime.onStartup.addListener(() => { void ensureStorage(); });
-chrome.alarms.onAlarm.addListener((alarm) => { if (alarm.name === RETRY_ALARM) void ensureStorage().then(() => flushQueue('scheduled_retry')); });
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name === RETRY_ALARM) void ensureStorage().then(() => flushQueue('scheduled_retry'));
+  if (alarm.name === AUTO_REFRESH_ALARM) void runAutomaticRefresh();
+});
 chrome.action.onClicked.addListener((tab) => {
   if (tab?.url?.startsWith(OFFICIAL_PAGE_PREFIX)) void chrome.storage.local.set({ [STORAGE_KEYS.sourceTabId]: tab.id });
   void openConsole();
@@ -342,9 +418,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           ...current,
           endpoint,
           syncToken: suppliedToken,
+          autoRefresh: normalizeAutoRefresh(current.autoRefresh),
           verification: changed ? { status: 'unverified', checkedAt: null, message: 'Configuration enregistrée ; test serveur en cours.' } : current.verification
         };
         await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
+        await ensureAlarms(next);
         await addDiagnostic('info', 'configuration', next.syncToken ? 'Configuration de synchronisation enregistrée localement.' : 'Jeton de synchronisation retiré ; les lots restent conservés localement.');
         if (!next.syncToken) return { ok: true, configured: false, validation: { ok: false, stage: 'configuration', message: 'Saisissez un jeton pour activer le test.' } };
         const validation = await verifySyncConfiguration('configuration_saved');
@@ -352,6 +430,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case 'BP_TEST_CONFIG':
         return { ok: true, validation: await verifySyncConfiguration('manual_test') };
+      case 'BP_SET_AUTO_REFRESH': {
+        const current = { ...DEFAULT_CONFIG, ...((await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || {}) };
+        const autoRefresh = normalizeAutoRefresh({ enabled: message.enabled, periodMinutes: message.periodMinutes });
+        const next = { ...current, autoRefresh };
+        await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
+        await ensureAlarms(next);
+        await addDiagnostic('info', 'automatic_refresh', autoRefresh.enabled ? `Actualisation automatique activée toutes les ${autoRefresh.periodMinutes} minutes ; elle exige un onglet officiel et une session valides.` : 'Actualisation automatique désactivée.', {});
+        return { ok: true, autoRefresh };
+      }
       case 'BP_CLEAR_LOCAL_DATA':
         await chrome.storage.local.set({ [STORAGE_KEYS.state]: { status: 'idle', collectionId: null, observedAt: null, startedAt: null, updatedAt: nowIso(), totalCandidates: 0, completedCandidates: 0, items: [], errors: [], message: 'Données locales effacées par l’utilisateur.' }, [STORAGE_KEYS.queue]: [] });
         await addDiagnostic('info', 'local_data', 'Données de collecte et lots en attente effacés par l’utilisateur.');
@@ -359,9 +446,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case 'BP_COLLECTION_STARTED':
         await updateState({ ...message.state, status: 'running' });
         return { ok: true };
-      case 'BP_COLLECTION_CHECKPOINT':
-        await updateState({ ...message.state, status: message.state?.status || 'running' });
+      case 'BP_COLLECTION_CHECKPOINT': {
+        const state = await updateState({ ...message.state, status: message.state?.status || 'running', lastCheckpointAt: nowIso() });
+        await enqueueCheckpoint(state);
         return { ok: true };
+      }
       case 'BP_COLLECTION_COMPLETED': {
         const state = await updateState({ ...message.state, status: 'completed' });
         await enqueueCollection(state);

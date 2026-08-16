@@ -116,6 +116,31 @@ Deno.serve(async (request) => {
   for (const item of items) unique.set(item.programmeId, item);
   items = [...unique.values()];
 
+  const source = cleanText(body?.source || 'chrome_extension', 80);
+  const collectionId = cleanText(body?.collectionId, 120) || null;
+  const observedAt = typeof body?.observedAt === 'string' && !Number.isNaN(Date.parse(body.observedAt))
+    ? new Date(body.observedAt).toISOString() : new Date().toISOString();
+  const payloadHash = await sha256(JSON.stringify({
+    source,
+    collectionId,
+    part,
+    totalParts,
+    observedAt,
+    items: [...items].sort((left, right) => left.programmeId - right.programmeId),
+  }));
+  const { data: existingReceipt, error: receiptReadError } = await admin
+    .from('sync_batch_receipts')
+    .select('payload_hash, result')
+    .eq('batch_id', batchId)
+    .maybeSingle();
+  if (receiptReadError) return json({ ok: false, error: 'Lecture du reçu de lot impossible' }, 500);
+  if (existingReceipt) {
+    if (existingReceipt.payload_hash !== payloadHash) {
+      return json({ ok: false, error: 'batchId déjà utilisé pour un contenu différent' }, 409);
+    }
+    return json({ ...(existingReceipt.result || {}), replayed: true, batchId }, 200);
+  }
+
   const programmeIds = items.map((item) => item.programmeId);
   const { data: previous, error: previousError } = await admin
     .from('live_programmes')
@@ -124,9 +149,6 @@ Deno.serve(async (request) => {
   if (previousError) return json({ ok: false, error: previousError.message }, 500);
   const previousById = new Map<number, any>((previous ?? []).map((row: any) => [Number(row.programme_id), row]));
 
-  const source = cleanText(body?.source || 'chrome_extension', 80);
-  const observedAt = typeof body?.observedAt === 'string' && !Number.isNaN(Date.parse(body.observedAt))
-    ? new Date(body.observedAt).toISOString() : new Date().toISOString();
   const alerts: any[] = [];
   const observations: any[] = [];
   const rows = [];
@@ -153,7 +175,11 @@ Deno.serve(async (request) => {
       for (const field of numericFields) {
         const oldValue = Number(before[field] ?? 0);
         const newValue = Number(item[field]);
-        if (oldValue !== newValue) alerts.push({ programme_id: item.programmeId, programme: item.programme, university: item.university, school: item.school, field_name: field, before_value: oldValue, after_value: newValue, delta: newValue - oldValue, observed_at: item.observedAt || observedAt });
+          if (oldValue !== newValue) {
+            const alertObservedAt = item.observedAt || observedAt;
+            const eventHash = await sha256(JSON.stringify({ programmeId: item.programmeId, field, before: oldValue, after: newValue, observedAt: alertObservedAt }));
+            alerts.push({ programme_id: item.programmeId, programme: item.programme, university: item.university, school: item.school, field_name: field, before_value: oldValue, after_value: newValue, delta: newValue - oldValue, observed_at: alertObservedAt, event_hash: eventHash });
+          }
       }
     }
   }
@@ -163,9 +189,27 @@ Deno.serve(async (request) => {
   const { error: observationError } = await admin.from('gauge_observations').upsert(observations, { onConflict: 'programme_id,snapshot_hash', ignoreDuplicates: true });
   if (observationError) return json({ ok: false, error: observationError.message }, 500);
   if (alerts.length) {
-    const { error: alertError } = await admin.from('gauge_alerts').insert(alerts);
+    const { error: alertError } = await admin.from('gauge_alerts').upsert(alerts, { onConflict: 'event_hash', ignoreDuplicates: true });
     if (alertError) return json({ ok: false, error: alertError.message }, 500);
   }
 
-  return json({ ok: true, batchId, part, totalParts, received: items.length, updated: rows.length, alerts: alerts.length, observedAt, serverReceivedAt: new Date().toISOString() });
+  const result = { ok: true, batchId, collectionId, part, totalParts, received: items.length, updated: rows.length, alerts: alerts.length, observedAt, serverReceivedAt: new Date().toISOString() };
+  const { error: receiptWriteError } = await admin.from('sync_batch_receipts').insert({
+    batch_id: batchId,
+    payload_hash: payloadHash,
+    collection_id: collectionId,
+    part,
+    total_parts: totalParts,
+    item_count: items.length,
+    source,
+    observed_at: observedAt,
+    result,
+  });
+  if (receiptWriteError) {
+    const { data: racedReceipt } = await admin.from('sync_batch_receipts').select('payload_hash, result').eq('batch_id', batchId).maybeSingle();
+    if (racedReceipt?.payload_hash === payloadHash) return json({ ...(racedReceipt.result || result), replayed: true, batchId }, 200);
+    return json({ ok: false, error: 'Enregistrement du reçu de lot impossible' }, 500);
+  }
+
+  return json(result);
 });

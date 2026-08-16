@@ -4,12 +4,20 @@ let snapshot = null;
 const REQUIRED_IDS = [
   'actionFeedback', 'collectionStatus', 'collectionMessage', 'collectionProgress', 'collectionMeta',
   'collectionDetails', 'startScan', 'resumeScan', 'cancelScan', 'syncNow', 'exportData', 'refresh',
-  'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage',
+  'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage', 'autoRefreshEnabled', 'autoRefreshMinutes', 'saveAutoRefresh', 'autoRefreshState',
   'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
 ];
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const formatDate = (value) => value ? new Intl.DateTimeFormat('fr-BJ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) : '—';
+const formatAge = (value) => {
+  if (!value || Number.isNaN(Date.parse(value))) return 'Jamais confirmée';
+  const seconds = Math.max(0, Math.round((Date.now() - Date.parse(value)) / 1000));
+  if (seconds < 60) return 'À l’instant';
+  if (seconds < 3600) return `Il y a ${Math.floor(seconds / 60)} min`;
+  if (seconds < 86400) return `Il y a ${Math.floor(seconds / 3600)} h`;
+  return `Il y a ${Math.floor(seconds / 86400)} j`;
+};
 
 function setFeedback(message, kind = '') {
   const node = $('actionFeedback');
@@ -35,11 +43,16 @@ function renderCollection(state = {}, config = {}) {
   $('collectionMessage').textContent = state.message || 'Aucun message de collecte.';
   $('collectionProgress').textContent = total ? `${done} / ${total}` : '—';
   $('collectionMeta').textContent = items ? `${items} observation(s) brutes conservées${errors ? ` · ${errors} erreur(s) journalisée(s)` : ''}` : 'Aucune observation locale.';
+  const sessionLabels = { active: 'Session source active', expired_or_unauthorized: 'Session source à reconnecter', unknown: 'Session source à vérifier' };
   $('collectionDetails').innerHTML = `
     <div class="detail"><span>Identifiant de collecte</span><strong>${escapeHtml(state.collectionId || 'Aucun')}</strong></div>
-    <div class="detail"><span>Dernière sauvegarde</span><strong>${escapeHtml(formatDate(state.updatedAt))}</strong></div>
+    <div class="detail"><span>Dernier point local</span><strong>${escapeHtml(formatDate(state.lastCheckpointAt || state.updatedAt))}</strong></div>
+    <div class="detail"><span>Confirmation serveur</span><strong>${escapeHtml(formatAge(state.lastServerConfirmedAt))}</strong><small>${escapeHtml(formatDate(state.lastServerConfirmedAt))}</small></div>
+    <div class="detail"><span>Session officielle</span><strong>${escapeHtml(sessionLabels[state.sourceSessionStatus] || 'À vérifier')}</strong></div>
     <div class="detail"><span>Observations brutes</span><strong>${items}</strong></div>
-    <div class="detail"><span>Échecs documentés</span><strong>${errors}</strong></div>`;
+    <div class="detail"><span>Échecs documentés</span><strong>${errors}</strong></div>
+    <div class="detail"><span>Dernier lot confirmé</span><strong>${escapeHtml(state.lastConfirmedBatchId || 'Aucun')}</strong></div>
+    <div class="detail"><span>Actualisation volontaire</span><strong>${escapeHtml(state.autoRefreshStatus || 'Désactivée ou non encore lancée')}</strong></div>`;
   const recoverable = Boolean(state.collectionId && ['paused', 'running'].includes(state.status) && total > done);
   const readyForScan = Boolean(config.readyForScan);
   $('startScan').disabled = !readyForScan || state.status === 'running';
@@ -52,8 +65,8 @@ function renderQueue(queue = [], config = {}, state = {}) {
   const readyForScan = Boolean(config.readyForScan);
   $('queueBadge').textContent = `${count} lot${count > 1 ? 's' : ''}`;
   $('queueBadge').className = `badge ${count ? 'warning' : ''}`;
-  $('syncStatus').textContent = count ? 'Reprise planifiée' : 'À jour';
-  $('syncMessage').textContent = state.syncMessage || (count ? `${count} lot(s) conservé(s) localement et réessayé(s) automatiquement.` : 'Aucun lot en attente.');
+  $('syncStatus').textContent = count ? 'Reprise planifiée' : (state.lastServerConfirmedAt ? 'Confirmée' : 'En attente de données');
+  $('syncMessage').textContent = state.syncMessage || (count ? `${count} lot(s) conservé(s) localement et réessayé(s) automatiquement.` : (state.lastServerConfirmedAt ? `Dernière confirmation : ${formatAge(state.lastServerConfirmedAt)}.` : 'Aucun lot en attente.'));
   const configState = config.verificationStatus || config.tokenState || (config.configured ? 'unverified' : 'missing');
   const configLabels = { verified: 'Test validé', unverified: 'Test requis', missing: 'Jeton requis', invalid: 'Jeton à corriger', failed: 'Test à corriger' };
   $('configState').textContent = configLabels[configState] || 'Test requis';
@@ -79,6 +92,12 @@ function render(data) {
   renderQueue(data.queue || [], config, state);
   renderDiagnostics(data.diagnostics || []);
   $('syncEndpoint').value = config.endpoint || '';
+  const autoRefresh = config.autoRefresh || { enabled: false, periodMinutes: 15 };
+  $('autoRefreshEnabled').checked = Boolean(autoRefresh.enabled);
+  $('autoRefreshMinutes').value = Math.max(10, Number(autoRefresh.periodMinutes || 15));
+  $('autoRefreshState').textContent = autoRefresh.enabled
+    ? `Activée toutes les ${Math.max(10, Number(autoRefresh.periodMinutes || 15))} minutes. Elle attend un onglet officiel déjà ouvert et ne contourne jamais une session expirée.`
+    : 'Désactivée par défaut. Elle ne se lance que si l’onglet officiel est déjà ouvert et que la session est toujours autorisée.';
 }
 
 async function refresh({ quiet = false } = {}) {
@@ -175,6 +194,13 @@ function initializeConsole() {
     const result = await request('BP_TEST_CONFIG');
     if (result.validation?.ok) setFeedback('Jeton enregistré et serveur validé. Collecte autorisée.', 'success');
     else setFeedback(result.validation?.message || 'Test serveur non validé.', 'error');
+  }));
+  bind('saveAutoRefresh', () => withAction('saveAutoRefresh', async () => {
+    const enabled = $('autoRefreshEnabled').checked;
+    const periodMinutes = Math.max(10, Math.round(Number($('autoRefreshMinutes').value || 15)));
+    $('autoRefreshMinutes').value = periodMinutes;
+    const result = await request('BP_SET_AUTO_REFRESH', { enabled, periodMinutes });
+    setFeedback(result.autoRefresh?.enabled ? `Actualisation automatique activée toutes les ${result.autoRefresh.periodMinutes} minutes.` : 'Actualisation automatique désactivée.', 'success');
   }));
   bind('exportData', exportLocalData);
   bind('clearData', () => withAction('clearData', async () => {

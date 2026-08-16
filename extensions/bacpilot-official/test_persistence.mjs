@@ -30,7 +30,7 @@ function makeRuntime(fetchImpl = globalThis.fetch) {
   const chrome = {
     runtime: { onInstalled, onStartup, onMessage, getManifest: () => ({ version: '1.0.0' }) },
     action: { onClicked: action },
-    alarms: { onAlarm: alarms, async create() {} },
+    alarms: { onAlarm: alarms, async create() {}, async clear() {} },
     storage: { local },
     tabs: { async query() { return [{ id: 7, url: 'https://apresmonbac.bj/Home/choice', active: true }]; }, async get() { return { id: 7, url: 'https://apresmonbac.bj/Home/choice', active: true }; }, async sendMessage() { return { ok: true }; } },
     windows: { async create() {}, async update() {} },
@@ -60,12 +60,16 @@ async function send(onMessage, message) {
   });
 }
 
+let networkPaused = false;
 const preflightFetch = async (_url, options) => {
   const body = JSON.parse(options.body || '{}');
   if (options.headers['x-mhm-sync-token'] || options.headers['x-mhm-sync-token-b64']) throw new Error('Le jeton ne doit jamais être transmis par en-tête.');
   if (typeof body.syncToken !== 'string' || !body.syncToken) throw new Error('Le jeton doit être placé dans le corps JSON.');
   if (body.action === 'preflight') return new Response(JSON.stringify({ ok: true, mode: 'preflight' }), { status: 200 });
-  if (Array.isArray(body.items)) return new Response(JSON.stringify({ ok: true, received: body.items.length }), { status: 200 });
+  if (Array.isArray(body.items)) {
+    if (networkPaused) throw new Error('Réseau temporairement indisponible pour la reprise simulée.');
+    return new Response(JSON.stringify({ ok: true, received: body.items.length, serverReceivedAt: new Date().toISOString() }), { status: 200 });
+  }
   throw new Error('Requête réseau non attendue dans ce test.');
 };
 
@@ -90,6 +94,7 @@ const collection = {
     { universityId: 1, university: 'Université test', schoolId: 10, school: 'École test', programmeId: 101, programme: 'Programme test B', scholarships: 1, aid: 0, tb: 0, b: 0, ab: 0, passable: 2, total: 4, rank: null, capacity: null, applicants: null, observedAt: '2026-08-15T12:01:00.000Z' }
   ]
 };
+networkPaused = true;
 const completed = await send(firstWorker.onMessage, { type: 'BP_COLLECTION_COMPLETED', state: collection });
 if (!completed.ok || storage.bacpilotOfficialSyncQueue.length !== 1) throw new Error('Le lot terminé devait être placé dans la file locale.');
 if (storage.bacpilotOfficialSyncQueue[0].payload.items.length !== 2) throw new Error('Les observations brutes ne sont pas intégralement conservées.');
@@ -108,9 +113,10 @@ if (!configResult.ok || storage.bacpilotOfficialConfig.syncToken !== existingTok
 const unicodeToken = 'jeton-é-étudiant';
 const unicodeTokenResult = await send(restartedWorker.onMessage, { type: 'BP_SET_CONFIG', endpoint: 'https://example.test/sync', syncToken: unicodeToken });
 if (!unicodeTokenResult.ok || storage.bacpilotOfficialConfig.syncToken !== unicodeToken || !unicodeTokenResult.validation?.ok) throw new Error('Un jeton Unicode doit être accepté lorsqu’il est envoyé dans le corps JSON.');
+networkPaused = false;
 storage.bacpilotOfficialSyncQueue[0].nextAttemptAt = 0;
 const syncResult = await send(restartedWorker.onMessage, { type: 'BP_SYNC_NOW' });
-if (!syncResult.ok || syncResult.sent !== 2 || storage.bacpilotOfficialSyncQueue.length !== 0) throw new Error('Le lot doit être transmis avec le jeton dans le JSON, puis retiré après accusé de réception.');
+if (!syncResult.ok || syncResult.sent !== 2 || storage.bacpilotOfficialSyncQueue.length !== 0 || !storage.bacpilotOfficialState.lastServerConfirmedAt) throw new Error('Le lot doit être transmis avec le jeton dans le JSON, confirmé puis retiré après accusé de réception.');
 storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026', verification: { status: 'unverified', checkedAt: null, message: '' } };
 const authorizedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
 if (!authorizedScan.ok || storage.bacpilotOfficialConfig.verification?.status !== 'verified') throw new Error('Une collecte doit lancer et mémoriser un prévol serveur réussi avant de démarrer.');

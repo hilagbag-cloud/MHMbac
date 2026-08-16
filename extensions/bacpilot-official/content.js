@@ -3,10 +3,12 @@
   globalThis.__bacpilotOfficialCollectorLoaded = true;
 
   const READ_ENDPOINT = '/Home/GetListChoice';
-  const MIN_DELAY_MS = 450;
+  const MIN_DELAY_MS = 700;
+  const MAX_DELAY_MS = 8000;
   const MAX_PROGRAMMES = 5000;
   let cancelled = false;
   let running = false;
+  let requestDelayMs = MIN_DELAY_MS;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const newId = (prefix) => `${prefix}-${crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`}`;
@@ -32,6 +34,7 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 20000);
       try {
+        await sleep(requestDelayMs);
         const response = await fetch(READ_ENDPOINT, {
           method: 'POST',
           credentials: 'same-origin',
@@ -39,12 +42,24 @@
           headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
           body: new URLSearchParams({ type, num: String(num) })
         });
-        if (response.status === 401 || response.status === 403) throw new Error('Votre session sur le portail officiel a expiré ou n’est plus autorisée. Reconnectez-vous vous-même puis reprenez la collecte.');
-        if (!response.ok) throw new Error(`Réponse du portail officiel : HTTP ${response.status}.`);
-        return await response.json();
+        if (response.status === 401 || response.status === 403) {
+          const error = new Error('Votre session sur le portail officiel a expiré ou n’est plus autorisée. Reconnectez-vous vous-même puis reprenez la collecte.');
+          error.code = 'SESSION_EXPIRED';
+          throw error;
+        }
+        if (!response.ok) {
+          const error = new Error(`Réponse du portail officiel : HTTP ${response.status}.`);
+          error.code = response.status === 429 || response.status >= 500 ? 'TRANSIENT_HTTP' : 'PORTAL_HTTP';
+          throw error;
+        }
+        const data = await response.json();
+        requestDelayMs = Math.max(MIN_DELAY_MS, Math.round(requestDelayMs * 0.9));
+        return data;
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error));
-        if (attempt < attempts) await sleep(900 * attempt);
+        if (lastError.code === 'SESSION_EXPIRED' || lastError.code === 'PORTAL_HTTP') break;
+        requestDelayMs = Math.min(MAX_DELAY_MS, Math.round(requestDelayMs * 1.8));
+        if (attempt < attempts) await sleep(Math.max(1000, requestDelayMs));
       } finally { clearTimeout(timeout); }
     }
     throw lastError;
@@ -84,6 +99,7 @@
       plan: [],
       items: [],
       errors: [],
+      sourceSessionStatus: 'active',
       message: 'Préparation de la liste des filières accessibles…'
     };
   }
@@ -105,12 +121,10 @@
     for (let universityIndex = 0; universityIndex < universities.length; universityIndex += 1) {
       if (cancelled) return;
       const university = universities[universityIndex];
-      const schools = entries(await postChoice('ecoleByUniversity', university.id));
-      await sleep(MIN_DELAY_MS);
+        const schools = entries(await postChoice('ecoleByUniversity', university.id));
       for (const school of schools) {
         if (cancelled) return;
         const programmes = entries(await postChoice('FiliereByEcole', school.id));
-        await sleep(MIN_DELAY_MS);
         for (const programme of programmes) {
           if (cancelled || state.plan.length >= MAX_PROGRAMMES) return;
           if (existing.has(String(programme.id))) continue;
@@ -121,8 +135,9 @@
             programmeId: programme.id, programme: programme.name
           });
         }
-        state.totalCandidates = state.plan.length;
-        await checkpoint(state, `${state.plan.length} filière(s) repérée(s) dans les sources accessibles. La collecte brute continue…`);
+      state.totalCandidates = state.plan.length;
+      state.sourceSessionStatus = 'active';
+      await checkpoint(state, `${state.plan.length} filière(s) repérée(s) dans les sources accessibles. La collecte brute continue…`);
       }
     }
     state.phase = 'collecting';
@@ -155,8 +170,8 @@
       state.items = [...existing.values()];
       state.completedCandidates = index + 1;
       state.totalCandidates = state.plan.length;
+      state.sourceSessionStatus = 'active';
       await checkpoint(state, `Observation ${state.completedCandidates}/${state.totalCandidates} : ${programme.programme}`);
-      await sleep(MIN_DELAY_MS);
     }
   }
 
@@ -179,7 +194,8 @@
       await notify('BP_COLLECTION_COMPLETED', { state });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      state.status = cancelled ? 'paused' : 'paused';
+      state.status = 'paused';
+      state.sourceSessionStatus = error?.code === 'SESSION_EXPIRED' ? 'expired_or_unauthorized' : (state.sourceSessionStatus || 'unknown');
       state.message = message;
       await notify('BP_COLLECTION_FAILED', { state, error: message });
     } finally { running = false; }
