@@ -294,3 +294,10 @@ La matrice est construite par le script déterministe `/tmp/bacpilot-guide-2026/
 | Edge Function | `orientation-assistant` v14, JWT actif |
 | Contrôles locaux | `deno check`, build Vite et TypeScript réussis |
 
+
+### Publication de production — matrice par filière
+
+Le commit canonique `afa8f0b` (*feat: add per-programme ranking matrix with official guide sources*) est poussé sur `origin/main`. L’interface correspondante est publiée par Vercel et associée à `https://bacpilot.site`; l’URL d’inspection de ce déploiement est `https://vercel.com/hila2/mhmbac/CEFQDvi8nsDpe5LYUzSkcUT77evB`. La page publique et le dashboard authentifié répondent après publication.
+
+La recette complète de l’affichage de moyenne nécessite une session réelle dont la série est C ou D et dont les notes requises sont déjà enregistrées. Le compte actuellement ouvert dans le navigateur ne possède pas de série, donc aucune recommandation ne peut être calculée et aucun profil de démonstration ne doit être créé. Dès qu’un compte réel compatible est disponible, lancer « Mettre à jour mes pistes », ouvrir « Voir pourquoi cette piste ressort » sur une correspondance exacte, puis vérifier la présence de la moyenne `/20`, des trois matières avec coefficients et de la page MESRS.
+
