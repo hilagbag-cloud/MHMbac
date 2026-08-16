@@ -83,7 +83,9 @@ Deno.serve(async (request) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ ok: false, error: 'JSON invalide' }, 400); }
 
-  const expectedToken = Deno.env.get('MHM_SYNC_TOKEN');
+  // MHM_SYNC_TOKEN est le nom canonique ; MHMBAC_SYNC_API_KEY reste accepté pour
+  // compatibilité avec le secret configuré lors des premières installations.
+  const expectedToken = Deno.env.get('MHM_SYNC_TOKEN') || Deno.env.get('MHMBAC_SYNC_API_KEY');
   const receivedToken = typeof body?.syncToken === 'string' ? body.syncToken : null;
   if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
     return json({ ok: false, error: 'Jeton de synchronisation invalide' }, 401);

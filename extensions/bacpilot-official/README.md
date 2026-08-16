@@ -53,7 +53,7 @@
 
 ## Configuration de synchronisation réservée à l’opérateur autorisé
 
-L’endpoint BacPilot est prérempli. Le **jeton de collecte** doit être renseigné depuis le panneau *Administration locale* par une personne autorisée, après rotation si une ancienne valeur a été exposée.
+L’endpoint BacPilot est prérempli. Le **jeton de collecte** doit être renseigné depuis le panneau *Administration locale* par une personne autorisée, après rotation si une ancienne valeur a été exposée. Côté Supabase, le nom canonique du secret est `MHM_SYNC_TOKEN` ; la fonction accepte aussi `MHMBAC_SYNC_API_KEY` pour compatibilité avec une ancienne configuration.
 
 - Le jeton est stocké localement dans le profil Chrome courant et n’est jamais affiché par la console.
 - Le jeton est transmis exclusivement dans le corps JSON de la requête HTTPS, jamais dans un en-tête HTTP. Il peut donc contenir des caractères Unicode ; gardez toutefois une valeur longue, unique et difficile à deviner.

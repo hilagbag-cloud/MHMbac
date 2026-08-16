@@ -356,3 +356,12 @@ Contrôles réalisés : `node --check` réussi pour le service worker, le collec
 | Date | Commit / état | Changement confirmé | Suite |
 |---|---|---|---|
 | 16 août 2026 | v1.1.0 locale, migration appliquée et fonction v20 active | File locale incrémentale, reçus idempotents, alertes sans doublon, cadence volontaire et indicateurs de fraîcheur. | Construire le ZIP, charger l’extension, valider le prévol et faire la recette réelle de reprise. |
+
+
+## 15. Mise à jour du 16 août 2026 — correctif prévol 401 et console v1.1.1
+
+La recette de la v1.1.0 a révélé deux problèmes distincts. D’une part, `mhmbac-sync` lisait uniquement `MHM_SYNC_TOKEN`, alors que certaines installations historiques avaient été configurées avec le nom `MHMBAC_SYNC_API_KEY`. La fonction accepte désormais le nom canonique `MHM_SYNC_TOKEN` et le nom historique `MHMBAC_SYNC_API_KEY`, sans modifier le contrat : la valeur complète est toujours envoyée uniquement dans `syncToken` du corps JSON. La fonction est active en **version 22**, avec `verify_jwt=false` et authentification applicative par jeton.
+
+D’autre part, après un premier HTTP 401, la console recevait l’état `tokenState=ready` mais `verificationStatus=invalid` et désactivait à tort le bouton de prévol. Le bouton **Tester le jeton** reste désormais cliquable tant qu’un jeton non vide est enregistré ; l’opérateur peut donc corriger la valeur et relancer le prévol sans recharger ni désinstaller l’extension. Les boutons de collecte restent correctement bloqués tant que le prévol n’est pas validé.
+
+La version corrective de l’extension est **1.1.1**. Les tests de manifeste, persistance, reprise simulée, interface, validation du prévol, syntaxe JavaScript et `deno check` sont réussis. L’archive plate `bacpilot_extension_officielle_v1.1.1.zip` et son checksum SHA-256 sont générés. La recette avec une valeur secrète réelle reste à effectuer par l’opérateur : vérifier le nom `MHM_SYNC_TOKEN` dans Supabase, coller la même valeur dans la console, obtenir « Test validé », puis lancer une collecte réelle autorisée.

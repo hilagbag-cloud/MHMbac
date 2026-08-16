@@ -72,7 +72,9 @@ function renderQueue(queue = [], config = {}, state = {}) {
   $('configState').textContent = configLabels[configState] || 'Test requis';
   $('configState').className = `badge ${configState === 'verified' ? '' : 'warning'}`;
   $('configMessage').textContent = config.verificationMessage || 'Saisissez puis testez le jeton avant la collecte.';
-  $('testConfig').disabled = config.tokenState !== 'ready';
+  // Un 401 signifie que le jeton doit être corrigé, pas que le bouton de test doit être verrouillé.
+  // L’opérateur doit pouvoir remplacer la valeur puis relancer le prévol sans recharger l’extension.
+  $('testConfig').disabled = !['ready', 'invalid'].includes(config.tokenState);
   $('syncNow').disabled = count > 0 && !readyForScan;
   if (!count) { $('queueList').innerHTML = '<p>Aucun lot en attente.</p>'; return; }
   $('queueList').innerHTML = queue.map((entry) => `<div class="queue-item"><strong>${escapeHtml(entry.payload?.items?.length || 0)} observation(s) · lot ${escapeHtml(entry.payload?.part || '—')}/${escapeHtml(entry.payload?.totalParts || '—')}</strong><small>Créé : ${escapeHtml(formatDate(entry.createdAt))} · Tentatives : ${escapeHtml(entry.attempts || 0)}</small><small>${escapeHtml(entry.lastError || `Prochaine tentative : ${entry.nextAttemptAt ? formatDate(entry.nextAttemptAt) : 'dès que possible'}`)}</small></div>`).join('');

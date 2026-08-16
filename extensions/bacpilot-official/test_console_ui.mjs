@@ -26,7 +26,13 @@ const chrome = {
   runtime: { async sendMessage(message) {
     sent.push(message.type);
     if (message.type === 'BP_GET_STATE') return statePayload;
-    if (message.type === 'BP_SET_CONFIG' || message.type === 'BP_TEST_CONFIG') return { ok: true, validation: { ok: true } };
+    if (message.type === 'BP_SET_CONFIG') {
+      statePayload.config.tokenState = 'ready';
+      statePayload.config.verificationStatus = 'invalid';
+      statePayload.config.verificationMessage = 'Jeton refusé (401) dans cette simulation.';
+      return { ok: true, validation: { ok: false, message: 'Jeton refusé (401) dans cette simulation.' } };
+    }
+    if (message.type === 'BP_TEST_CONFIG') return { ok: true, validation: { ok: true } };
     if (message.type === 'BP_SET_AUTO_REFRESH') return { ok: true, autoRefresh: { enabled: Boolean(message.enabled), periodMinutes: Number(message.periodMinutes) } };
     if (message.type === 'BP_SYNC_NOW') return { ok: true, sent: 0, pending: 0 };
     return { ok: true };
@@ -52,7 +58,8 @@ if (nodes.configState.textContent !== 'Test validé') throw new Error('Le statut
 nodes.syncToken.value = 'stable-sync-token-2026';
 await nodes.saveConfig.listeners.click();
 await new Promise((resolve) => setTimeout(resolve, 25));
-if (!sent.includes('BP_SET_CONFIG') || !nodes.actionFeedback.textContent.includes('test serveur validé')) throw new Error('Le bouton d’enregistrement ne produit pas le retour attendu.');
+if (!sent.includes('BP_SET_CONFIG') || !nodes.actionFeedback.textContent.includes('Jeton refusé')) throw new Error('Le refus du prévol n’est pas rendu correctement.');
+if (nodes.testConfig.disabled) throw new Error('Le bouton de prévol doit rester cliquable après un 401.');
 await nodes.testConfig.listeners.click();
 await new Promise((resolve) => setTimeout(resolve, 25));
 if (!sent.includes('BP_TEST_CONFIG') || !nodes.actionFeedback.textContent.includes('Collecte autorisée')) throw new Error('Le bouton de test ne produit pas le retour attendu.');
