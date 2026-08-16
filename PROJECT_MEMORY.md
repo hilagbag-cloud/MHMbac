@@ -312,3 +312,10 @@ Après audit du corpus MESRS et de la grille officielle, 40 règles explicites o
 
 Le générateur d’extension `build_remaining_series_rules.py` applique une liste blanche de correspondances filière × série × trois matières, conserve l’extrait et la page de chaque fiche, valide les coefficients de l’Office du Baccalauréat et échoue si une matière n’est pas disponible dans la grille officielle. L’audit et la liste des cas différés sont documentés dans `remaining_series_audit.md` et `programme_ranking_rules_remaining_v2.json` hors dépôt, avec la source officielle : `https://www.officedubacbenin.bj/spip.php?article11`.
 
+
+### Publication de production — extension A1/A2
+
+Le commit `d754528` (*feat: extend ranking matrix to A1 A2 B and E*) est poussé sur `origin/main`. L’Edge Function `orientation-assistant` est active en **version 15**, avec JWT obligatoire. L’interface est déployée et associée à `https://bacpilot.site`; l’inspection Vercel est disponible à `https://vercel.com/hila2/mhmbac/9HnmtNAq54NZPU9gPdBXrRZTthxd`.
+
+Recette sans écriture réalisée dans le navigateur : `/onboarding` expose distinctement « Série A1 (Lettres & Langues) », « Série A2 (Lettres & Sciences humaines) », B, C, D et E. Le relais SQL accepte `A1` et retourne une piste issue des observations existantes ; une règle A2 contrôlée retourne Français coefficient 4, Langue vivante 1 coefficient 3 et Philosophie coefficient 3 avec la page MESRS 24. La recette de moyenne complète reste réservée à un compte réel avec la série et les trois notes concernés, sans création de profil fictif.
+
