@@ -175,7 +175,7 @@ async function callGemini(prompt: string, facts: unknown): Promise<string | null
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return null;
 
-  const model = cleanText(Deno.env.get('GEMINI_MODEL'), 80) || 'gemini-2.5-flash-lite';
+  const model = cleanText(Deno.env.get('GEMINI_MODEL'), 80) || 'gemini-3.1-flash-lite';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
 

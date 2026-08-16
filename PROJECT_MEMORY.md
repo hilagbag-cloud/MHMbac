@@ -86,8 +86,8 @@ Commande Telegram de l’opérateur
 | Edge Function `orientation-assistant` | Déployée et protégée | `verify_jwt = true` ; un appel sans JWT a été refusé. |
 | Moteur Top 3 | Déployé | Classement côté Supabase à partir des observations réelles et de l’objectif candidat. |
 | Quota IA | Déployé | Maximum de trois reformulations IA réussies par candidat et par jour ; repli déterministe. |
-| Gemini | Intégration prête, **clé non configurée** | Principal pour reformulation courte. |
-| Groq | Intégration prête, **clé non configurée** | Secours unique si Gemini échoue. |
+| Gemini | **Configuré et validé** | Secret Supabase présent ; `gemini-3.1-flash-lite` est le modèle principal de reformulation courte. |
+| Groq | Intégration prête, **clé non configurée** | Secours unique si Gemini échoue ; à créer après connexion à GroqCloud. |
 | Clés fournies précédemment dans une conversation | À considérer comme exposées | Ne pas utiliser. Générer et configurer de nouvelles clés, puis révoquer les anciennes. |
 
 Pour la procédure de secrets, consulter `CONFIGURATION_SECRETS_AGENT_BACPILOT.md`. Les secrets attendus sont `GEMINI_API_KEY` et `GROQ_API_KEY`, uniquement dans **Supabase Edge Functions → Secrets**. L’absence de clé n’est pas un incident : elle active le repli déterministe.
@@ -134,7 +134,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 |---:|---|---|
 | 1 | Réaliser la recette réelle de la console Telegram et d’une alerte d’inscription. | La version 8 ajoute les privilèges minimaux du rôle serveur, un délai de 6 secondes par opération de base, un délai d’envoi de 8 secondes et un acquittement HTTP 200 sur erreur pour stopper les retries Telegram ; valider maintenant `/status`, `/stats`, `/user`, une confirmation bêta et une alerte unique lors de la prochaine vraie inscription. |
 | 2 | Réactiver la synchronisation des quatre lots conservés par l’extension officielle. | La console affiche un accusé de réception ; `sync_batches` et `collection_runs` reçoivent une trace nouvelle ; les compteurs et horodatages Supabase progressent. |
-| 3 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
+| 3 | Réaliser une recette connectée de l’explication Gemini puis ajouter Groq comme secours après connexion à GroqCloud. | La reformulation Gemini consomme le quota attendu pour un vrai utilisateur ; le repli déterministe est confirmé et Groq est ajouté sans exposer de clé. |
 | 4 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
 | 5 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
 | 6 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
@@ -178,6 +178,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 16 août 2026 | `cd98cc8` — configuration Telegram achevée | Les six secrets Telegram sont enregistrés dans Supabase ; le webhook Telegram pointe vers `bacpilot-telegram`, son test serveur répond en HTTP 200, et le menu de commandes est configuré. Le secret du webhook de profils est stocké dans Vault ; `pg_net` est activé et le trigger asynchrone `bacpilot_notify_new_profile` est attaché à `public.profiles`. Un incident de tableau Supabase causé par une extension navigateur a été contourné sans modifier le code public. | Tester `/help`, `/status`, `/user` et une gestion bêta depuis le chat opérateur ; confirmer une alerte unique avec la prochaine inscription réelle. |
 | 16 août 2026 | `f517db9` — correctif Telegram v7 | Les commandes Telegram échouaient car elles s’appuyaient sur la clé `service_role` legacy alors que le projet fournit les clés Edge modernes. `bacpilot-telegram` et `notify-new-user` utilisent désormais `SUPABASE_SECRET_KEYS` avec repli legacy. Le bot conserve une session privée de dix minutes lorsqu’une commande `/user` ou bêta est envoyée sans argument, puis demande et traite l’e-mail ou l’ID au message suivant. La table `operator_input_sessions` est RLS, sans accès navigateur. | Vérifier les réponses en chat sur la version 7, puis préparer de nouvelles clés Gemini/Groq. |
 | 16 août 2026 | État v8 à versionner — diagnostic et anti-boucle | Les journaux ont confirmé `42501 permission denied for table profiles` : le rôle `service_role` n’avait aucun SELECT explicite sur plusieurs tables créées par les migrations RLS. Une migration accorde uniquement au rôle serveur les SELECT nécessaires sur les tables de lecture et les droits CRUD sur les tables opérateur ; aucun droit navigateur n’est ajouté. La fonction limite les opérations DB à 6 s, les envois Telegram à 8 s et acquitte HTTP 200 même après une erreur authentifiée afin que Telegram cesse de renvoyer la même mise à jour. Version Edge active : 8. | Tester une nouvelle commande Telegram après les droits, puis préparer les clés Gemini/Groq. |
+| 16 août 2026 | Gemini activé, déploiement Edge validé | Une nouvelle clé Gemini est créée et enregistrée uniquement dans le secret Supabase `GEMINI_API_KEY`. Les modèles 2.5 sont refusés pour cette clé ; le test API officiel de `gemini-3.1-flash-lite` répond HTTP 200. `orientation-assistant` a été déployée avec ce modèle par défaut. L’endpoint continue de refuser sans JWT (HTTP 401). | Réaliser une recette connectée avec un compte réel autorisé, sans créer de donnée fictive, puis configurer Groq comme repli. |
 
 ## 11. Mise à jour du 16 août 2026 — stabilité Telegram v8
 
@@ -187,7 +188,13 @@ La fonction `bacpilot-telegram` est active en version 8. Chaque opération de ba
 
 Tests serveur réalisés après configuration : `/status` a répondu `{\"ok\":true,\"command\":\"/status\"}`, `/user` sans argument a répondu `{\"ok\":true,\"command\":\"/user\"}` et `/stats` a répondu `{\"ok\":true,\"command\":\"/stats\"}`. Les messages correspondants ont été envoyés au chat opérateur. Les fichiers temporaires contenant des secrets ont été supprimés. Le commit GitHub est `0d4bb73`.
 
-## 12. Règle de reprise de session
+## 12. Mise à jour du 16 août 2026 — Gemini actif pour l’assistant
+
+La clé Gemini de production est présente exclusivement dans les secrets Edge Functions de Supabase sous `GEMINI_API_KEY`. Le modèle `gemini-3.1-flash-lite` a été testé avec succès par l’API officielle puis déployé comme valeur par défaut de `orientation-assistant`. Les modèles `gemini-2.5-flash-lite` et `gemini-2.5-flash` ne doivent plus être utilisés par cette nouvelle clé, car ils renvoient HTTP 404.
+
+Le test public de l’endpoint confirme que le JWT reste obligatoire. Ne pas créer de compte ni de profil de démonstration en production pour tester l’agent : utiliser une session utilisateur réelle autorisée. Groq reste non configuré et sera ajouté ultérieurement comme solution de secours après une connexion réussie à GroqCloud.
+
+## 13. Règle de reprise de session
 
 Au début de toute nouvelle session ou intervention :
 
