@@ -276,3 +276,21 @@ Un audit limité aux pages publiques et à la documentation API ouverte de `bacp
 Le parcours `/onboarding` accepte désormais une grille de notes structurée pour les séries A, B, C, D et E : trois matières clairement marquées « Classement » et matières complémentaires conservées dans le profil. La moyenne affichée reste explicitement un repère de classement de série tant que la matrice officielle par filière n’est pas disponible. Les notes doivent être entre 0 et 20, sont stockées par utilisateur et recalculées par l’Edge Function. Les épreuves facultatives restent désactivées faute de règle institutionnelle suffisamment vérifiée. La publication de production et le contrôle TypeScript sont validés.
 
 Documentation : `BACPILOT_COMPETITIVE_UX_AUDIT.md`. Sources : page publique et OpenAPI BacPlus, Office du Baccalauréat et Guide MESRS.
+
+## 20. Mise à jour du 16 août 2026 — matrice officielle de classement par filière
+
+La migration `20260816_bacpilot_programme_ranking_matrix.sql` crée `public.programme_ranking_rules`, une matrice normalisée par `fiche MESRS × série`, ainsi que la fonction bornée de lecture `lookup_programme_ranking_rules(p_record_ids, p_series)`. La table est protégée par RLS : aucun accès direct n’est accordé au navigateur et la consultation ne retourne que les règles demandées pour une série donnée. La source chargée contient **77 règles** explicites, couvrant **38 fiches** de formation ; la couverture est principalement disponible pour les séries C et D. Quatre lignes de source ambiguës ou incomplètes ont été exclues au lieu d’être devinées.
+
+L’Edge Function `orientation-assistant` est active en **version 14**, avec JWT obligatoire. Pour chaque piste dont le rattachement à une fiche est exact, elle récupère uniquement la règle correspondante à la série de l’élève, applique la formule pondérée à partir des notes privées déjà sauvegardées, et renvoie les trois matières, coefficients, moyenne arrondie à deux décimales et page PDF. S’il manque une note, aucune moyenne n’est produite : l’interface demande explicitement la ou les matières à compléter. Les correspondances de recherche approximative n’obtiennent jamais de moyenne de filière.
+
+Le dashboard affiche ces éléments seulement dans « Voir pourquoi cette piste ressort », sous l’intitulé « Moyenne de classement de cette filière ». Cette moyenne est distincte de l’indicateur BacPilot `/100`, qui reste fondé sur les observations réelles de pression et de quotas. L’affichage rappelle implicitement la nécessité de vérifier le résultat sur le portail officiel ; BacPilot ne garantit ni admission ni bourse.
+
+La matrice est construite par le script déterministe `/tmp/bacpilot-guide-2026/build_programme_ranking_matrix.py`, avec ses résultats documentés dans `programme_ranking_rules_v1.json`, `programme_ranking_rules_summary.json` et `bacpilot-matrix-source-findings.md`. Toute extension future doit conserver cette traçabilité et prioriser les séries A, B et E, encore peu couvertes.
+
+| Vérification | Résultat |
+|---|---:|
+| Règles chargées dans Supabase | 77 |
+| Fiches MESRS couvertes | 38 |
+| Edge Function | `orientation-assistant` v14, JWT actif |
+| Contrôles locaux | `deno check`, build Vite et TypeScript réussis |
+

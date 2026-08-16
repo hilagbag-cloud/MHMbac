@@ -46,9 +46,20 @@ type GuideProgramme = {
   relevance?: number;
 };
 
+type ProgrammeRankingRule = {
+  guide_record_id: string;
+  series: string;
+  subjects: Array<{ key: string; label: string; coefficient: number }>;
+  source_pdf_page: number;
+  verification_status: 'source_explicit' | 'verified' | 'needs_review';
+  calculated_average: number | null;
+  missing_subjects: string[];
+};
+
 type GuideReference = GuideProgramme & {
   recommendation_programme: string;
   match_type: 'exact' | 'search';
+  ranking_rule?: ProgrammeRankingRule;
 };
 
 const MAX_MESSAGE_LENGTH = 600;
@@ -253,6 +264,33 @@ function guideReferenceFor(recommendation: Recommendation, guideReferences: Guid
   return guideReferences.find((item) => item.recommendation_programme === recommendation.programme) || null;
 }
 
+function calculateProgrammeAverage(subjects: unknown, scores: Record<string, number> | null | undefined): Pick<ProgrammeRankingRule, 'subjects' | 'calculated_average' | 'missing_subjects'> | null {
+  if (!Array.isArray(subjects)) return null;
+  const normalized = subjects.filter((item): item is { key: string; label: string; coefficient: number } =>
+    Boolean(item) && typeof item.key === 'string' && typeof item.label === 'string' && typeof item.coefficient === 'number' && item.coefficient > 0
+  );
+  if (normalized.length !== 3) return null;
+  const missing = normalized.filter((item) => typeof scores?.[item.key] !== 'number').map((item) => item.label);
+  if (missing.length) return { subjects: normalized, calculated_average: null, missing_subjects: missing };
+  const totalCoefficient = normalized.reduce((sum, item) => sum + item.coefficient, 0);
+  const weightedTotal = normalized.reduce((sum, item) => sum + (scores?.[item.key] || 0) * item.coefficient, 0);
+  return { subjects: normalized, calculated_average: Math.round((weightedTotal / totalCoefficient) * 100) / 100, missing_subjects: [] };
+}
+
+async function attachProgrammeRankingRules(supabase: any, guideReferences: GuideReference[], series: Series | null, scores: Record<string, number> | null | undefined): Promise<GuideReference[]> {
+  if (!series || series === 'Autre') return guideReferences;
+  const exactIds = guideReferences.filter((item) => item.match_type === 'exact').map((item) => item.record_id);
+  if (!exactIds.length) return guideReferences;
+  const { data } = await supabase.rpc('lookup_programme_ranking_rules', { p_record_ids: exactIds, p_series: series });
+  const rules = Array.isArray(data) ? data as Array<Omit<ProgrammeRankingRule, 'calculated_average' | 'missing_subjects'>> : [];
+  const byRecordId = new Map(rules.map((rule) => [rule.guide_record_id, rule]));
+  return guideReferences.map((reference) => {
+    const rule = byRecordId.get(reference.record_id);
+    const calculation = rule ? calculateProgrammeAverage(rule.subjects, scores) : null;
+    return rule && calculation ? { ...reference, ranking_rule: { ...rule, ...calculation } } : reference;
+  });
+}
+
 function compactFacts(recommendations: Recommendation[], freshness: any, profile: any, preferences: any, academicSignals: any, guideReferences: GuideReference[]) {
   return {
     data_freshness: {
@@ -294,6 +332,13 @@ function compactFacts(recommendations: Recommendation[], freshness: any, profile
       source_pdf_page: item.source_pdf_page,
       completeness: item.completeness,
       verification_status: item.verification_status,
+      ranking_rule: item.ranking_rule ? {
+        subjects: item.ranking_rule.subjects,
+        calculated_average: item.ranking_rule.calculated_average,
+        missing_subjects: item.ranking_rule.missing_subjects,
+        source_pdf_page: item.ranking_rule.source_pdf_page,
+        verification_status: item.ranking_rule.verification_status,
+      } : null,
       source_label: `Guide MESRS 2026-2027, p. ${item.source_pdf_page}`,
     })),
   };
@@ -523,7 +568,7 @@ Deno.serve(async (request) => {
   const [{ data: profile }, { data: preferences }, { data: academicSignals }, { data: freshnessResult }] = await Promise.all([
     supabase.from('profiles').select('id, display_name, series, mention').eq('id', user.id).maybeSingle(),
     supabase.from('user_preferences').select('user_id, primary_goal, career_keywords').eq('user_id', user.id).maybeSingle(),
-    supabase.from('user_academic_signals').select('notes_enabled, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
+    supabase.from('user_academic_signals').select('notes_enabled, subjects, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
     supabase.rpc('get_data_freshness').maybeSingle(),
   ]);
   const freshness: any = freshnessResult;
@@ -557,15 +602,18 @@ Deno.serve(async (request) => {
   let guideReferences: GuideReference[] = [];
   try {
     guideReferences = await resolveGuideReferences(supabase, topThree, asSeries(profile?.series));
+    guideReferences = await attachProgrammeRankingRules(supabase, guideReferences, asSeries(profile?.series), academicSignals?.subjects || academicSignals?.ranking_subjects || null);
   } catch {
     // La disponibilité du guide ne doit jamais bloquer les observations temps réel ni le classement déterministe.
     guideReferences = [];
   }
+  const calculatedProgrammeRules = guideReferences.filter((item) => item.ranking_rule?.calculated_average !== null && item.ranking_rule?.calculated_average !== undefined).length;
   const thinkingSteps = [
     'Vérification de la dernière synchronisation',
     `Lecture de ${freshness?.total_programmes || 0} filière(s) observée(s)`,
     'Calcul déterministe des trois pistes les plus compatibles',
     ...(guideReferences.length ? [`Consultation de ${guideReferences.length} fiche(s) du Guide MESRS, avec pages sources`] : []),
+    ...(calculatedProgrammeRules ? [`Calcul de la moyenne spécifique pour ${calculatedProgrammeRules} piste(s) documentée(s)`] : []),
   ];
 
   if (action === 'programme_details') {

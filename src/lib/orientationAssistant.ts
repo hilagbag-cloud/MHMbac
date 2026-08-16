@@ -29,6 +29,14 @@ export interface AssistantRecommendation {
   caveats: string[];
 }
 
+export interface AssistantProgrammeRankingRule {
+  subjects: Array<{ key: string; label: string; coefficient: number }>;
+  calculated_average: number | null;
+  missing_subjects: string[];
+  source_pdf_page: number;
+  verification_status: 'source_explicit' | 'verified' | 'needs_review';
+}
+
 export interface AssistantGuideReference {
   recommendation_programme: string;
   match_type: 'exact' | 'search';
@@ -44,6 +52,7 @@ export interface AssistantGuideReference {
   source_excerpt: string;
   completeness: 'complete' | 'partial';
   verification_status: 'extracted' | 'needs_source_check' | 'verified';
+  ranking_rule?: AssistantProgrammeRankingRule;
 }
 
 export interface AssistantResponse {
