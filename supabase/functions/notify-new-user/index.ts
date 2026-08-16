@@ -23,6 +23,19 @@ const cleanText = (value: unknown, limit = 160) => typeof value === 'string'
   ? value.trim().replace(/\s+/g, ' ').slice(0, limit)
   : '';
 
+function getSupabaseAdminKey(): string | null {
+  const modernKeys = Deno.env.get('SUPABASE_SECRET_KEYS');
+  if (modernKeys) {
+    try {
+      const parsed = JSON.parse(modernKeys);
+      if (typeof parsed?.default === 'string' && parsed.default) return parsed.default;
+    } catch {
+      // Repli contrôlé vers la clé legacy si elle est encore active.
+    }
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || null;
+}
+
 const isSafeId = (value: unknown) => typeof value === 'string' && /^[0-9a-f-]{16,80}$/i.test(value);
 
 const formatDate = (value: unknown) => {
@@ -66,7 +79,7 @@ Deno.serve(async (request) => {
   }
 
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const serviceRoleKey = getSupabaseAdminKey();
   const telegramToken = Deno.env.get('TELEGRAM_BOT_TOKEN');
   const telegramChatId = Deno.env.get('TELEGRAM_CHAT_ID');
   if (!supabaseUrl || !serviceRoleKey || !telegramToken || !telegramChatId) {

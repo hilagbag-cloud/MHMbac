@@ -34,6 +34,13 @@ type ResolvedUser = {
   updated_at: string | null;
 };
 
+type InputSession = {
+  telegram_chat_id: string;
+  expected_input: 'user_identifier' | 'beta_user_identifier';
+  origin_command: '/user' | '/beta_add' | '/beta_pause' | '/beta_revoke';
+  expires_at: string;
+};
+
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
   headers: { 'Content-Type': 'application/json; charset=utf-8' },
@@ -46,6 +53,19 @@ const commandNames = new Set<OperatorCommand>([
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
+
+function getSupabaseAdminKey(): string | null {
+  const modernKeys = Deno.env.get('SUPABASE_SECRET_KEYS');
+  if (modernKeys) {
+    try {
+      const parsed = JSON.parse(modernKeys);
+      if (typeof parsed?.default === 'string' && parsed.default) return parsed.default;
+    } catch {
+      // Repli maîtrisé vers la clé legacy pour les projets qui ne l’ont pas encore migrée.
+    }
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || null;
+}
 
 function parseCommand(value: unknown): { command: OperatorCommand | null; argument: string } {
   if (typeof value !== 'string') return { command: null, argument: '' };
@@ -124,10 +144,61 @@ async function resolveUser(admin: ReturnType<typeof createClient>, identifier: s
   if (!lookup) return null;
   const query = admin.from('profiles').select('id, display_name, email, series, mention, created_at, updated_at');
   const { data, error } = lookup.includes('@')
-    ? await query.eq('email', lookup.toLowerCase()).maybeSingle()
+    ? await query.ilike('email', lookup.toLowerCase()).maybeSingle()
     : await query.eq('id', lookup).maybeSingle();
   if (error || !data?.id) return null;
   return data as ResolvedUser;
+}
+
+async function boundedCount(admin: ReturnType<typeof createClient>, table: string, limit = 2_000) {
+  const { data, error } = await admin.from(table).select('*').limit(limit);
+  if (error) {
+    const details = typeof error === 'object' ? JSON.stringify(error) : String(error);
+    throw new Error(`Lecture ${table} impossible : ${text(details, 360)}`);
+  }
+  return (data || []).length;
+}
+
+function assertRead(result: { error: unknown }, source: string) {
+  if (!result.error) return;
+  const details = typeof result.error === 'object' ? JSON.stringify(result.error) : String(result.error);
+  throw new Error(`Lecture ${source} impossible : ${text(details, 360)}`);
+}
+
+async function beginInputSession(admin: ReturnType<typeof createClient>, chatId: string, command: InputSession['origin_command']) {
+  const isUserLookup = command === '/user';
+  const session: InputSession = {
+    telegram_chat_id: chatId,
+    expected_input: isUserLookup ? 'user_identifier' : 'beta_user_identifier',
+    origin_command: command,
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  };
+  const { error } = await admin.from('operator_input_sessions').upsert(session, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Session de saisie impossible.');
+  const prompt = isUserLookup
+    ? 'Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot de l’utilisateur.\n\nRéponds /cancel pour annuler.'
+    : `Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot pour ${command}.\n\nRéponds /cancel pour annuler.`;
+  await audit(admin, chatId, command, 'pending', null, { expected_input: session.expected_input });
+  return prompt;
+}
+
+async function getInputSession(admin: ReturnType<typeof createClient>, chatId: string) {
+  const { data, error } = await admin
+    .from('operator_input_sessions')
+    .select('telegram_chat_id, expected_input, origin_command, expires_at')
+    .eq('telegram_chat_id', chatId)
+    .gt('expires_at', new Date().toISOString())
+    .maybeSingle();
+  if (error) throw new Error('Session de saisie indisponible.');
+  if (!data) {
+    await admin.from('operator_input_sessions').delete().eq('telegram_chat_id', chatId);
+    return null;
+  }
+  return data as InputSession;
+}
+
+async function clearInputSession(admin: ReturnType<typeof createClient>, chatId: string) {
+  await admin.from('operator_input_sessions').delete().eq('telegram_chat_id', chatId);
 }
 
 function userLabel(user: Pick<ResolvedUser, 'display_name' | 'email' | 'id'>) {
@@ -135,39 +206,45 @@ function userLabel(user: Pick<ResolvedUser, 'display_name' | 'email' | 'id'>) {
 }
 
 async function getStatusMessage(admin: ReturnType<typeof createClient>) {
-  const [{ count: programmeCount, data: newestProgramme }, { count: profileCount }, { count: activeBetaCount }] = await Promise.all([
-    admin.from('live_programmes').select('observed_at', { count: 'exact' }).order('observed_at', { ascending: false }).limit(1),
-    admin.from('profiles').select('*', { count: 'exact', head: true }),
-    admin.from('beta_testers').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+  const [programmes, profiles, activeBetas] = await Promise.all([
+    admin.from('live_programmes').select('programme_id, observed_at').order('observed_at', { ascending: false }).limit(2_000),
+    admin.from('profiles').select('id').limit(2_000),
+    admin.from('beta_testers').select('user_id').eq('status', 'active').limit(2_000),
   ]);
+  assertRead(programmes, 'live_programmes');
+  assertRead(profiles, 'profiles');
+  assertRead(activeBetas, 'beta_testers');
 
   return [
     'BacPilot — état rapide',
     '',
-    `Filières observées : ${programmeCount ?? 0}`,
-    `Dernière observation : ${formatDate(newestProgramme?.[0]?.observed_at)}`,
-    `Comptes créés : ${profileCount ?? 0}`,
-    `Bêta-testeurs actifs : ${activeBetaCount ?? 0}`,
+    `Filières observées : ${(programmes.data || []).length}`,
+    `Dernière observation : ${formatDate(programmes.data?.[0]?.observed_at)}`,
+    `Comptes créés : ${(profiles.data || []).length}`,
+    `Bêta-testeurs actifs : ${(activeBetas.data || []).length}`,
   ].join('\n');
 }
 
 async function getStatsMessage(admin: ReturnType<typeof createClient>) {
-  const [{ count: profileCount }, { count: betaCount }, { count: feedbackCount }, { count: observationCount }, { count: recommendationCount }] = await Promise.all([
-    admin.from('profiles').select('*', { count: 'exact', head: true }),
-    admin.from('beta_testers').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    admin.from('beta_feedback').select('*', { count: 'exact', head: true }),
-    admin.from('gauge_observations').select('*', { count: 'exact', head: true }),
-    admin.from('recommendation_runs').select('*', { count: 'exact', head: true }),
+  const [profileCount, betaCount, feedbackCount, observationCount, recommendationCount] = await Promise.all([
+    boundedCount(admin, 'profiles'),
+    admin.from('beta_testers').select('user_id').eq('status', 'active').limit(2_000).then((result) => {
+      assertRead(result, 'beta_testers');
+      return (result.data || []).length;
+    }),
+    boundedCount(admin, 'beta_feedback'),
+    boundedCount(admin, 'gauge_observations'),
+    boundedCount(admin, 'recommendation_runs'),
   ]);
 
   return [
     'BacPilot — statistiques',
     '',
-    `Utilisateurs : ${profileCount ?? 0}`,
-    `Bêta actifs : ${betaCount ?? 0}`,
-    `Retours bêta : ${feedbackCount ?? 0}`,
-    `Recommandations générées : ${recommendationCount ?? 0}`,
-    `Observations historiques : ${observationCount ?? 0}`,
+    `Utilisateurs : ${profileCount}`,
+    `Bêta actifs : ${betaCount}`,
+    `Retours bêta : ${feedbackCount}`,
+    `Recommandations générées : ${recommendationCount}`,
+    `Observations historiques : ${observationCount}`,
   ].join('\n');
 }
 
@@ -360,15 +437,15 @@ function helpMessage() {
     '/status — données observées et comptes',
     '/stats — statistiques agrégées',
     '/health — vérification rapide',
-    '/user e-mail_ou_ID — fiche complète ciblée',
-    '/beta_add e-mail_ou_ID — préparer une activation',
-    '/beta_pause e-mail_ou_ID — préparer une pause',
-    '/beta_revoke e-mail_ou_ID — préparer une révocation',
+    '/user [e-mail|ID] — fiche ciblée ; sans valeur, le bot demande',
+    '/beta_add [e-mail|ID] — activation ; sans valeur, le bot demande',
+    '/beta_pause [e-mail|ID] — pause ; sans valeur, le bot demande',
+    '/beta_revoke [e-mail|ID] — révocation ; sans valeur, le bot demande',
     '/beta_list [active|paused|revoked|invited] — 10 derniers',
     '/feedback — 8 derniers retours bêta',
     '/pending — actions à confirmer',
     '/confirm CODE — exécuter une action préparée',
-    '/cancel CODE — annuler une action préparée',
+    '/cancel CODE — annuler une action préparée ou une saisie',
     '/test — vérifier le bot',
     '',
     'Les statuts bêta exigent une confirmation et toutes les actions sont journalisées.',
@@ -382,7 +459,7 @@ Deno.serve(async (request) => {
   const operatorChatId = Deno.env.get('TELEGRAM_CHAT_ID');
   const telegramWebhookSecret = Deno.env.get('TELEGRAM_WEBHOOK_SECRET');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const serviceRoleKey = getSupabaseAdminKey();
   if (!telegramToken || !operatorChatId || !telegramWebhookSecret || !supabaseUrl || !serviceRoleKey) {
     return json({ ok: false, error: 'Configuration serveur incomplète.' }, 500);
   }
@@ -399,10 +476,29 @@ Deno.serve(async (request) => {
   }
 
   const sourceChatId = String(update.message?.chat?.id ?? '');
-  const { command, argument } = parseCommand(update.message?.text);
-  if (!command || sourceChatId !== operatorChatId) return json({ ok: true, ignored: true });
+  const parsed = parseCommand(update.message?.text);
+  if (sourceChatId !== operatorChatId) return json({ ok: true, ignored: true });
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  let command: OperatorCommand | null = parsed.command;
+  let argument = parsed.argument;
+  const activeSession = await getInputSession(admin, sourceChatId);
+
+  if (!command && activeSession) {
+    command = activeSession.origin_command;
+    argument = text(update.message?.text, 180);
+    await clearInputSession(admin, sourceChatId);
+  }
+
+  if (!command) {
+    await sendMessage(telegramToken, operatorChatId, 'Commande inconnue. Envoie /help pour voir les commandes disponibles.');
+    return json({ ok: true, ignored: true });
+  }
+
+  if (activeSession && command !== '/cancel' && command !== activeSession.origin_command) {
+    await clearInputSession(admin, sourceChatId);
+  }
+
   let reply = '';
   let targetUserId: string | null = null;
 
@@ -416,19 +512,25 @@ Deno.serve(async (request) => {
     } else if (command === '/test') {
       reply = 'BacPilot — test réussi. Le bot, son webhook et le contrôle de chat répondent.';
     } else if (command === '/user') {
-      const user = await resolveUser(admin, argument);
-      if (!user) reply = 'Utilisateur introuvable. Utilise un e-mail exact ou un ID BacPilot exact.';
+      if (!argument) reply = await beginInputSession(admin, sourceChatId, '/user');
       else {
-        targetUserId = user.id;
-        reply = await getUserMessage(admin, user);
+        const user = await resolveUser(admin, argument);
+        if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie avec /user.';
+        else {
+          targetUserId = user.id;
+          reply = await getUserMessage(admin, user);
+        }
       }
     } else if (command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke') {
-      const user = await resolveUser(admin, argument);
-      if (!user) reply = 'Utilisateur introuvable. Utilise un e-mail exact ou un ID BacPilot exact.';
+      if (!argument) reply = await beginInputSession(admin, sourceChatId, command);
       else {
-        targetUserId = user.id;
-        const action = command === '/beta_add' ? 'beta_activate' : command === '/beta_pause' ? 'beta_pause' : 'beta_revoke';
-        reply = await createPendingAction(admin, sourceChatId, command, action, user);
+        const user = await resolveUser(admin, argument);
+        if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie.';
+        else {
+          targetUserId = user.id;
+          const action = command === '/beta_add' ? 'beta_activate' : command === '/beta_pause' ? 'beta_pause' : 'beta_revoke';
+          reply = await createPendingAction(admin, sourceChatId, command, action, user);
+        }
       }
     } else if (command === '/beta_list') {
       reply = await listBeta(admin, argument);
@@ -436,6 +538,9 @@ Deno.serve(async (request) => {
       reply = await listFeedback(admin);
     } else if (command === '/pending') {
       reply = await listPending(admin, sourceChatId);
+    } else if (command === '/cancel' && !argument) {
+      await clearInputSession(admin, sourceChatId);
+      reply = 'Saisie en cours annulée.';
     } else if (command === '/confirm') {
       reply = await confirmAction(admin, sourceChatId, argument);
     } else if (command === '/cancel') {
@@ -448,7 +553,7 @@ Deno.serve(async (request) => {
     await sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.');
     return json({ ok: true, command });
   } catch (error) {
-    console.error('Erreur de commande Telegram:', error instanceof Error ? error.message : 'Erreur inconnue');
+    console.error('Erreur de commande Telegram:', error instanceof Error ? error.message : JSON.stringify(error));
     await audit(admin, sourceChatId, command, 'failed', targetUserId, { has_argument: Boolean(argument) }).catch(() => undefined);
     await sendMessage(telegramToken, operatorChatId, 'BacPilot — la commande n’a pas pu être exécutée. Consulte les journaux de la fonction pour le diagnostic.').catch(() => undefined);
     return json({ ok: false, error: 'Commande indisponible.' }, 500);
