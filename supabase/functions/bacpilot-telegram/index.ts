@@ -15,6 +15,7 @@ type OperatorCommand =
   | '/health'
   | '/test'
   | '/user'
+  | '/user_delete'
   | '/beta_add'
   | '/beta_pause'
   | '/beta_revoke'
@@ -43,7 +44,7 @@ type ResolvedUser = {
 type InputSession = {
   telegram_chat_id: string;
   expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack';
-  origin_command: '/user' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm';
+  origin_command: '/user' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm';
   pending_action_id?: string | null;
   expires_at: string;
 };
@@ -54,7 +55,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 const commandNames = new Set<OperatorCommand>([
-  '/start', '/help', '/status', '/stats', '/health', '/test', '/user',
+  '/start', '/help', '/status', '/stats', '/health', '/test', '/user', '/user_delete',
   '/beta_add', '/beta_pause', '/beta_revoke', '/beta_list', '/feedback',
   '/pending', '/confirm', '/cancel',
 ]);
@@ -184,7 +185,7 @@ function assertRead(result: { error: unknown }, source: string) {
 }
 
 async function beginInputSession(admin: ReturnType<typeof createClient>, chatId: string, command: InputSession['origin_command']) {
-  const isUserLookup = command === '/user';
+  const isUserLookup = command === '/user' || command === '/user_delete';
   const session: InputSession = {
     telegram_chat_id: chatId,
     expected_input: isUserLookup ? 'user_identifier' : 'beta_user_identifier',
@@ -193,9 +194,11 @@ async function beginInputSession(admin: ReturnType<typeof createClient>, chatId:
   };
   const { error } = await admin.from('operator_input_sessions').upsert(session, { onConflict: 'telegram_chat_id' });
   if (error) throw new Error('Session de saisie impossible.');
-  const prompt = isUserLookup
-    ? 'Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot de l’utilisateur.\n\nRéponds /cancel pour annuler.'
-    : `Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot pour ${command}.\n\nRéponds /cancel pour annuler.`;
+  const prompt = command === '/user_delete'
+    ? 'Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot du compte à supprimer.\n\nAucune suppression ne sera effectuée avant la confirmation renforcée. Réponds /cancel pour annuler.'
+    : isUserLookup
+      ? 'Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot de l’utilisateur.\n\nRéponds /cancel pour annuler.'
+      : `Envoie maintenant l’adresse e-mail exacte ou l’ID BacPilot pour ${command}.\n\nRéponds /cancel pour annuler.`;
   await audit(admin, chatId, command, 'pending', null, { expected_input: session.expected_input });
   return prompt;
 }
@@ -313,7 +316,7 @@ async function getUserMessage(admin: ReturnType<typeof createClient>, user: Reso
   ].join('\n');
 }
 
-async function createPendingAction(admin: ReturnType<typeof createClient>, chatId: string, command: string, action: 'beta_activate' | 'beta_pause' | 'beta_revoke', user: ResolvedUser) {
+async function createPendingAction(admin: ReturnType<typeof createClient>, chatId: string, command: string, action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete', user: ResolvedUser) {
   const code = makeConfirmationCode();
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   const { error } = await admin.from('operator_pending_actions').insert({
@@ -326,12 +329,21 @@ async function createPendingAction(admin: ReturnType<typeof createClient>, chatI
   });
   if (error) throw new Error('Action en attente non créée.');
   await audit(admin, chatId, command, 'pending', user.id, { action, expires_at: expiresAt });
-  const label = action === 'beta_activate' ? 'activer' : action === 'beta_pause' ? 'mettre en pause' : 'révoquer';
+  const label = action === 'beta_activate'
+    ? 'activer le statut bêta de'
+    : action === 'beta_pause'
+      ? 'mettre en pause le statut bêta de'
+      : action === 'beta_revoke'
+        ? 'révoquer le statut bêta de'
+        : 'supprimer définitivement le compte de';
+  const confirmationHint = action === 'user_delete'
+    ? 'Envoie /confirm : le bot te demandera ensuite de répondre exactement SUPPRIMER.'
+    : 'Envoie simplement /confirm : le bot te demandera ensuite de répondre OUI ou NON.';
   return [
-    `Action préparée : ${label} le statut bêta de ${userLabel(user)}.`,
+    `Action préparée : ${label} ${userLabel(user)}.`,
     `Expire : ${formatDate(expiresAt)}`,
     '',
-    'Envoie simplement /confirm : le bot te demandera ensuite de répondre OUI ou NON.',
+    confirmationHint,
   ].join('\n');
 }
 
@@ -357,7 +369,7 @@ async function listPending(admin: ReturnType<typeof createClient>, chatId: strin
 
 type PendingAction = {
   id: string;
-  action: 'beta_activate' | 'beta_pause' | 'beta_revoke';
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete';
   target_user_id: string;
   payload: Record<string, unknown> | null;
   expires_at: string;
@@ -374,6 +386,22 @@ async function executePendingAction(admin: ReturnType<typeof createClient>, chat
     .select('id')
     .maybeSingle();
   if (lockError || !lock) return 'Cette action est déjà en cours ou indisponible.';
+
+  if (pending.action === 'user_delete') {
+    const { error: authDeleteError } = await admin.auth.admin.deleteUser(pending.target_user_id);
+    if (authDeleteError) {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      throw new Error('Compte Auth non supprimé.');
+    }
+    const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', pending.target_user_id);
+    if (profileDeleteError) {
+      // L’accès a déjà été supprimé ; l’erreur est explicitement journalisée pour permettre la reprise opérateur.
+      await audit(admin, chatId, '/confirm', 'failed', null, { action: pending.action, cleanup: 'profile_failed' });
+      throw new Error('Accès supprimé, mais nettoyage du profil incomplet.');
+    }
+    await audit(admin, chatId, '/confirm', 'confirmed', null, { action: pending.action, account_removed: true });
+    return 'Action confirmée : le compte et ses données BacPilot associées ont été supprimés.';
+  }
 
   const desiredStatus = pending.action === 'beta_activate' ? 'active' : pending.action === 'beta_pause' ? 'paused' : 'revoked';
   const { error: betaError } = await admin
@@ -411,12 +439,18 @@ async function beginConfirmationSession(admin: ReturnType<typeof createClient>, 
   }, { onConflict: 'telegram_chat_id' });
   if (error) throw new Error('Confirmation conversationnelle indisponible.');
 
+  const isUserDeletion = pending.action === 'user_delete';
   const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : 'révoquer';
+  const targetLabel = text((pending.payload as any)?.label, 140) || pending.target_user_id;
   return [
-    `Tu vas ${label} le statut bêta de ${text((pending.payload as any)?.label, 140) || pending.target_user_id}.`,
+    isUserDeletion
+      ? `Tu vas supprimer définitivement le compte de ${targetLabel} ainsi que ses données BacPilot associées.`
+      : `Tu vas ${label} le statut bêta de ${targetLabel}.`,
     `Cette demande expire : ${formatDate(expiresAt)}`,
     '',
-    'Réponds simplement OUI pour confirmer ou NON pour annuler.',
+    isUserDeletion
+      ? 'Action irréversible : réponds exactement SUPPRIMER pour confirmer ou NON pour annuler.'
+      : 'Réponds simplement OUI pour confirmer ou NON pour annuler.',
   ].join('\n');
 }
 
@@ -463,6 +497,9 @@ async function confirmAction(admin: ReturnType<typeof createClient>, chatId: str
     .gt('expires_at', new Date().toISOString())
     .maybeSingle();
   if (!pending) return 'Aucune action valide trouvée pour ce code. Elle a peut-être expiré ou été annulée.';
+  if ((pending as PendingAction).action === 'user_delete') {
+    return 'Pour une suppression, envoie /confirm sans code, puis réponds exactement SUPPRIMER.';
+  }
   return executePendingAction(admin, chatId, pending as PendingAction);
 }
 
@@ -532,17 +569,18 @@ function helpMessage() {
     '/stats — statistiques agrégées',
     '/health — vérification rapide',
     '/user [e-mail|ID] — fiche ciblée ; sans valeur, le bot demande',
+    '/user_delete [e-mail|ID] — suppression définitive ; confirmation SUPPRIMER obligatoire',
     '/beta_add [e-mail|ID] — activation ; sans valeur, le bot demande',
     '/beta_pause [e-mail|ID] — pause ; sans valeur, le bot demande',
     '/beta_revoke [e-mail|ID] — révocation ; sans valeur, le bot demande',
     '/beta_list [active|paused|revoked|invited] — 10 derniers',
     '/feedback — 8 derniers retours bêta',
     '/pending — actions à confirmer',
-    '/confirm — confirmer l’action la plus récente, puis répondre OUI ou NON',
+    '/confirm — confirmer l’action la plus récente ; OUI/NON pour bêta, SUPPRIMER/NON pour suppression',
     '/cancel — annuler une saisie en cours',
     '/test — vérifier le bot',
     '',
-    'Les statuts bêta exigent une confirmation et toutes les actions sont journalisées.',
+    'Les statuts bêta exigent une confirmation. La suppression est irréversible, exige SUPPRIMER et toutes les actions sont journalisées.',
   ].join('\n');
 }
 
@@ -613,14 +651,29 @@ Deno.serve(async (request) => {
   try {
     if (activeSession?.expected_input === 'confirmation_ack' && command === '/confirm' && activeSession.pending_action_id) {
       const acknowledgement = text(argument, 20).toLowerCase();
-      if (['oui', 'o', 'yes'].includes(acknowledgement)) {
+      const { data: pendingForAcknowledgement } = await admin
+        .from('operator_pending_actions')
+        .select('action')
+        .eq('id', activeSession.pending_action_id)
+        .eq('telegram_chat_id', sourceChatId)
+        .is('executed_at', null)
+        .is('cancelled_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .maybeSingle();
+      const requiresDeletePhrase = pendingForAcknowledgement?.action === 'user_delete';
+      const confirmed = requiresDeletePhrase
+        ? acknowledgement === 'supprimer'
+        : ['oui', 'o', 'yes'].includes(acknowledgement);
+      if (confirmed) {
         await clearInputSession(admin, sourceChatId);
         reply = await withTimeout(confirmActionById(admin, sourceChatId, activeSession.pending_action_id));
       } else if (['non', 'n', 'no'].includes(acknowledgement)) {
         await clearInputSession(admin, sourceChatId);
         reply = await withTimeout(cancelActionById(admin, sourceChatId, activeSession.pending_action_id));
       } else {
-        reply = 'Réponds simplement OUI pour confirmer ou NON pour annuler. Tu peux aussi envoyer /cancel.';
+        reply = requiresDeletePhrase
+          ? 'Action irréversible : réponds exactement SUPPRIMER pour confirmer ou NON pour annuler. Tu peux aussi envoyer /cancel.'
+          : 'Réponds simplement OUI pour confirmer ou NON pour annuler. Tu peux aussi envoyer /cancel.';
       }
     } else if (command === '/start' || command === '/help') {
       reply = helpMessage();
@@ -638,6 +691,16 @@ Deno.serve(async (request) => {
         else {
           targetUserId = user.id;
           reply = await withTimeout(getUserMessage(admin, user));
+        }
+      }
+    } else if (command === '/user_delete') {
+      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user_delete'));
+      else {
+        const user = await withTimeout(resolveUser(admin, argument));
+        if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie.';
+        else {
+          targetUserId = user.id;
+          reply = await withTimeout(createPendingAction(admin, sourceChatId, command, 'user_delete', user));
         }
       }
     } else if (command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke') {
@@ -668,7 +731,7 @@ Deno.serve(async (request) => {
       reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }
 
-    if (!['/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel'].includes(command)) {
+    if (!['/user_delete', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel'].includes(command)) {
       await withTimeout(audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) })).catch((error) => {
         console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
       });

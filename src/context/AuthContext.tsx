@@ -4,7 +4,7 @@
  * Créateur : Hilarus GBAGOULE
  */
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
   DEFAULT_DEMO_PREFERENCES,
   DEFAULT_DEMO_PROFILE,
@@ -71,6 +71,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const clearError = () => setErrorMessage(null);
 
+  // Lit le profil et le statut bêta depuis la source de vérité serveur.
+  // Cette fonction est stable afin que les abonnements Realtime et les reprises réseau
+  // utilisent toujours la même logique, sans conserver un ancien état React en fermeture.
+  const fetchSupabaseUserData = useCallback(async (userId: string, authUser?: any): Promise<boolean> => {
+    if (!realSupabase) return false;
+    try {
+      const [{ data: profData, error: profErr }, { data: prefData }, { data: betaData, error: betaError }] = await Promise.all([
+        realSupabase.from('profiles').select('*').eq('id', userId).single(),
+        realSupabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle(),
+        realSupabase.from('beta_testers').select('user_id, status, cohort, joined_at, consent_at, created_at, updated_at').eq('user_id', userId).maybeSingle(),
+      ]);
+
+      if (profData) {
+        setProfile(profData as UserProfile);
+      } else if (profErr?.code === 'PGRST116') {
+        // Le profil peut être créé quelques instants après Auth : conserver le chemin de reprise.
+        const newProf: UserProfile = {
+          id: userId,
+          display_name: authUser?.user_metadata?.display_name || 'Nouveau Bachelier',
+          email: authUser?.email || undefined,
+          signup_intent: authUser?.user_metadata?.signup_intent || 'standard',
+          signup_entrypoint: authUser?.user_metadata?.signup_entrypoint || 'direct',
+          signup_route: authUser?.user_metadata?.signup_route || null,
+          signup_device_class: authUser?.user_metadata?.signup_device_class || 'unknown',
+          signup_browser: authUser?.user_metadata?.signup_browser || 'Other',
+          signup_context_consent_at: authUser?.user_metadata?.signup_context_consent_at || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        const { error: insertError } = await realSupabase.from('profiles').insert(newProf);
+        if (!insertError) setProfile(newProf);
+      }
+
+      if (prefData) setPreferences(prefData as UserPreferences);
+
+      if (betaError) {
+        console.warn('Lecture du statut bêta indisponible:', betaError.message);
+        return false;
+      }
+      setBetaTester((betaData as BetaTester | null) || null);
+      return true;
+    } catch (err: any) {
+      console.warn('Note fetchSupabaseUserData:', err.message);
+      return false;
+    }
+  }, []);
+
   // Initialisation au chargement
   useEffect(() => {
     async function initAuth() {
@@ -124,84 +171,50 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription.unsubscribe();
       };
     }
-  }, [isSupabaseLive]);
+  }, [fetchSupabaseUserData, isSupabaseLive]);
 
   useEffect(() => {
     if (!isSupabaseLive || !realSupabase || !user?.id) return;
 
+    let retryTimer: number | undefined;
     const refreshBetaStatus = () => {
-      void fetchSupabaseUserData(user.id, user);
+      void fetchSupabaseUserData(user.id);
+    };
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState !== 'hidden') refreshBetaStatus();
     };
     const channel = realSupabase
-      .channel(`bacpilot-beta-status-${user.id}`)
+      .channel(`bacpilot-beta-status-${user.id}`, { config: { broadcast: { self: false } } })
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
         table: 'beta_testers',
         filter: `user_id=eq.${user.id}`,
       }, refreshBetaStatus)
-      .subscribe();
-    const fallbackPoll = window.setInterval(refreshBetaStatus, 30_000);
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          // Une validation peut avoir eu lieu juste avant l’abonnement : lire la source de vérité.
+          refreshBetaStatus();
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          window.clearTimeout(retryTimer);
+          retryTimer = window.setTimeout(refreshBetaStatus, 4_000);
+        }
+      });
+
+    // Pendant l’attente d’une validation, la reprise est volontairement plus rapide ;
+    // Realtime reste le mécanisme principal et la lecture est limitée au statut du compte connecté.
+    const fallbackPoll = window.setInterval(refreshBetaStatus, betaTester?.status === 'active' ? 60_000 : 10_000);
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
 
     return () => {
+      window.clearTimeout(retryTimer);
       window.clearInterval(fallbackPoll);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       void realSupabase.removeChannel(channel);
     };
-  }, [isSupabaseLive, user?.id]);
-
-  // Récupère le profil et les préférences depuis Supabase
-  const fetchSupabaseUserData = async (userId: string, authUser?: any) => {
-    if (!realSupabase) return;
-    try {
-      // 1. Profil
-      const { data: profData, error: profErr } = await realSupabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-
-      if (profData) {
-        setProfile(profData);
-      } else if (profErr && profErr.code === 'PGRST116') {
-        // Profil non encore créé
-        const newProf: UserProfile = {
-          id: userId,
-          display_name: authUser?.user_metadata?.display_name || user?.user_metadata?.display_name || 'Nouveau Bachelier',
-          email: authUser?.email || user?.email || undefined,
-          signup_intent: authUser?.user_metadata?.signup_intent || 'standard',
-          signup_entrypoint: authUser?.user_metadata?.signup_entrypoint || 'direct',
-          signup_route: authUser?.user_metadata?.signup_route || null,
-          signup_device_class: authUser?.user_metadata?.signup_device_class || 'unknown',
-          signup_browser: authUser?.user_metadata?.signup_browser || 'Other',
-          signup_context_consent_at: authUser?.user_metadata?.signup_context_consent_at || null,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        };
-        await realSupabase.from('profiles').insert(newProf);
-        setProfile(newProf);
-      }
-
-      // 2. Préférences
-      const { data: prefData } = await realSupabase
-        .from('user_preferences')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-
-      if (prefData) {
-        setPreferences(prefData);
-      }
-
-      const { data: betaData } = await realSupabase
-        .from('beta_testers')
-        .select('user_id, status, cohort, joined_at, consent_at, created_at, updated_at')
-        .eq('user_id', userId)
-        .maybeSingle();
-      setBetaTester((betaData as BetaTester | null) || null);
-    } catch (err: any) {
-      console.warn('Note fetchSupabaseUserData:', err.message);
-    }
-  };
+  }, [betaTester?.status, fetchSupabaseUserData, isSupabaseLive, user?.id]);
 
   // Inscription
   const signUp = async (request: SignupRequest) => {

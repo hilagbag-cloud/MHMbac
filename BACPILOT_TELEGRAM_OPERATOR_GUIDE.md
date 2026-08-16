@@ -8,7 +8,7 @@ La console Telegram BacPilot est un canal d’administration réservé à **un s
 
 Le webhook Telegram est vérifié avec un secret serveur. La fonction vérifie en plus que le `chat_id` reçu est strictement identique à celui configuré dans `TELEGRAM_CHAT_ID`. Une commande émise depuis tout autre chat est ignorée.
 
-Les commandes qui modifient un statut bêta ne s’exécutent pas directement. Elles créent une action temporaire expirant au bout de dix minutes. L’opérateur envoie ensuite simplement `/confirm` ; le bot récapitule l’action et demande de répondre **OUI** ou **NON**. Ce parcours évite de recopier un code depuis Telegram. `/cancel` annule toute saisie conversationnelle en cours. L’ancien format `/confirm CODE` reste accepté uniquement comme compatibilité de secours.
+Les commandes qui modifient un statut bêta ne s’exécutent pas directement. Elles créent une action temporaire expirant au bout de dix minutes. L’opérateur envoie ensuite simplement `/confirm` ; le bot récapitule l’action et demande de répondre **OUI** ou **NON**. Ce parcours évite de recopier un code depuis Telegram. Après une activation, le navigateur du compte concerné reçoit la mise à jour temps réel ; une lecture immédiate, une reprise au retour d’onglet et une vérification périodique courte protègent aussi contre une perte temporaire du canal temps réel. `/cancel` annule toute saisie conversationnelle en cours. L’ancien format `/confirm CODE` reste accepté uniquement comme compatibilité de secours pour les actions bêta, jamais pour une suppression.
 
 ## Commandes de lecture
 
@@ -21,6 +21,7 @@ Les commandes qui modifient un statut bêta ne s’exécutent pas directement. E
 | `/test` | `/test` | Vérifie que le webhook et le bot répondent. |
 | `/user` | `/user eleve@exemple.bj` | Fiche ciblée d’un utilisateur à partir de son e-mail exact. |
 | `/user` | `/user ID_BACPILOT` | Fiche ciblée d’un utilisateur à partir de son identifiant BacPilot exact. |
+| `/user_delete` | `/user_delete eleve@exemple.bj` | Prépare la suppression définitive d’un compte ; aucune suppression immédiate. |
 | `/beta_list` | `/beta_list` | Les dix bêta-testeurs les plus récemment mis à jour. |
 | `/beta_list active` | `/beta_list active` | Les dix bêta-testeurs actifs les plus récemment mis à jour. |
 | `/feedback` | `/feedback` | Les huit derniers retours bêta, sans capture privée. |
@@ -41,7 +42,13 @@ Une fiche `/user` affiche les données administratives nécessaires au suivi : n
 
 Les commandes de gestion acceptent également l’identifiant BacPilot exact au lieu de l’e-mail. La confirmation répond par le statut effectivement écrit côté serveur : `active`, `paused` ou `revoked`.
 
-> Le statut bêta n’est jamais décidé par le navigateur. Il est lu et écrit uniquement dans `public.beta_testers` par une fonction Supabase dotée de droits serveur.
+> Le statut bêta n’est jamais décidé par le navigateur. Il est écrit uniquement par la fonction Supabase dotée de droits serveur, puis chaque compte connecté ne peut lire que sa propre ligne grâce à la politique RLS `auth.uid() = user_id`.
+
+## Suppression définitive d’un utilisateur
+
+La commande `/user_delete` supprime un compte uniquement selon le parcours renforcé suivant. Le bot demande d’abord l’e-mail exact ou l’ID BacPilot, prépare une action qui expire au bout de dix minutes, puis attend `/confirm`. Il récapitule alors la suppression et exige le mot exact **SUPPRIMER**. Les réponses `OUI`, `NON`, `/cancel` et l’ancien format `/confirm CODE` ne peuvent pas déclencher une suppression ; `NON` et `/cancel` annulent l’action.
+
+Une suppression confirmée retire le compte Auth, les sessions et identités associées, les données bêta, puis le profil BacPilot et les données applicatives liées par cascade. Le journal d’audit conserve l’existence de l’action administrative sans conserver l’identifiant du compte supprimé. Cette opération est irréversible : privilégiez `/beta_pause` ou `/beta_revoke` lorsqu’il s’agit seulement de retirer les outils bêta.
 
 ## Notifications d’inscription
 
