@@ -8,6 +8,24 @@
   "theme_color": "#0f172a",
   "icons": [
     {
+      "src": "/branding/bacpilot-mark-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/branding/bacpilot-mark-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/branding/bacpilot-mark-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
       "src": "/branding/bacpilot-mark-192.png",
       "sizes": "192x192",
       "type": "image/png",

@@ -33,7 +33,7 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|site\\.webmanifest|favicon\\.ico).*)",
+      "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|site\\.webmanifest|favicon\\.ico|apple-touch-icon\\.png).*)",
       "destination": "/index.html"
     }
   ],
@@ -47,6 +47,24 @@
       "source": "/:path*",
       "has": [{ "type": "host", "value": "beta.bacpilot.site" }],
       "headers": [{ "key": "X-Robots-Tag", "value": "noindex, nofollow" }]
+    },
+    {
+      "source": "/favicon.ico",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/apple-touch-icon.png",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
+    },
+    {
+      "source": "/branding/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400" }
+      ]
     },
     {
       "source": "/assets/(.*)",
