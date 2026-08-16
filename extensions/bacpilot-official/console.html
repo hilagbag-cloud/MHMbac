@@ -42,7 +42,11 @@
 
       <details class="panel configuration">
         <summary><span><p class="eyebrow">Administration locale</p><h2>Synchronisation BacPilot</h2></span><span id="configState" class="badge">Non configurée</span></summary>
-        <p>Avant toute collecte, saisissez le jeton, enregistrez-le puis attendez le test automatique du serveur. Le scan reste bloqué tant que ce test n’est pas validé.</p>
+        <p>Recommandé : enrôlez cet appareil avec un code à usage unique fourni par Telegram. Le scan reste bloqué tant que le test du collecteur n’est pas validé.</p>
+        <label>Code d’activation à usage unique<input id="activationCode" type="password" autocomplete="one-time-code" placeholder="Ex. BPC-XXXXXXXX-XXXXXXXX" /></label>
+        <div class="configuration-actions"><button id="enrollCollector" class="primary" type="button">Enrôler cet appareil</button></div>
+        <p id="enrollmentMessage" class="configuration-message">Aucun collecteur enrôlé sur cet appareil.</p>
+        <p class="legacy-note">Migration legacy uniquement : le champ de jeton global reste disponible temporairement, mais il est déconseillé en production.</p>
         <label>Endpoint de synchronisation<input id="syncEndpoint" type="url" autocomplete="off" /></label>
         <label>Nouveau jeton de collecte <input id="syncToken" type="password" autocomplete="new-password" placeholder="Laissez vide pour conserver le jeton local" /></label>
         <p id="configMessage" class="configuration-message">Saisissez puis testez le jeton avant la collecte.</p>

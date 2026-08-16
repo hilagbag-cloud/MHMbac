@@ -25,7 +25,10 @@ type OperatorCommand =
   | '/confirm'
   | '/cancel'
   | '/menu'
-  | '/email';
+  | '/email'
+  | '/collector_issue'
+  | '/collector_list'
+  | '/collector_revoke';
 
 type ResolvedUser = {
   id: string;
@@ -61,7 +64,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const commandNames = new Set<OperatorCommand>([
   '/start', '/help', '/status', '/stats', '/health', '/test', '/user', '/user_delete',
   '/beta_add', '/beta_pause', '/beta_revoke', '/beta_list', '/feedback',
-  '/pending', '/confirm', '/cancel', '/menu', '/email',
+  '/pending', '/confirm', '/cancel', '/menu', '/email', '/collector_issue', '/collector_list', '/collector_revoke',
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
@@ -130,6 +133,76 @@ function makeConfirmationCode() {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const values = crypto.getRandomValues(new Uint8Array(8));
   return [...values].map((value) => alphabet[value % alphabet.length]).join('');
+}
+
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function makeCollectorActivationCode() {
+  return `BPC-${makeConfirmationCode()}-${makeConfirmationCode()}`;
+}
+
+async function issueCollectorActivation(admin: any, label: string) {
+  const code = makeCollectorActivationCode();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const { error } = await admin.from('collector_activation_codes').insert({
+    code_hash: await sha256(code),
+    label: text(label, 120) || 'Extension BacPilot',
+    expires_at: expiresAt,
+  });
+  if (error) throw new Error('Code d’activation non créé.');
+  return [
+    'Code d’enrôlement BacPilot créé.',
+    '',
+    `Code : ${code}`,
+    `Expire : ${formatDate(expiresAt)}`,
+    '',
+    'À saisir une seule fois dans la console de l’extension. Le code ne sera plus réutilisable après activation.',
+  ].join('\n');
+}
+
+async function listCollectors(admin: any) {
+  const { data, error } = await admin.from('collector_devices')
+    .select('id, label, status, activated_at, last_seen_at, last_preflight_at, revoked_at')
+    .order('activated_at', { ascending: false })
+    .limit(20);
+  if (error) throw new Error('Liste des collecteurs indisponible.');
+  if (!data?.length) return 'Aucun collecteur enrôlé.';
+  return [
+    'BacPilot — collecteurs enrôlés',
+    '',
+    ...data.map((collector: any, index: number) => [
+      `${index + 1}. ${text(collector.label, 100) || 'Extension BacPilot'}`,
+      `ID : ${collector.id}`,
+      `État : ${collector.status} · activé ${formatDate(collector.activated_at)}`,
+      `Dernier contact : ${formatDate(collector.last_seen_at)}`,
+    ].join('\n')),
+    '',
+    'Pour révoquer : /collector_revoke <ID> puis /confirm.',
+  ].join('\n');
+}
+
+async function createCollectorRevokePending(admin: any, chatId: string, collectorId: string) {
+  const id = text(collectorId, 80);
+  const { data: collector } = await admin.from('collector_devices')
+    .select('id, label, status')
+    .eq('id', id)
+    .maybeSingle();
+  if (!collector) return 'Collecteur introuvable. Utilise /collector_list pour copier son ID.';
+  if (collector.status === 'revoked') return 'Ce collecteur est déjà révoqué.';
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const { error } = await admin.from('operator_pending_actions').insert({
+    telegram_chat_id: chatId,
+    action: 'collector_revoke',
+    target_user_id: null,
+    confirmation_code: makeConfirmationCode(),
+    payload: { collector_id: collector.id, label: text(collector.label, 120) || collector.id },
+    expires_at: expiresAt,
+  });
+  if (error) throw new Error('Révocation en attente non créée.');
+  return beginConfirmationSession(admin, chatId);
 }
 
 async function telegramApi(token: string, method: string, body: Record<string, unknown>) {
@@ -560,7 +633,7 @@ async function listPending(admin: any, chatId: string) {
 
 type PendingAction = {
   id: string;
-  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'email_send';
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'collector_revoke' | 'email_send';
   target_user_id: string;
   payload: Record<string, unknown> | null;
   expires_at: string;
@@ -607,6 +680,23 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
     if (result.status === 'not_configured') return 'Email non envoyé : RESEND_API_KEY n’est pas configurée.';
     if (result.status === 'skipped') return 'Email non envoyé : le profil ne contient pas d’adresse email.';
     return `Email non envoyé. La tentative a été journalisée : ${result.error_message || 'erreur fournisseur'}.`;
+  }
+
+  if (pending.action === 'collector_revoke') {
+    const collectorId = text(pending.payload?.collector_id, 80);
+    if (!collectorId) throw new Error('Identifiant de collecteur absent.');
+    const { data: revoked, error: revokeError } = await admin.from('collector_devices')
+      .update({ status: 'revoked', revoked_at: now, revoked_reason: 'Révocation opérateur Telegram' })
+      .eq('id', collectorId)
+      .eq('status', 'active')
+      .select('id')
+      .maybeSingle();
+    if (revokeError || !revoked) {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      throw new Error('Collecteur déjà révoqué ou introuvable.');
+    }
+    await audit(admin, chatId, '/confirm', 'confirmed', null, { action: pending.action, collector_id: collectorId });
+    return `Action confirmée : le collecteur ${collectorId} est révoqué. Ses prochaines synchronisations seront refusées.`;
   }
 
   if (pending.action === 'user_delete') {
@@ -683,13 +773,16 @@ async function beginConfirmationSession(admin: any, chatId: string) {
   if (error) throw new Error('Confirmation conversationnelle indisponible.');
 
   const isUserDeletion = pending.action === 'user_delete';
-  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : 'envoyer un email personnalisé à';
+  const isCollectorRevocation = pending.action === 'collector_revoke';
+  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : 'envoyer un email personnalisé à';
   const targetLabel = text((pending.payload as any)?.label, 140) || pending.target_user_id;
   const description = pending.action === 'email_send'
     ? `Tu vas envoyer l’email « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}.`
     : isUserDeletion
       ? `Tu vas supprimer définitivement le compte de ${targetLabel} ainsi que ses données BacPilot associées.`
-      : `Tu vas ${label} le statut bêta de ${targetLabel}.`;
+      : isCollectorRevocation
+        ? `Tu vas révoquer définitivement le collecteur ${targetLabel}. Ses prochaines synchronisations seront refusées.`
+        : `Tu vas ${label} le statut bêta de ${targetLabel}.`;
   return [
     description,
     `Cette demande expire : ${formatDate(expiresAt)}`,
@@ -954,6 +1047,9 @@ function helpMessage() {
     '/confirm — confirmer l’action la plus récente ; OUI/NON pour bêta, SUPPRIMER/NON pour suppression',
     '/cancel — annuler une saisie en cours',
     '/test — vérifier le bot',
+    '/collector_issue [libellé] — générer un code d’activation à usage unique',
+    '/collector_list — afficher les appareils enrôlés et leur état',
+    '/collector_revoke [ID] — préparer la révocation d’un appareil ; confirmation 1/2',
     '',
     'Les statuts bêta exigent une confirmation. La suppression est irréversible, exige SUPPRIMER et toutes les actions sont journalisées.',
   ].join('\n');
@@ -1081,6 +1177,13 @@ Deno.serve(async (request) => {
       reply = await withTimeout(getStatsMessage(admin));
     } else if (command === '/test') {
       reply = 'BacPilot — test réussi. Le bot, son webhook et le contrôle de chat répondent.';
+    } else if (command === '/collector_issue') {
+      reply = await withTimeout(issueCollectorActivation(admin, argument || 'Extension BacPilot'));
+    } else if (command === '/collector_list') {
+      reply = await withTimeout(listCollectors(admin));
+    } else if (command === '/collector_revoke') {
+      if (!argument) reply = 'Envoie `/collector_revoke <ID>` avec l’identifiant affiché par /collector_list.';
+      else reply = await withTimeout(createCollectorRevokePending(admin, sourceChatId, argument));
     } else if (command === '/user') {
       if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user'));
       else {

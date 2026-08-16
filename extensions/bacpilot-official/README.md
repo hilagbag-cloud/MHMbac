@@ -53,13 +53,14 @@
 
 ## Configuration de synchronisation réservée à l’opérateur autorisé
 
-L’endpoint BacPilot est prérempli. Le **jeton de collecte** doit être renseigné depuis le panneau *Administration locale* par une personne autorisée, après rotation si une ancienne valeur a été exposée. Côté Supabase, le nom canonique du secret est `MHM_SYNC_TOKEN` ; la fonction accepte aussi `MHMBAC_SYNC_API_KEY` pour compatibilité avec une ancienne configuration.
+L’endpoint BacPilot est prérempli. Le parcours recommandé v1.2.0 est l’**enrôlement par appareil** : depuis Telegram, l’opérateur exécute `/collector_issue`, puis saisit le code reçu dans **Code d’activation à usage unique** et clique sur **Enrôler cet appareil**.
 
-- Le jeton est stocké localement dans le profil Chrome courant et n’est jamais affiché par la console.
-- Le jeton est transmis exclusivement dans le corps JSON de la requête HTTPS, jamais dans un en-tête HTTP. Il peut donc contenir des caractères Unicode ; gardez toutefois une valeur longue, unique et difficile à deviner.
-- Si la console affichait auparavant « Jeton requis » malgré l’enregistrement, rechargez l’extension dans `chrome://extensions` en conservant le même dossier local : la configuration et les lots restent associés à cette extension. Ne désinstallez pas l’extension et n’effacez pas les données locales.
-- Ne partagez jamais le dossier utilisateur Chrome, une capture de ce champ ou un export contenant une configuration.
-- La version distribuée publiquement ne doit pas utiliser un jeton unique partagé : elle devra évoluer vers un mécanisme d’enrôlement par appareil ou par collecteur avant diffusion large.
+- Le code est à usage unique et expire après 15 minutes. Il n’est jamais stocké en clair dans Supabase.
+- Après activation, le serveur remet un identifiant et un token propres à cet appareil. Seule l’empreinte du token est conservée côté serveur ; l’extension le conserve localement pour permettre la reprise.
+- Le bouton **Enrôler cet appareil** doit afficher « appareil enrôlé et prévol validé » avant toute collecte.
+- L’opérateur peut vérifier l’appareil avec `/collector_list`, puis le désactiver avec `/collector_revoke <ID>` suivi d’une confirmation 1/2.
+- Le champ legacy `MHM_SYNC_TOKEN` reste temporairement disponible uniquement pour migration. Il ne doit pas être distribué dans une nouvelle installation.
+- Ne partagez jamais le dossier utilisateur Chrome, le token de collecteur, une capture de configuration ou un export contenant une configuration.
 
 ## Reprise et limites techniques
 

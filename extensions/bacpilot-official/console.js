@@ -5,7 +5,7 @@ const REQUIRED_IDS = [
   'actionFeedback', 'collectionStatus', 'collectionMessage', 'collectionProgress', 'collectionMeta',
   'collectionDetails', 'startScan', 'resumeScan', 'cancelScan', 'syncNow', 'exportData', 'refresh',
   'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage', 'autoRefreshEnabled', 'autoRefreshMinutes', 'saveAutoRefresh', 'autoRefreshState',
-  'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
+  'activationCode', 'enrollCollector', 'enrollmentMessage', 'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
 ];
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
@@ -68,13 +68,13 @@ function renderQueue(queue = [], config = {}, state = {}) {
   $('syncStatus').textContent = count ? 'Reprise planifiée' : (state.lastServerConfirmedAt ? 'Confirmée' : 'En attente de données');
   $('syncMessage').textContent = state.syncMessage || (count ? `${count} lot(s) conservé(s) localement et réessayé(s) automatiquement.` : (state.lastServerConfirmedAt ? `Dernière confirmation : ${formatAge(state.lastServerConfirmedAt)}.` : 'Aucun lot en attente.'));
   const configState = config.verificationStatus || config.tokenState || (config.configured ? 'unverified' : 'missing');
-  const configLabels = { verified: 'Test validé', unverified: 'Test requis', missing: 'Jeton requis', invalid: 'Jeton à corriger', failed: 'Test à corriger' };
+  const configLabels = { verified: config.authMode === 'collector' ? 'Collecteur validé' : 'Legacy validé', unverified: 'Test requis', missing: 'Enrôlement requis', legacy: 'Legacy à migrer', enrolled: 'Test requis', invalid: 'Credential à corriger', failed: 'Test à corriger' };
   $('configState').textContent = configLabels[configState] || 'Test requis';
   $('configState').className = `badge ${configState === 'verified' ? '' : 'warning'}`;
-  $('configMessage').textContent = config.verificationMessage || 'Saisissez puis testez le jeton avant la collecte.';
-  // Un 401 signifie que le jeton doit être corrigé, pas que le bouton de test doit être verrouillé.
-  // L’opérateur doit pouvoir remplacer la valeur puis relancer le prévol sans recharger l’extension.
-  $('testConfig').disabled = !['ready', 'invalid'].includes(config.tokenState);
+  $('configMessage').textContent = config.verificationMessage || (config.authMode === 'collector' ? `Collecteur ${config.collectorId || 'enrôlé'} : testez avant la collecte.` : 'Enrôlez cet appareil avec un code à usage unique.');
+  $('enrollmentMessage').textContent = config.authMode === 'collector' ? `Appareil enrôlé · ID ${config.collectorId}` : 'Aucun collecteur enrôlé sur cet appareil.';
+  $('testConfig').disabled = !config.configured;
+  $('enrollCollector').disabled = false;
   $('syncNow').disabled = count > 0 && !readyForScan;
   if (!count) { $('queueList').innerHTML = '<p>Aucun lot en attente.</p>'; return; }
   $('queueList').innerHTML = queue.map((entry) => `<div class="queue-item"><strong>${escapeHtml(entry.payload?.items?.length || 0)} observation(s) · lot ${escapeHtml(entry.payload?.part || '—')}/${escapeHtml(entry.payload?.totalParts || '—')}</strong><small>Créé : ${escapeHtml(formatDate(entry.createdAt))} · Tentatives : ${escapeHtml(entry.attempts || 0)}</small><small>${escapeHtml(entry.lastError || `Prochaine tentative : ${entry.nextAttemptAt ? formatDate(entry.nextAttemptAt) : 'dès que possible'}`)}</small></div>`).join('');
@@ -182,6 +182,15 @@ function initializeConsole() {
     const result = await request('BP_SYNC_NOW');
     setFeedback(result.pending ? `${result.pending} lot(s) restent conservés localement.` : `${result.sent || 0} observation(s) confirmée(s) par BacPilot.`, result.pending ? '' : 'success');
   }));
+  bind('enrollCollector', () => withAction('enrollCollector', async () => {
+    const endpoint = $('syncEndpoint').value.trim();
+    const activationCode = $('activationCode').value.trim();
+    setFeedback('Enrôlement de cet appareil en cours…', '');
+    const result = await request('BP_ENROLL_COLLECTOR', { endpoint, activationCode, label: 'Extension BacPilot' });
+    $('activationCode').value = '';
+    if (result.validation?.ok) setFeedback(`Appareil enrôlé et prévol validé. ID : ${result.collectorId}`, 'success');
+    else setFeedback(result.validation?.message || 'Enrôlement refusé.', 'error');
+  }));
   bind('saveConfig', () => withAction('saveConfig', async () => {
     const endpoint = $('syncEndpoint').value.trim();
     const token = $('syncToken').value.trim();
@@ -192,9 +201,9 @@ function initializeConsole() {
     else setFeedback(result.validation?.message || 'Configuration enregistrée, mais le test serveur doit être corrigé avant la collecte.', 'error');
   }));
   bind('testConfig', () => withAction('testConfig', async () => {
-    setFeedback('Test du jeton enregistré en cours…', '');
+    setFeedback('Test du credential enregistré en cours…', '');
     const result = await request('BP_TEST_CONFIG');
-    if (result.validation?.ok) setFeedback('Jeton enregistré et serveur validé. Collecte autorisée.', 'success');
+    if (result.validation?.ok) setFeedback(result.validation.authMode === 'collector' ? 'Collecteur validé. Collecte autorisée.' : 'Mode legacy validé. Enrôlez l’appareil pour migrer.', 'success');
     else setFeedback(result.validation?.message || 'Test serveur non validé.', 'error');
   }));
   bind('saveAutoRefresh', () => withAction('saveAutoRefresh', async () => {

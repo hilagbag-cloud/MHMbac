@@ -76,6 +76,12 @@ async function sha256(value: string): Promise<string> {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function randomToken(prefix = 'bpc') {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  const encoded = btoa(String.fromCharCode(...bytes)).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/g, '');
+  return `${prefix}_${encoded}`;
+}
+
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   if (request.method !== 'POST') return json({ ok: false, error: 'Méthode non autorisée' }, 405);
@@ -83,23 +89,82 @@ Deno.serve(async (request) => {
   let body: any;
   try { body = await request.json(); } catch { return json({ ok: false, error: 'JSON invalide' }, 400); }
 
-  // MHM_SYNC_TOKEN est le nom canonique ; MHMBAC_SYNC_API_KEY reste accepté pour
-  // compatibilité avec le secret configuré lors des premières installations.
-  const expectedToken = Deno.env.get('MHM_SYNC_TOKEN') || Deno.env.get('MHMBAC_SYNC_API_KEY');
-  const receivedToken = typeof body?.syncToken === 'string' ? body.syncToken : null;
-  if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
-    return json({ ok: false, error: 'Jeton de synchronisation invalide' }, 401);
-  }
-
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) return json({ ok: false, error: 'Configuration serveur incomplète' }, 500);
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
+  const requestNow = new Date().toISOString();
+
+  if (body?.action === 'enroll') {
+    const activationCode = cleanText(body?.activationCode, 160);
+    if (!activationCode) return json({ ok: false, code: 'ACTIVATION_REQUIRED', error: 'Code d’activation requis.' }, 400);
+    const activationHash = await sha256(activationCode);
+    const { data: activation, error: activationReadError } = await admin
+      .from('collector_activation_codes')
+      .select('id, status, expires_at, label')
+      .eq('code_hash', activationHash)
+      .maybeSingle();
+    if (activationReadError) return json({ ok: false, code: 'ENROLLMENT_STORE_UNAVAILABLE', error: 'Service d’enrôlement indisponible.' }, 500);
+    if (!activation) return json({ ok: false, code: 'ACTIVATION_INVALID', error: 'Code d’activation inconnu.' }, 401);
+    if (activation.status !== 'issued') return json({ ok: false, code: 'ACTIVATION_CONSUMED', error: 'Code d’activation déjà utilisé ou révoqué.' }, 409);
+    if (Date.parse(activation.expires_at) <= Date.now()) {
+      await admin.from('collector_activation_codes').update({ status: 'expired' }).eq('id', activation.id).eq('status', 'issued');
+      return json({ ok: false, code: 'ACTIVATION_EXPIRED', error: 'Code d’activation expiré.' }, 410);
+    }
+    const { data: consumed, error: consumeError } = await admin
+      .from('collector_activation_codes')
+      .update({ status: 'consumed', consumed_at: requestNow })
+      .eq('id', activation.id)
+      .eq('status', 'issued')
+      .select('id')
+      .maybeSingle();
+    if (consumeError) return json({ ok: false, code: 'ENROLLMENT_STORE_UNAVAILABLE', error: 'Activation impossible pour le moment.' }, 500);
+    if (!consumed) return json({ ok: false, code: 'ACTIVATION_CONSUMED', error: 'Code d’activation déjà utilisé.' }, 409);
+    const collectorToken = randomToken();
+    const tokenHash = await sha256(collectorToken);
+    const { data: collector, error: collectorError } = await admin.from('collector_devices').insert({
+      token_hash: tokenHash,
+      label: cleanText(body?.label || activation.label || 'Extension BacPilot', 120),
+      activated_at: requestNow,
+    }).select('id, activated_at, label').single();
+    if (collectorError || !collector) return json({ ok: false, code: 'ENROLLMENT_STORE_UNAVAILABLE', error: 'Collecteur non créé ; demande un nouveau code à l’opérateur.' }, 500);
+    return json({ ok: true, mode: 'enroll', collectorId: collector.id, collectorToken, label: collector.label, activatedAt: collector.activated_at });
+  }
+
+  let authMode = 'legacy';
+  let collectorId: string | null = null;
+  const hasCollectorCredentials = body?.collectorId !== undefined || body?.collectorToken !== undefined;
+  if (hasCollectorCredentials) {
+    const requestedCollectorId = cleanText(body?.collectorId, 120);
+    const collectorToken = cleanText(body?.collectorToken, 240);
+    if (!requestedCollectorId || !collectorToken) return json({ ok: false, code: 'ENROLLMENT_REQUIRED', error: 'Collecteur non enrôlé : utilisez un code d’activation.' }, 401);
+    const { data: collector, error: collectorReadError } = await admin
+      .from('collector_devices')
+      .select('id, status, token_hash')
+      .eq('id', requestedCollectorId)
+      .maybeSingle();
+    if (collectorReadError) return json({ ok: false, code: 'COLLECTOR_STORE_UNAVAILABLE', error: 'Vérification du collecteur impossible.' }, 500);
+    if (!collector) return json({ ok: false, code: 'COLLECTOR_NOT_FOUND', error: 'Collecteur inconnu ; réenrôlez cette extension.' }, 401);
+    if (collector.status !== 'active') return json({ ok: false, code: 'COLLECTOR_REVOKED', error: 'Collecteur révoqué par l’opérateur.' }, 403);
+    if ((await sha256(collectorToken)) !== collector.token_hash) return json({ ok: false, code: 'COLLECTOR_TOKEN_INVALID', error: 'Identifiant de collecteur ou token invalide.' }, 401);
+    collectorId = collector.id;
+    authMode = 'collector';
+    const seenPatch: Record<string, string> = { last_seen_at: requestNow };
+    if (body?.action === 'preflight') seenPatch.last_preflight_at = requestNow;
+    await admin.from('collector_devices').update(seenPatch).eq('id', collectorId).eq('status', 'active');
+  } else {
+    const expectedToken = Deno.env.get('MHM_SYNC_TOKEN') || Deno.env.get('MHMBAC_SYNC_API_KEY');
+    const receivedToken = typeof body?.syncToken === 'string' ? body.syncToken : null;
+    if (!expectedToken || !receivedToken || receivedToken !== expectedToken) {
+      return json({ ok: false, code: 'LEGACY_TOKEN_INVALID', error: 'Jeton legacy absent ou invalide. Enrôlez cette extension avec un code à usage unique.' }, 401);
+    }
+  }
+
   if (body?.action === 'preflight') {
     const { error } = await admin.from('live_programmes').select('programme_id').limit(1);
     if (error) return json({ ok: false, error: 'Vérification serveur impossible' }, 500);
-    return json({ ok: true, mode: 'preflight', message: 'Jeton validé et serveur prêt pour la collecte.', serverCheckedAt: new Date().toISOString() });
+    return json({ ok: true, mode: 'preflight', authMode, collectorId, message: authMode === 'collector' ? 'Collecteur autorisé et serveur prêt pour la collecte.' : 'Mode legacy autorisé ; enrôlez cette extension pour une sécurité renforcée.', serverCheckedAt: requestNow });
   }
 
   const batchId = cleanText(body?.batchId, 120);
@@ -132,11 +197,14 @@ Deno.serve(async (request) => {
   }));
   const { data: existingReceipt, error: receiptReadError } = await admin
     .from('sync_batch_receipts')
-    .select('payload_hash, result')
+    .select('payload_hash, result, collector_id')
     .eq('batch_id', batchId)
     .maybeSingle();
   if (receiptReadError) return json({ ok: false, error: 'Lecture du reçu de lot impossible' }, 500);
   if (existingReceipt) {
+    if (existingReceipt.collector_id !== collectorId) {
+      return json({ ok: false, code: 'BATCH_OWNER_MISMATCH', error: 'batchId déjà utilisé par un autre collecteur' }, 409);
+    }
     if (existingReceipt.payload_hash !== payloadHash) {
       return json({ ok: false, error: 'batchId déjà utilisé pour un contenu différent' }, 409);
     }
@@ -195,7 +263,7 @@ Deno.serve(async (request) => {
     if (alertError) return json({ ok: false, error: alertError.message }, 500);
   }
 
-  const result = { ok: true, batchId, collectionId, part, totalParts, received: items.length, updated: rows.length, alerts: alerts.length, observedAt, serverReceivedAt: new Date().toISOString() };
+  const result = { ok: true, batchId, collectionId, collectorId, authMode, part, totalParts, received: items.length, updated: rows.length, alerts: alerts.length, observedAt, serverReceivedAt: new Date().toISOString() };
   const { error: receiptWriteError } = await admin.from('sync_batch_receipts').insert({
     batch_id: batchId,
     payload_hash: payloadHash,
@@ -205,11 +273,12 @@ Deno.serve(async (request) => {
     item_count: items.length,
     source,
     observed_at: observedAt,
+    collector_id: collectorId,
     result,
   });
   if (receiptWriteError) {
-    const { data: racedReceipt } = await admin.from('sync_batch_receipts').select('payload_hash, result').eq('batch_id', batchId).maybeSingle();
-    if (racedReceipt?.payload_hash === payloadHash) return json({ ...(racedReceipt.result || result), replayed: true, batchId }, 200);
+    const { data: racedReceipt } = await admin.from('sync_batch_receipts').select('payload_hash, result, collector_id').eq('batch_id', batchId).maybeSingle();
+    if (racedReceipt?.collector_id === collectorId && racedReceipt?.payload_hash === payloadHash) return json({ ...(racedReceipt.result || result), replayed: true, batchId }, 200);
     return json({ ok: false, error: 'Enregistrement du reçu de lot impossible' }, 500);
   }
 

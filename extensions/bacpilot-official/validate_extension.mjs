@@ -33,7 +33,7 @@ assert(/chrome\.alarms/.test(worker), 'La reprise planifiée des lots est requis
 assert(/chrome\.windows\.create/.test(worker), 'La console Windows indépendante est requise.');
 assert(/syncToken:\s*''/.test(worker), 'Le package doit démarrer sans jeton de synchronisation.');
 assert(!/gsk_|AIza|service_role|MHM_SYNC_CONFIG/.test(joined), 'Une clé ou une configuration héritée sensible est présente dans le package.');
-assert(/syncToken:\s*config\.syncToken/.test(worker) && /JSON\.stringify\(\{ \.\.\.entry\.payload, syncToken: config\.syncToken \}\)/.test(worker), 'Le jeton doit être ajouté au corps JSON de la synchronisation.');
+assert(/authPayload/.test(worker) && /JSON\.stringify\(\{ \.\.\.entry\.payload, \.\.\.authPayload \}\)/.test(worker), 'Le credential du collecteur doit être ajouté au corps JSON de la synchronisation.');
 assert(!/x-mhm-sync-token/.test(worker), 'Aucun jeton ne doit être transmis par en-tête HTTP.');
 assert(/function ensureStorage\(\)/.test(worker) && /await ensureStorage\(\);/.test(worker), 'Les actions doivent attendre l’initialisation du stockage local.');
 assert(/action: 'preflight'/.test(worker) && /requireVerifiedConfiguration\('before_scan'\)/.test(worker), 'Le prévol serveur doit être obligatoire avant une collecte.');

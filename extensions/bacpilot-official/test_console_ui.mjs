@@ -8,7 +8,7 @@ const ids = [
   'actionFeedback', 'collectionStatus', 'collectionMessage', 'collectionProgress', 'collectionMeta',
   'collectionDetails', 'startScan', 'resumeScan', 'cancelScan', 'syncNow', 'exportData', 'refresh',
   'queueBadge', 'queueList', 'syncStatus', 'syncMessage', 'configState', 'configMessage', 'autoRefreshEnabled', 'autoRefreshMinutes', 'saveAutoRefresh', 'autoRefreshState',
-  'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
+  'activationCode', 'enrollCollector', 'enrollmentMessage', 'syncEndpoint', 'syncToken', 'saveConfig', 'testConfig', 'diagnosticCount', 'diagnosticList', 'clearData'
 ];
 const nodes = Object.fromEntries(ids.map((id) => [id, {
   id, textContent: '', className: '', innerHTML: '', value: '', checked: false, disabled: false, listeners: {},
@@ -18,7 +18,7 @@ const statePayload = {
   ok: true,
   state: { status: 'idle', totalCandidates: 0, completedCandidates: 0, items: [], errors: [], updatedAt: new Date().toISOString() },
   queue: [],
-  config: { endpoint: 'https://example.test/sync', tokenState: 'ready', verificationStatus: 'verified', verificationMessage: 'Jeton validé et serveur prêt pour la collecte.', readyForScan: true, autoRefresh: { enabled: false, periodMinutes: 15 } },
+  config: { endpoint: 'https://example.test/sync', configured: true, authMode: 'collector', collectorId: 'collector-test', tokenState: 'enrolled', verificationStatus: 'verified', verificationMessage: 'Collecteur validé et serveur prêt pour la collecte.', readyForScan: true, autoRefresh: { enabled: false, periodMinutes: 15 } },
   diagnostics: []
 };
 const sent = [];
@@ -26,13 +26,14 @@ const chrome = {
   runtime: { async sendMessage(message) {
     sent.push(message.type);
     if (message.type === 'BP_GET_STATE') return statePayload;
+    if (message.type === 'BP_ENROLL_COLLECTOR') return { ok: true, collectorId: 'collector-test', validation: { ok: true, authMode: 'collector' } };
     if (message.type === 'BP_SET_CONFIG') {
       statePayload.config.tokenState = 'ready';
       statePayload.config.verificationStatus = 'invalid';
       statePayload.config.verificationMessage = 'Jeton refusé (401) dans cette simulation.';
       return { ok: true, validation: { ok: false, message: 'Jeton refusé (401) dans cette simulation.' } };
     }
-    if (message.type === 'BP_TEST_CONFIG') return { ok: true, validation: { ok: true } };
+    if (message.type === 'BP_TEST_CONFIG') return { ok: true, validation: { ok: true, authMode: 'collector' } };
     if (message.type === 'BP_SET_AUTO_REFRESH') return { ok: true, autoRefresh: { enabled: Boolean(message.enabled), periodMinutes: Number(message.periodMinutes) } };
     if (message.type === 'BP_SYNC_NOW') return { ok: true, sent: 0, pending: 0 };
     return { ok: true };
@@ -50,11 +51,11 @@ const context = vm.createContext({
 });
 vm.runInContext(code, context, { filename: 'console.js' });
 await new Promise((resolve) => setTimeout(resolve, 25));
-for (const id of ['refresh', 'saveConfig', 'testConfig', 'saveAutoRefresh', 'syncNow', 'startScan', 'resumeScan', 'exportData', 'clearData']) {
+for (const id of ['refresh', 'enrollCollector', 'saveConfig', 'testConfig', 'saveAutoRefresh', 'syncNow', 'startScan', 'resumeScan', 'exportData', 'clearData']) {
   if (typeof nodes[id].listeners.click !== 'function') throw new Error(`Bouton non relié : ${id}`);
 }
 if (nodes.startScan.disabled) throw new Error('Le scan devrait être disponible après une prévalidation réussie.');
-if (nodes.configState.textContent !== 'Test validé') throw new Error('Le statut de prévalidation n’est pas rendu.');
+if (!nodes.configState.textContent.includes('validé')) throw new Error('Le statut de prévalidation n’est pas rendu.');
 nodes.syncToken.value = 'stable-sync-token-2026';
 await nodes.saveConfig.listeners.click();
 await new Promise((resolve) => setTimeout(resolve, 25));

@@ -9,7 +9,9 @@ const STORAGE_KEYS = Object.freeze({
 const DEFAULT_CONFIG = Object.freeze({
   endpoint: 'https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/mhmbac-sync',
   syncToken: '',
-  verification: { status: 'unverified', checkedAt: null, message: 'Saisissez puis testez le jeton avant la collecte.' },
+  collectorId: '',
+  collectorToken: '',
+  verification: { status: 'unverified', checkedAt: null, message: 'Enrôlez cet appareil avec un code à usage unique.' },
   autoRefresh: { enabled: false, periodMinutes: 15 }
 });
 
@@ -87,21 +89,25 @@ async function getState() {
   await ensureStorage();
   const data = await chrome.storage.local.get([STORAGE_KEYS.state, STORAGE_KEYS.queue, STORAGE_KEYS.config, STORAGE_KEYS.diagnostics, STORAGE_KEYS.sourceTabId]);
   const config = { ...DEFAULT_CONFIG, ...(data[STORAGE_KEYS.config] || {}) };
+  const collectorToken = config.collectorToken || '';
   const syncToken = config.syncToken || '';
-  const tokenState = !syncToken ? 'missing' : (isValidSyncToken(syncToken) ? 'ready' : 'invalid');
+  const authMode = collectorToken && config.collectorId ? 'collector' : (syncToken ? 'legacy' : 'none');
+  const tokenState = authMode === 'collector' ? 'enrolled' : (authMode === 'legacy' ? 'legacy' : 'missing');
   const verification = config.verification || DEFAULT_CONFIG.verification;
-  const verificationStatus = tokenState === 'ready' ? (verification.status || 'unverified') : tokenState;
+  const verificationStatus = (authMode === 'collector' || authMode === 'legacy') ? (verification.status || 'unverified') : tokenState;
   return {
     state: data[STORAGE_KEYS.state],
     queue: data[STORAGE_KEYS.queue] || [],
     config: {
       endpoint: config.endpoint || DEFAULT_CONFIG.endpoint,
-      configured: tokenState === 'ready',
+      configured: authMode !== 'none',
+      authMode,
+      collectorId: config.collectorId || null,
       tokenState,
       verificationStatus,
       verificationMessage: verification.message || '',
       verificationCheckedAt: verification.checkedAt || null,
-      readyForScan: tokenState === 'ready' && verificationStatus === 'verified',
+      readyForScan: authMode !== 'none' && verificationStatus === 'verified',
       autoRefresh: normalizeAutoRefresh(config.autoRefresh)
     },
     diagnostics: data[STORAGE_KEYS.diagnostics] || [],
@@ -218,22 +224,25 @@ async function enqueueCheckpoint(state) {
 }
 
 async function testSyncConfiguration(config) {
-  if (!config.syncToken) return { ok: false, permanent: true, stage: 'configuration', message: 'Saisissez le jeton de collecte avant de lancer le test.' };
-  if (!isValidSyncToken(config.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
+  const authPayload = config.collectorId && config.collectorToken
+    ? { collectorId: config.collectorId, collectorToken: config.collectorToken }
+    : config.syncToken ? { syncToken: config.syncToken } : null;
+  if (!authPayload) return { ok: false, permanent: true, stage: 'configuration', message: 'Enrôlez cet appareil avec un code d’activation avant de lancer le test.' };
+  if (authPayload.syncToken && !isValidSyncToken(authPayload.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(config.endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'preflight', source: 'bacpilot_chrome_official', syncToken: config.syncToken }),
+      body: JSON.stringify({ action: 'preflight', source: 'bacpilot_chrome_official', ...authPayload }),
       signal: controller.signal
     });
     const raw = await response.text();
     let body = {};
     try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
-    if (response.ok && body.ok && body.mode === 'preflight') return { ok: true, stage: 'preflight', message: 'Jeton validé et serveur prêt pour la collecte.', httpStatus: response.status };
-    if (response.status === 401) return { ok: false, permanent: true, stage: 'authentication', message: 'Jeton de collecte refusé. Vérifiez qu’il correspond au secret serveur.', httpStatus: response.status };
+    if (response.ok && body.ok && body.mode === 'preflight') return { ok: true, stage: 'preflight', authMode: body.authMode || null, collectorId: body.collectorId || null, message: body.message || 'Collecteur autorisé et serveur prêt pour la collecte.', httpStatus: response.status };
+    if (response.status === 401 || response.status === 403) return { ok: false, permanent: true, stage: 'authentication', code: body.code || null, message: body.error || 'Collecteur refusé. Réenrôlez cet appareil ou demandez sa réactivation.', httpStatus: response.status };
     return { ok: false, permanent: false, stage: 'server_response', message: body.error || `Test serveur incomplet (HTTP ${response.status}).`, httpStatus: response.status };
   } catch (error) {
     return { ok: false, permanent: false, stage: 'network', message: error?.name === 'AbortError' ? 'Délai dépassé lors du test serveur.' : String(error?.message || 'Échec réseau pendant le test serveur.') };
@@ -261,8 +270,11 @@ async function requireVerifiedConfiguration(trigger) {
 }
 
 async function sendBatch(entry, config) {
-  if (!config.syncToken) return { ok: false, permanent: true, stage: 'configuration', message: 'Synchronisation en attente : configurez le jeton de collecte dans la console officielle.' };
-  if (!isValidSyncToken(config.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
+  const authPayload = config.collectorId && config.collectorToken
+    ? { collectorId: config.collectorId, collectorToken: config.collectorToken }
+    : config.syncToken ? { syncToken: config.syncToken } : null;
+  if (!authPayload) return { ok: false, permanent: true, stage: 'configuration', message: 'Synchronisation en attente : enrôlez cet appareil depuis la console officielle.' };
+  if (authPayload.syncToken && !isValidSyncToken(authPayload.syncToken)) return { ok: false, permanent: true, stage: 'configuration', message: INVALID_SYNC_TOKEN_MESSAGE };
   let lastMessage = 'Échec réseau';
   let lastStatus = null;
   let responsePreview = '';
@@ -273,7 +285,7 @@ async function sendBatch(entry, config) {
       const response = await fetch(config.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...entry.payload, syncToken: config.syncToken }),
+        body: JSON.stringify({ ...entry.payload, ...authPayload }),
         signal: controller.signal
       });
       lastStatus = response.status;
@@ -282,7 +294,7 @@ async function sendBatch(entry, config) {
       let body = {};
       try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
       if (response.ok && body.ok && Number(body.received) === entry.payload.items.length) return { ok: true, httpStatus: response.status, responsePreview, attempts: attempt };
-      if (response.status === 401) return { ok: false, permanent: true, stage: 'authentication', httpStatus: response.status, responsePreview, message: 'Jeton de collecte refusé. Vérifiez la configuration dans la console.' };
+      if (response.status === 401 || response.status === 403) return { ok: false, permanent: true, stage: 'authentication', code: body.code || null, httpStatus: response.status, responsePreview, message: body.error || 'Collecteur refusé. Réenrôlez cet appareil ou demandez sa réactivation.' };
       lastMessage = body.error || `Accusé serveur incomplet (HTTP ${response.status}).`;
     } catch (error) {
       lastMessage = error?.name === 'AbortError' ? 'Délai réseau dépassé.' : String(error?.message || 'Échec réseau');
@@ -377,6 +389,39 @@ async function runAutomaticRefresh() {
   }
 }
 
+async function enrollCollector(endpoint, activationCode, label = 'Extension BacPilot') {
+  const code = String(activationCode || '').trim();
+  if (!code) return { ok: false, validation: { ok: false, stage: 'enrollment', code: 'ACTIVATION_REQUIRED', message: 'Saisissez le code d’activation fourni par Telegram.' } };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'enroll', activationCode: code, label }),
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let body = {};
+    try { body = raw ? JSON.parse(raw) : {}; } catch (_) {}
+    if (!response.ok || !body.ok || !body.collectorId || !body.collectorToken) {
+      const validation = { ok: false, stage: 'enrollment', code: body.code || null, message: body.error || `Enrôlement refusé (HTTP ${response.status}).`, httpStatus: response.status };
+      await addDiagnostic('warning', 'enrollment', validation.message, { code: validation.code, httpStatus: response.status });
+      return { ok: false, validation };
+    }
+    const { [STORAGE_KEYS.config]: current = DEFAULT_CONFIG } = await chrome.storage.local.get(STORAGE_KEYS.config);
+    const next = { ...DEFAULT_CONFIG, ...current, endpoint, syncToken: '', collectorId: body.collectorId, collectorToken: body.collectorToken, verification: { status: 'unverified', checkedAt: null, message: 'Appareil enrôlé ; test du collecteur en cours.' } };
+    await chrome.storage.local.set({ [STORAGE_KEYS.config]: next });
+    await ensureAlarms(next);
+    const validation = await verifySyncConfiguration('collector_enrolled');
+    return { ok: validation.ok, collectorId: body.collectorId, validation };
+  } catch (error) {
+    const validation = { ok: false, stage: 'network', message: error?.name === 'AbortError' ? 'Délai dépassé pendant l’enrôlement.' : String(error?.message || 'Échec réseau pendant l’enrôlement.') };
+    await addDiagnostic('error', 'enrollment', validation.message);
+    return { ok: false, validation };
+  } finally { clearTimeout(timeout); }
+}
+
 chrome.runtime.onInstalled.addListener(() => { void ensureStorage(); });
 chrome.runtime.onStartup.addListener(() => { void ensureStorage(); });
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -408,6 +453,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       case 'BP_SYNC_NOW':
         return { ok: true, ...(await flushQueue('manual')) };
+      case 'BP_ENROLL_COLLECTOR': {
+        const current = { ...DEFAULT_CONFIG, ...((await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || {}) };
+        return { ok: true, ...(await enrollCollector(String(message.endpoint || current.endpoint || DEFAULT_CONFIG.endpoint).trim(), message.activationCode, String(message.label || 'Extension BacPilot').trim())) };
+      }
       case 'BP_SET_CONFIG': {
         const current = { ...DEFAULT_CONFIG, ...((await chrome.storage.local.get(STORAGE_KEYS.config))[STORAGE_KEYS.config] || {}) };
         const suppliedToken = message.syncToken === null || message.syncToken === undefined ? current.syncToken : String(message.syncToken).trim();
