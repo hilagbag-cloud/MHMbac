@@ -117,6 +117,8 @@ networkPaused = false;
 storage.bacpilotOfficialSyncQueue[0].nextAttemptAt = 0;
 const syncResult = await send(restartedWorker.onMessage, { type: 'BP_SYNC_NOW' });
 if (!syncResult.ok || syncResult.sent !== 2 || storage.bacpilotOfficialSyncQueue.length !== 0 || !storage.bacpilotOfficialState.lastServerConfirmedAt) throw new Error('Le lot doit être transmis avec le jeton dans le JSON, confirmé puis retiré après accusé de réception.');
+const repeatedCheckpoint = await send(restartedWorker.onMessage, { type: 'BP_COLLECTION_CHECKPOINT', state: { ...collection, status: 'running', completedCandidates: 2 } });
+if (!repeatedCheckpoint.ok || storage.bacpilotOfficialSyncQueue.length !== 0) throw new Error('Un checkpoint déjà accusé ne doit pas recréer de lot de synchronisation.');
 storage.bacpilotOfficialConfig = { endpoint: 'https://example.test/sync', syncToken: 'stable-sync-token-2026', verification: { status: 'unverified', checkedAt: null, message: '' } };
 const authorizedScan = await send(restartedWorker.onMessage, { type: 'BP_START_SCAN' });
 if (!authorizedScan.ok || storage.bacpilotOfficialConfig.verification?.status !== 'verified') throw new Error('Une collecte doit lancer et mémoriser un prévol serveur réussi avant de démarrer.');

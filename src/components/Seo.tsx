@@ -83,6 +83,13 @@ const configs: Record<string, SeoConfig> = {
       'Découvrez BacPilot, initiative de MHM SOLUTIONS créée par Hilarus GBAGOULE pour rendre l’orientation post-baccalauréat plus lisible au Bénin.',
     path: '/about',
   },
+  '/a-propos': {
+    title: 'À propos de BacPilot et MHM SOLUTIONS | BacPilot',
+    description:
+      'Découvrez BacPilot, initiative de MHM SOLUTIONS créée par Hilarus GBAGOULE pour rendre l’orientation post-baccalauréat plus lisible au Bénin.',
+    path: '/a-propos',
+    canonicalUrl: 'https://bacpilot.site/about',
+  },
   '/privacy': {
     title: 'Politique de confidentialité | BacPilot',
     description:

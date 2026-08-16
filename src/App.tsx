@@ -108,6 +108,7 @@ function AppContent() {
       case '/partenaires':
         return <PartnerPage />;
       case '/about':
+      case '/a-propos':
         return <AboutPage navigate={navigate} />;
       case '/privacy':
         return <PrivacyPage navigate={navigate} />;

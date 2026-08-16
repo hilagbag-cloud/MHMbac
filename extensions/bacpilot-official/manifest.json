@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "BacPilot — Collecte officielle",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Collecte des observations accessibles avec le consentement de l’utilisateur sur le portail officiel, avec reprise locale et synchronisation sécurisée vers BacPilot.",
   "minimum_chrome_version": "120",
   "permissions": [

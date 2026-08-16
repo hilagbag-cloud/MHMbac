@@ -64,6 +64,7 @@ async function initStorage() {
       completedCandidates: 0,
       items: [],
       errors: [],
+      confirmedObservationKeys: [],
       message: 'Prête. Ouvrez le portail officiel puis lancez une collecte volontaire.'
     },
     [STORAGE_KEYS.queue]: current[STORAGE_KEYS.queue] || [],
@@ -177,7 +178,7 @@ function toBatches(state) {
   const collectionId = state.collectionId || newId('collection');
   const totalParts = Math.ceil(items.length / CHUNK_SIZE);
   return Array.from({ length: totalParts }, (_, index) => ({
-    queueId: `${collectionId}-${index + 1}`,
+    queueId: newId('queue'),
     collectionId,
     attempts: 0,
     createdAt: nowIso(),
@@ -202,7 +203,8 @@ async function enqueueItems(state, items, reason = 'collection') {
   const { [STORAGE_KEYS.queue]: current = [] } = await chrome.storage.local.get(STORAGE_KEYS.queue);
   const itemKey = (item) => `${String(item?.programmeId || '')}|${String(item?.observedAt || '')}`;
   const queuedObservationKeys = new Set(current.flatMap((entry) => (entry.payload?.items || []).map(itemKey)));
-  const missingItems = safeItems.filter((item) => !queuedObservationKeys.has(itemKey(item)));
+  const confirmedObservationKeys = new Set(Array.isArray(state.confirmedObservationKeys) ? state.confirmedObservationKeys : []);
+  const missingItems = safeItems.filter((item) => !queuedObservationKeys.has(itemKey(item)) && !confirmedObservationKeys.has(itemKey(item)));
   if (!missingItems.length) return [];
   const batches = toBatches({ ...state, collectionId: state.collectionId || newId('collection'), items: missingItems });
   const next = [...current, ...batches];
@@ -321,7 +323,11 @@ async function flushQueue(trigger = 'manual') {
         sent += entry.payload.items.length;
         queue = queue.filter((candidate) => candidate.queueId !== entry.queueId);
         await chrome.storage.local.set({ [STORAGE_KEYS.queue]: queue });
-        await updateState({ lastServerConfirmedAt: nowIso(), lastConfirmedCollectionId: entry.collectionId || null, lastConfirmedBatchId: entry.payload?.batchId || null });
+        const { [STORAGE_KEYS.state]: activeState = {} } = await chrome.storage.local.get(STORAGE_KEYS.state);
+        const itemKey = (item) => `${String(item?.programmeId || '')}|${String(item?.observedAt || '')}`;
+        const existingConfirmed = Array.isArray(activeState.confirmedObservationKeys) ? activeState.confirmedObservationKeys : [];
+        const confirmedObservationKeys = [...new Set([...existingConfirmed, ...(entry.payload?.items || []).map(itemKey)])].slice(-5000);
+        await updateState({ lastServerConfirmedAt: nowIso(), lastConfirmedCollectionId: entry.collectionId || null, lastConfirmedBatchId: entry.payload?.batchId || null, confirmedObservationKeys, confirmedObservationCount: confirmedObservationKeys.length });
         await addDiagnostic('success', 'sync', `${entry.payload.items.length} observation(s) confirmée(s) par BacPilot.`, { queueId: entry.queueId, httpStatus: result.httpStatus, replayed: Boolean(result.replayed) });
         continue;
       }
@@ -489,19 +495,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return { ok: true, autoRefresh };
       }
       case 'BP_CLEAR_LOCAL_DATA':
-        await chrome.storage.local.set({ [STORAGE_KEYS.state]: { status: 'idle', collectionId: null, observedAt: null, startedAt: null, updatedAt: nowIso(), totalCandidates: 0, completedCandidates: 0, items: [], errors: [], message: 'Données locales effacées par l’utilisateur.' }, [STORAGE_KEYS.queue]: [] });
+        await chrome.storage.local.set({ [STORAGE_KEYS.state]: { status: 'idle', collectionId: null, observedAt: null, startedAt: null, updatedAt: nowIso(), totalCandidates: 0, completedCandidates: 0, items: [], errors: [], confirmedObservationKeys: [], message: 'Données locales effacées par l’utilisateur.' }, [STORAGE_KEYS.queue]: [] });
         await addDiagnostic('info', 'local_data', 'Données de collecte et lots en attente effacés par l’utilisateur.');
         return { ok: true };
-      case 'BP_COLLECTION_STARTED':
-        await updateState({ ...message.state, status: 'running' });
+      case 'BP_COLLECTION_STARTED': {
+        const { [STORAGE_KEYS.state]: previous = {} } = await chrome.storage.local.get(STORAGE_KEYS.state);
+        const sameCollection = previous.collectionId && previous.collectionId === message.state?.collectionId;
+        await updateState({ ...message.state, status: 'running', confirmedObservationKeys: sameCollection && Array.isArray(previous.confirmedObservationKeys) ? previous.confirmedObservationKeys : [] });
         return { ok: true };
+      }
       case 'BP_COLLECTION_CHECKPOINT': {
-        const state = await updateState({ ...message.state, status: message.state?.status || 'running', lastCheckpointAt: nowIso() });
+        const { [STORAGE_KEYS.state]: previous = {} } = await chrome.storage.local.get(STORAGE_KEYS.state);
+        const state = await updateState({ ...message.state, status: message.state?.status || 'running', confirmedObservationKeys: Array.isArray(previous.confirmedObservationKeys) ? previous.confirmedObservationKeys : [], lastCheckpointAt: nowIso() });
         await enqueueCheckpoint(state);
         return { ok: true };
       }
       case 'BP_COLLECTION_COMPLETED': {
-        const state = await updateState({ ...message.state, status: 'completed' });
+        const { [STORAGE_KEYS.state]: previous = {} } = await chrome.storage.local.get(STORAGE_KEYS.state);
+        const state = await updateState({ ...message.state, status: 'completed', confirmedObservationKeys: Array.isArray(previous.confirmedObservationKeys) ? previous.confirmedObservationKeys : [] });
         await enqueueCollection(state);
         return { ok: true, ...(await flushQueue('collection_completed')) };
       }
