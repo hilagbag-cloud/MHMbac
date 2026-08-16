@@ -10,7 +10,7 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | état à versionner — correctif Telegram v8 privilèges, timeout et anti-boucle |
+| Dernier commit confirmé | `39d5f65` ; correctif callbacks et suivi e-mail déployé, à versionner |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
 | Date de cette mémoire | 16 août 2026 |
@@ -223,6 +223,17 @@ Au début de toute nouvelle session ou intervention :
 ---
 
 **Responsable de la mise à jour :** toute personne ou tout agent qui modifie BacPilot. Une livraison sans mise à jour de cette mémoire est incomplète.
+
+## 17. Mise à jour du 16 août 2026 — callbacks Telegram et suivi d’e-mail
+
+Les traces de production ont confirmé qu’un callback Telegram atteignait bien la fonction, était traité et déclenchait les opérations prévues. Le retour d’interface restait toutefois imperceptible parce que l’acquittement Telegram ne contenait aucun texte : chaque clic inline reçoit maintenant immédiatement une notification « Action reçue », puis le message de résultat du bot. Le décodage de `callback_data` isole désormais explicitement l’action avant le premier séparateur, ce qui conserve toute la valeur de l’argument.
+
+La migration `20260817_bacpilot_email_delivery_tracking.sql` est appliquée. Elle ajoute `provider_last_event` et `provider_checked_at` aux journaux welcome, bêta et opérateur, et accorde au seul rôle serveur les droits manquants sur `operator_email_deliveries`. La fonction `bacpilot-telegram` est active en version 34. La commande privée `/mailstatus <e-mail|ID>` lit les trois journaux du destinataire et consulte l’API Resend par référence fournisseur afin de présenter le dernier événement disponible, par exemple accepté, livré, retardé, rebondi ou ouvert. La fiche utilisateur inclut aussi le bouton inline « État e-mails ».
+
+Le mot « envoyé » n’est plus présenté comme une preuve de réception : BacPilot distingue explicitement l’acceptation de l’API Resend de la remise confirmée au serveur destinataire. Les envois welcome préparés depuis le bot sont à présent inscrits dans le journal welcome et dans le journal opérateur. La fonction de notification automatique d’une nouvelle inscription conserve son journal welcome indépendant. La recette humaine restante consiste à cliquer sur un bouton du menu, ouvrir une fiche, appuyer sur « État e-mails », puis renvoyer un welcome à un compte réel autorisé et vérifier le dernier événement Resend.
+
+> Aucun identifiant de destinataire, aucune clé API et aucun jeton ne sont inscrits dans cette mémoire.
+
 
 ## 14. Mise à jour du 16 août 2026 — demande bêta contextualisée et diagnostic opérateur
 La table `public.profiles` contient désormais, grâce à la migration `20260816_bacpilot_signup_context.sql`, les champs rétrocompatibles suivants : `signup_intent` (`standard` ou `beta_interest`), `signup_entrypoint`, `signup_route`, `signup_device_class`, `signup_browser` et `signup_context_consent_at`. Les anciennes inscriptions conservent les valeurs sûres par défaut `standard` et `direct`. Ces champs ne confèrent jamais le statut bêta ; seul `beta_testers` est modifié par la console opérateur après confirmation.

@@ -33,6 +33,7 @@ type OperatorCommand =
   | '/menu'
   | '/email'
   | '/welcome'
+  | '/mailstatus'
   | '/templates'
   | '/collector_issue'
   | '/collector_list'
@@ -57,7 +58,7 @@ type ResolvedUser = {
 type InputSession = {
   telegram_chat_id: string;
   expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_subject' | 'email_body';
-  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
+  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/mailstatus' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
   pending_action_id?: string | null;
   menu_state?: string | null;
   menu_context?: Record<string, unknown> | null;
@@ -72,7 +73,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const commandNames = new Set<OperatorCommand>([
   '/start', '/help', '/status', '/stats', '/health', '/test', '/user', '/user_delete',
   '/beta_add', '/beta_pause', '/beta_revoke', '/beta_list', '/feedback',
-  '/pending', '/confirm', '/cancel', '/menu', '/email', '/welcome', '/templates', '/collector_issue', '/collector_list', '/collector_revoke',
+  '/pending', '/confirm', '/cancel', '/menu', '/email', '/welcome', '/mailstatus', '/templates', '/collector_issue', '/collector_list', '/collector_revoke',
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
@@ -242,9 +243,12 @@ async function sendMessage(token: string, chatId: string, message: string, reply
   });
 }
 
-async function answerCallbackQuery(token: string, callbackQueryId: string) {
+async function answerCallbackQuery(token: string, callbackQueryId: string, feedback = '') {
   if (!callbackQueryId) return;
-  await telegramApi(token, 'answerCallbackQuery', { callback_query_id: callbackQueryId }).catch(() => undefined);
+  await telegramApi(token, 'answerCallbackQuery', {
+    callback_query_id: callbackQueryId,
+    ...(feedback ? { text: feedback.slice(0, 180), show_alert: false } : {}),
+  }).catch(() => undefined);
 }
 
 function mainInlineKeyboard(): InlineKeyboard {
@@ -265,14 +269,17 @@ function confirmationInlineKeyboard(isDeletion = false): InlineKeyboard {
 
 function userDetailInlineKeyboard(userId: string): InlineKeyboard {
   return { inline_keyboard: [
-    [{ text: '✉️ Envoyer welcome', callback_data: `welcome:${userId}` }],
+    [{ text: '✉️ Envoyer welcome', callback_data: `welcome:${userId}` }, { text: '🔎 État e-mails', callback_data: `mailstatus:${userId}` }],
     [{ text: '✅ Ajouter bêta', callback_data: `beta_add:${userId}` }, { text: '🗑️ Supprimer', callback_data: `delete:${userId}` }],
     [{ text: '⬅️ Menu principal', callback_data: 'menu:main' }],
   ] };
 }
 
 function callbackToCommand(data: string): { command: OperatorCommand | null; argument: string } {
-  const [action = '', value = ''] = data.split(':');
+  const colonIndex = data.indexOf(':');
+  if (colonIndex <= 0 || colonIndex === data.length - 1) return { command: null, argument: '' };
+  const action = data.slice(0, colonIndex);
+  const value = data.slice(colonIndex + 1);
   if (action === 'menu') {
     const map: Record<string, OperatorCommand> = {
       main: '/menu', stats: '/stats', users: '/user_list', beta: '/beta_list', feedback: '/feedback',
@@ -281,6 +288,7 @@ function callbackToCommand(data: string): { command: OperatorCommand | null; arg
     return { command: map[value] || null, argument: '' };
   }
   if (action === 'welcome') return { command: '/welcome', argument: value };
+  if (action === 'mailstatus') return { command: '/mailstatus', argument: value };
   if (action === 'user') return { command: '/user', argument: value };
   if (action === 'beta_add') return { command: '/beta_add', argument: value };
   if (action === 'delete') return { command: '/user_delete', argument: value };
@@ -492,6 +500,119 @@ async function getStatsMessage(admin: any) {
     `Recommandations générées : ${recommendationCount}`,
     `Observations historiques : ${observationCount}`,
   ].join('\n');
+}
+
+function providerEventLabel(value: unknown) {
+  const event = text(value, 80).toLowerCase();
+  const labels: Record<string, string> = {
+    sent: 'accepté par Resend — remise en cours',
+    delivered: 'livré au serveur du destinataire',
+    delivery_delayed: 'remise temporairement retardée',
+    bounced: 'refusé définitivement par le serveur destinataire',
+    failed: 'échec fournisseur',
+    suppressed: 'bloqué par la liste de suppression Resend',
+    complained: 'livré puis marqué comme indésirable',
+    opened: 'ouvert par le destinataire',
+    clicked: 'lien cliqué par le destinataire',
+  };
+  return labels[event] || (event ? event : 'aucun événement fournisseur confirmé');
+}
+
+function localEmailStatusLabel(value: unknown) {
+  const status = text(value, 80).toLowerCase();
+  const labels: Record<string, string> = {
+    pending: 'préparé / en attente',
+    sent: 'accepté par Resend',
+    failed: 'échec avant ou chez Resend',
+    skipped: 'ignoré',
+    not_configured: 'service e-mail non configuré',
+  };
+  return labels[status] || (status ? status : 'sans trace');
+}
+
+type ProviderEmailStatus = {
+  lastEvent: string | null;
+  error: string | null;
+};
+
+async function getResendEmailStatus(providerMessageId: string): Promise<ProviderEmailStatus> {
+  if (!providerMessageId) return { lastEvent: null, error: null };
+  const apiKey = Deno.env.get('RESEND_API_KEY');
+  if (!apiKey) return { lastEvent: null, error: 'Vérification fournisseur indisponible : RESEND_API_KEY absente.' };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(`https://api.resend.com/emails/${encodeURIComponent(providerMessageId)}`, {
+      headers: { Authorization: `Bearer ${apiKey}`, 'User-Agent': 'BacPilot/1.0 (https://bacpilot.site)' },
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message = text(payload?.message || payload?.name || 'réponse fournisseur inconnue', 180);
+      return { lastEvent: null, error: `Resend HTTP ${response.status}${message ? ` : ${message}` : ''}` };
+    }
+    return { lastEvent: text(payload?.last_event, 80).toLowerCase() || null, error: null };
+  } catch (error) {
+    return { lastEvent: null, error: error instanceof Error ? text(error.message, 180) : 'Erreur réseau de vérification Resend.' };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function inspectEmailDelivery(admin: any, table: 'welcome_email_deliveries' | 'beta_email_deliveries' | 'operator_email_deliveries', kind: string, row: any) {
+  const providerMessageId = text(row?.provider_message_id, 180);
+  const provider = await getResendEmailStatus(providerMessageId);
+  const checkedAt = new Date().toISOString();
+  if (providerMessageId && !provider.error) {
+    const { error } = await admin.from(table).update({
+      provider_last_event: provider.lastEvent,
+      provider_checked_at: checkedAt,
+    }).eq('id', row.id);
+    if (error) console.error('Mise à jour statut Resend impossible:', error.message);
+  }
+  const event = provider.lastEvent || text(row?.provider_last_event, 80);
+  const lines = [
+    `${kind} — ${localEmailStatusLabel(row?.status)}`,
+    `Destinataire : ${text(row?.recipient_email, 180) || 'inconnu'}`,
+    `Tentatives : ${Number.isFinite(Number(row?.attempts)) ? Number(row.attempts) : '—'}`,
+    `Accepté le : ${formatDate(row?.sent_at)}`,
+    `État Resend : ${providerEventLabel(event)}`,
+  ];
+  if (provider.error) lines.push(`Vérification Resend : ${provider.error}`);
+  if (row?.error_message) lines.push(`Erreur d’envoi : ${text(row.error_message, 240)}`);
+  if (providerMessageId) lines.push(`Référence Resend : ${providerMessageId}`);
+  return lines.join('\n');
+}
+
+async function getMailStatusMessage(admin: any, user: ResolvedUser) {
+  const [welcomeResult, betaResult, operatorResult] = await Promise.all([
+    admin.from('welcome_email_deliveries').select('id, recipient_email, status, attempts, provider_message_id, provider_last_event, provider_checked_at, error_message, sent_at, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1),
+    admin.from('beta_email_deliveries').select('id, recipient_email, status, provider_message_id, provider_last_event, provider_checked_at, error_message, sent_at, created_at').eq('user_id', user.id).eq('event_type', 'beta_activated').order('created_at', { ascending: false }).limit(1),
+    admin.from('operator_email_deliveries').select('id, recipient_email, subject, status, provider_message_id, provider_last_event, provider_checked_at, error_message, sent_at, created_at').eq('target_user_id', user.id).order('created_at', { ascending: false }).limit(3),
+  ]);
+  assertRead(welcomeResult, 'welcome_email_deliveries');
+  assertRead(betaResult, 'beta_email_deliveries');
+  assertRead(operatorResult, 'operator_email_deliveries');
+
+  const sections: string[] = [
+    'BacPilot — état des e-mails',
+    '',
+    `Utilisateur : ${userLabel(user)}`,
+    `E-mail profil : ${text(user.email, 180) || 'absent'}`,
+  ];
+  const welcome = welcomeResult.data?.[0];
+  const beta = betaResult.data?.[0];
+  const operator = operatorResult.data || [];
+  if (welcome) sections.push('', await inspectEmailDelivery(admin, 'welcome_email_deliveries', 'Welcome', welcome));
+  else sections.push('', 'Welcome — aucune tentative enregistrée. Utilise /welcome pour préparer un envoi.');
+  if (beta) sections.push('', await inspectEmailDelivery(admin, 'beta_email_deliveries', 'Accès bêta', beta));
+  if (operator.length) {
+    for (const item of operator) {
+      sections.push('', `E-mail opérateur — ${text(item.subject, 160) || 'sans objet'}`, await inspectEmailDelivery(admin, 'operator_email_deliveries', '', item));
+    }
+  }
+  sections.push('', 'Règle de lecture : « accepté par Resend » signifie que l’API a accepté l’envoi ; « livré » confirme que le serveur du destinataire l’a reçu.');
+  return sections.join('\n');
 }
 
 async function getUserMessage(admin: any, user: ResolvedUser) {
@@ -713,6 +834,7 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
     const { data: profile } = await admin.from('profiles').select('email, display_name').eq('id', pending.target_user_id).maybeSingle();
     const subject = text(pending.payload?.subject, 160);
     const bodyText = messageText(pending.payload?.body_text, 6000);
+    const template = text(pending.payload?.template, 40) || 'custom';
     const recipientEmail = text(profile?.email, 180).toLowerCase();
     const result: BetaEmailResult = await withTimeout(sendCustomEmail(recipientEmail, text(profile?.display_name, 120), subject, bodyText), 10_000)
       .catch((error): BetaEmailResult => ({ status: 'failed', error_message: error instanceof Error ? text(error.message, 180) : 'Délai email dépassé.' }));
@@ -728,13 +850,33 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
       sent_at: result.status === 'sent' ? now : null,
     });
     if (deliveryLogError) console.error('Journal email opérateur impossible:', deliveryLogError.message);
-    await audit(admin, chatId, '/email', 'confirmed', pending.target_user_id, {
+    if (template === 'welcome') {
+      const { data: existingWelcome } = await admin.from('welcome_email_deliveries')
+        .select('id, attempts')
+        .eq('user_id', pending.target_user_id)
+        .maybeSingle();
+      const welcomeStatus = result.status === 'not_configured' ? 'failed' : result.status;
+      const { error: welcomeLogError } = await admin.from('welcome_email_deliveries').upsert({
+        id: existingWelcome?.id,
+        user_id: pending.target_user_id,
+        recipient_email: recipientEmail || 'unknown',
+        status: welcomeStatus,
+        attempts: Math.min(Number(existingWelcome?.attempts || 0) + 1, 9),
+        provider_message_id: result.provider_message_id || null,
+        error_message: result.error_message || null,
+        sent_at: result.status === 'sent' ? now : null,
+        updated_at: now,
+      }, { onConflict: 'user_id' });
+      if (welcomeLogError) console.error('Journal welcome impossible:', welcomeLogError.message);
+    }
+    await audit(admin, chatId, template === 'welcome' ? '/welcome' : '/email', 'confirmed', pending.target_user_id, {
       action: 'email_send',
+      template,
       email_status: result.status,
       email_provider_message_id: result.provider_message_id || null,
       subject,
     });
-    if (result.status === 'sent') return `Email envoyé à ${recipientEmail}. Référence : ${result.provider_message_id || 'confirmée par Resend'}.`;
+    if (result.status === 'sent') return `Email accepté par Resend pour ${recipientEmail}. Référence : ${result.provider_message_id || 'confirmée par Resend'}. Utilise /mailstatus pour vérifier la remise.`;
     if (result.status === 'not_configured') return 'Email non envoyé : RESEND_API_KEY n’est pas configurée.';
     if (result.status === 'skipped') return 'Email non envoyé : le profil ne contient pas d’adresse email.';
     return `Email non envoyé. La tentative a été journalisée : ${result.error_message || 'erreur fournisseur'}.`;
@@ -1098,6 +1240,7 @@ function emailTemplatesMessage() {
     '5. custom — rédaction libre avec habillage BacPilot et bouton d’accès',
     '',
     'Utilisation immédiate : /welcome <e-mail ou ID>',
+    'État exact d’un destinataire : /mailstatus <e-mail ou ID>',
     'Pour un message libre : /email <e-mail ou ID>',
   ].join('\n');
 }
@@ -1121,6 +1264,7 @@ function helpMessage() {
     '/cancel — annuler une saisie en cours',
     '/test — vérifier le bot',
     '/welcome [e-mail|ID] — préparer le mail de bienvenue avec bouton BacPilot',
+    '/mailstatus [e-mail|ID] — état welcome, bêta et e-mails opérateur ; sans valeur, le bot demande',
     '/templates — afficher les templates e-mail disponibles',
     '/collector_issue [libellé] — générer un code d’activation à usage unique', 
     '/collector_list — afficher les appareils enrôlés et leur état',
@@ -1158,7 +1302,13 @@ Deno.serve(async (request) => {
   const sourceChatId = String(update.callback_query?.message?.chat?.id ?? update.message?.chat?.id ?? '');
   const parsed = callbackData ? callbackToCommand(callbackData) : parseCommand(update.message?.text);
   if (sourceChatId !== operatorChatId) return json({ ok: true, ignored: true });
-  if (callbackQueryId) await answerCallbackQuery(telegramToken, callbackQueryId);
+  if (callbackQueryId) {
+    await answerCallbackQuery(
+      telegramToken,
+      callbackQueryId,
+      parsed.command ? 'Action reçue. BacPilot traite votre demande…' : 'Action inconnue ou expirée. Envoie /menu.',
+    );
+  }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   let command: OperatorCommand | null = parsed.command;
@@ -1295,6 +1445,16 @@ Deno.serve(async (request) => {
           reply = await withTimeout(beginConfirmationSession(admin, sourceChatId));
         }
       }
+    } else if (command === '/mailstatus') {
+      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/mailstatus'));
+      else {
+        const user = await withTimeout(resolveUser(admin, argument));
+        if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie avec /mailstatus.';
+        else {
+          targetUserId = user.id;
+          reply = await withTimeout(getMailStatusMessage(admin, user), 24_000);
+        }
+      }
     } else if (command === '/templates') {
       reply = emailTemplatesMessage();
     } else if (command === '/email') {
@@ -1352,7 +1512,7 @@ Deno.serve(async (request) => {
     }
     const inlineMarkup = command === '/menu' || command === '/start'
       ? mainInlineKeyboard()
-      : command === '/user' && targetUserId
+      : (command === '/user' || command === '/mailstatus') && targetUserId
         ? userDetailInlineKeyboard(targetUserId)
         : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/user_delete' || command === '/collector_revoke'
           ? confirmationInlineKeyboard(command === '/user_delete')
