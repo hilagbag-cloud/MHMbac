@@ -14,6 +14,21 @@ export type SignupEntrypoint = 'direct' | 'beta_portal' | 'partner_portal' | 'ot
 export type SignupDeviceClass = 'mobile' | 'tablet' | 'desktop' | 'unknown';
 export type SignupBrowser = 'Chrome' | 'Safari' | 'Firefox' | 'Edge' | 'Other';
 
+export type AcademicSubjectScores = Record<string, number>;
+
+export interface UserAcademicSignals {
+  user_id: string;
+  strengths: string[];
+  subjects: AcademicSubjectScores;
+  notes?: string | null;
+  notes_enabled: boolean;
+  ranking_subjects: AcademicSubjectScores;
+  ranking_average?: number | null;
+  calculation_version?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface UserProfile {
   id: string;
   display_name: string;

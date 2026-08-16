@@ -1,13 +1,14 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Bot, ChevronRight, LoaderCircle, Send, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { askOrientationAssistant } from '../lib/orientationAssistant';
+import { calculateRankingAverage, getRankingSubjects, isValidScore } from '../lib/rankingCalculator';
 import { useAuth } from '../context/AuthContext';
 import { BacMention, BacSeries, PrimaryGoal } from '../types/orientation';
 
 interface OnboardingPageProps { navigate: (route: string) => void; }
 
 type Message = { id: string; role: 'agent' | 'user'; content: string };
-type ChatStep = 'name' | 'series' | 'mention' | 'goal' | 'career' | 'signals' | 'complete';
+type ChatStep = 'name' | 'series' | 'mention' | 'goal' | 'career' | 'notes_prompt' | 'notes_input' | 'signals' | 'complete';
 
 type QuickReply = { label: string; value: string };
 
@@ -17,6 +18,10 @@ const goalReplies: QuickReply[] = [
   { label: 'Priorité bourse', value: 'bourse' },
   { label: 'Priorité carrière', value: 'carriere' },
   { label: 'Trouver un équilibre', value: 'equilibre' },
+];
+const notesPromptReplies: QuickReply[] = [
+  { label: 'Oui, saisir mes notes', value: 'yes' },
+  { label: 'Pas maintenant', value: 'no' },
 ];
 const signalReplies: QuickReply[] = [
   { label: 'Mathématiques', value: 'Mathématiques' },
@@ -31,6 +36,8 @@ const questions: Record<Exclude<ChatStep, 'complete'>, string> = {
   mention: 'Quelle mention as-tu obtenue ?',
   goal: 'Pour préparer tes pistes, que souhaites-tu privilégier ?',
   career: 'Quel domaine ou métier veux-tu explorer ? Quelques mots suffisent, par exemple « informatique » ou « santé ».',
+  notes_prompt: 'Souhaites-tu saisir tes notes pour obtenir ta moyenne de classement selon la grille officielle ? Cette étape est facultative.',
+  notes_input: 'Saisis les trois notes principales au format « SVT=14, Mathématiques=13, Sciences Physiques=12 ». Je ne garderai que les notes de ton espace personnel.',
   signals: 'Dernière question, facultative : dans quelle matière te sens-tu le plus à l’aise ?',
 };
 
@@ -38,9 +45,23 @@ function getQuickReplies(step: ChatStep, goal: PrimaryGoal | null): QuickReply[]
   if (step === 'series') return [...seriesReplies, { label: 'Autre série', value: 'Autre' }];
   if (step === 'mention') return mentionReplies;
   if (step === 'goal') return goalReplies;
+  if (step === 'notes_prompt') return notesPromptReplies;
   if (step === 'signals') return signalReplies;
   if (step === 'career' && goal === 'bourse') return [{ label: 'Passer cette étape', value: '__skip__' }];
   return [];
+}
+
+function AgentAvatar({ large = false }: { large?: boolean }) {
+  return <div className={`relative shrink-0 ${large ? 'h-24 w-24' : 'h-9 w-9'}`} aria-label="Avatar BacPilot">
+    <div className="absolute inset-0 rounded-[30%] bg-gradient-to-br from-fuchsia-500/25 via-sky-400/15 to-amber-300/20 blur-[1px]" />
+    <div className="relative flex h-full w-full items-center justify-center rounded-[30%] border border-sky-300/20 bg-slate-950/80 p-2 shadow-lg shadow-sky-950/30">
+      <img src="/branding/bacpilot-mark-512.png" alt="" className="h-full w-full object-contain" />
+      {large && <div className="pointer-events-none absolute left-1/2 top-[30%] flex -translate-x-1/2 gap-3">
+        <span className="bacpilot-eye"><i /></span><span className="bacpilot-eye"><i /></span>
+      </div>}
+    </div>
+    <style>{`@keyframes bacpilot-eye-drift { 0%,100% { transform: translateX(-1px); } 50% { transform: translateX(2px); } } .bacpilot-eye { display:block; width:8px; height:8px; border-radius:999px; background:#f8fafc; box-shadow:0 0 0 2px rgba(15,23,42,.7); } .bacpilot-eye i { display:block; width:3px; height:3px; margin:2px; border-radius:999px; background:#0f172a; animation:bacpilot-eye-drift 2.4s ease-in-out infinite; } .bacpilot-eye:nth-child(2) i { animation-delay:.18s; }`}</style>
+  </div>;
 }
 
 function useTypewriter(text: string, enabled: boolean) {
@@ -76,21 +97,22 @@ function useTypewriter(text: string, enabled: boolean) {
 function AgentBubble({ message, animate }: { message: Message; animate: boolean }) {
   const content = useTypewriter(message.content, animate);
   return <div className="flex max-w-2xl items-start gap-3">
-    <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-300 text-slate-950"><Bot className="h-4 w-4" /></div>
+    <AgentAvatar />
     <div className="rounded-2xl rounded-tl-md bg-slate-800 px-4 py-3 text-sm leading-6 text-slate-100 shadow-sm sm:text-[15px]">{content}<span aria-hidden="true" className={animate && content !== message.content ? 'ml-0.5 inline-block h-4 border-r border-amber-200 align-[-2px]' : 'hidden'} /></div>
   </div>;
 }
 
 export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
-  const { user, profile, preferences, updateProfile, updatePreferences } = useAuth();
+  const { user, profile, preferences, academicSignals, updateProfile, updatePreferences, updateAcademicSignals } = useAuth();
   const initialStep = useMemo<ChatStep>(() => {
     if (!profile?.display_name) return 'name';
     if (!profile?.series) return 'series';
     if (!profile?.mention) return 'mention';
     if (!preferences?.primary_goal) return 'goal';
     if (preferences.primary_goal !== 'bourse' && !preferences.career_keywords?.length) return 'career';
+    if (!academicSignals?.notes_enabled) return 'notes_prompt';
     return 'signals';
-  }, [profile, preferences]);
+  }, [academicSignals, profile, preferences]);
 
   const [step, setStep] = useState<ChatStep>(initialStep);
   const [messages, setMessages] = useState<Message[]>([{ id: 'welcome', role: 'agent', content: questions[initialStep] }]);
@@ -101,7 +123,8 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
   const [isReady, setIsReady] = useState(false);
 
   const quickReplies = getQuickReplies(step, goal);
-  const placeholder = step === 'name' ? 'Écris ton prénom ou ton nom…' : step === 'career' ? 'Ex. informatique, santé, agronomie…' : step === 'signals' ? 'Ex. je suis à l’aise en mathématiques…' : 'Écris ta réponse…';
+  const subjectsForSeries = getRankingSubjects(profile?.series);
+  const placeholder = step === 'name' ? 'Écris ton prénom ou ton nom…' : step === 'career' ? 'Ex. informatique, santé, agronomie…' : step === 'notes_input' ? subjectsForSeries.map((subject) => `${subject.label}=note`).join(', ') || 'Ex. SVT=14, Mathématiques=13, Sciences Physiques=12' : step === 'signals' ? 'Ex. je suis à l’aise en mathématiques…' : 'Écris ta réponse…';
 
   const appendAgent = (content: string) => setMessages((current) => [...current, { id: `agent-${Date.now()}-${current.length}`, role: 'agent', content }]);
   const appendUser = (content: string) => setMessages((current) => [...current, { id: `user-${Date.now()}-${current.length}`, role: 'user', content }]);
@@ -171,6 +194,38 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
         const saved = await updatePreferences({ career_keywords: keywords });
         if (!saved) throw new Error('Je n’ai pas pu enregistrer ce domaine. Réessaie.');
         await askOrientationAssistant({ action: 'answer', message: answer, preference_patch: { career_keywords: keywords } });
+        setStep('notes_prompt');
+        appendAgent(questions.notes_prompt);
+      } else if (step === 'notes_prompt') {
+        if (!['yes', 'no'].includes(answer)) throw new Error('Choisis si tu veux saisir tes notes maintenant.');
+        if (answer === 'no') {
+          const saved = await updateAcademicSignals({ notes_enabled: false, ranking_subjects: {}, ranking_average: null });
+          if (!saved) throw new Error('Je n’ai pas pu enregistrer ton choix. Réessaie.');
+          setStep('signals');
+          appendAgent(questions.signals);
+        } else {
+          setStep('notes_input');
+          appendAgent(questions.notes_input);
+        }
+      } else if (step === 'notes_input') {
+        const parsed: Record<string, number> = {};
+        answer.split(',').forEach((part) => {
+          const [rawKey, rawValue] = part.split('=').map((value) => value.trim());
+          if (!rawKey || !rawValue) return;
+          const normalized = rawKey.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+          const subject = subjectsForSeries.find((item) => item.key.replace(/_/g, '') === normalized || item.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '') === normalized);
+          const score = Number(rawValue.replace(',', '.'));
+          if (subject && isValidScore(score)) parsed[subject.key] = score;
+        });
+        if (subjectsForSeries.length !== 3 || subjectsForSeries.some((subject) => parsed[subject.key] === undefined)) {
+          throw new Error(`Renseigne les trois notes principales : ${subjectsForSeries.map((subject) => subject.label).join(', ')}. Chaque note doit être comprise entre 0 et 20.`);
+        }
+        const rankingAverage = calculateRankingAverage(profile?.series, parsed);
+        if (rankingAverage === null) throw new Error('Je ne peux pas calculer la moyenne de classement avec ces notes.');
+        const saved = await updateAcademicSignals({ notes_enabled: true, subjects: parsed, ranking_subjects: parsed, ranking_average: rankingAverage, calculation_version: 'mesrs_2026_2027_ranking_v1' });
+        if (!saved) throw new Error('Je n’ai pas pu enregistrer tes notes. Réessaie.');
+        await askOrientationAssistant({ action: 'answer', message: answer, academic_patch: { notes_enabled: true, ranking_subjects: parsed, subjects: parsed } });
+        appendAgent(`Moyenne de classement calculée : ${rankingAverage.toFixed(2)}/20. Elle utilise les trois matières principales de ta série ; ce n’est pas une garantie d’admission.\n\nJe passe maintenant à ta matière forte, facultative.`);
         setStep('signals');
         appendAgent(questions.signals);
       } else if (step === 'signals') {
@@ -196,9 +251,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
   }
 
   return <main className="min-h-[78vh] bg-slate-950 px-3 py-3 text-slate-100 sm:px-6 sm:py-6"><div className="mx-auto flex min-h-[72vh] max-w-4xl flex-col overflow-hidden rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/30">
-    <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4 sm:px-7"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-300 text-slate-950"><Bot className="h-5 w-5" /></div><div><p className="text-sm font-black">BacPilot</p><p className="text-xs text-slate-400">Je t’aide à préparer tes choix</p></div></div><button onClick={() => navigate('/dashboard')} className="text-xs font-semibold text-slate-400 transition hover:text-white">Voir les données observées</button></header>
+    <header className="flex items-center justify-between border-b border-slate-800 px-5 py-4 sm:px-7"><div className="flex items-center gap-3"><AgentAvatar /><div><p className="text-sm font-black">BacPilot</p><p className="text-xs text-slate-400">Je t’aide à préparer tes choix</p></div></div><button onClick={() => navigate('/dashboard')} className="text-xs font-semibold text-slate-400 transition hover:text-white">Voir les données observées</button></header>
 
     <section aria-live="polite" className="flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8">
+      {messages.length <= 1 && <div className="flex flex-col items-center justify-center gap-3 pb-2 text-center"><AgentAvatar large /><p className="max-w-sm text-xs leading-5 text-slate-500">Je vais te poser quelques questions simples, puis comparer les données observées et les repères officiels utiles à ton profil.</p></div>}
+      {academicSignals?.ranking_average !== null && academicSignals?.ranking_average !== undefined && <div className="mx-auto max-w-2xl rounded-xl border border-sky-400/20 bg-sky-400/5 px-4 py-3 text-xs text-sky-100">Moyenne de classement enregistrée : <strong>{academicSignals.ranking_average.toFixed(2)}/20</strong> · calcul officiel par trois matières principales.</div>}
       {messages.map((message, index) => message.role === 'agent'
         ? <React.Fragment key={message.id}><AgentBubble message={message} animate={index === messages.length - 1 && !isSaving} /></React.Fragment>
         : <div key={message.id} className="ml-auto flex max-w-2xl items-start gap-3"><div className="rounded-2xl rounded-tr-md bg-amber-300 px-4 py-3 text-sm leading-6 text-slate-950 sm:text-[15px]">{message.content}</div><div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700"><UserRound className="h-4 w-4" /></div></div>)}

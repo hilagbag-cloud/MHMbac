@@ -71,7 +71,7 @@ export type AssistantPayload = {
   message?: string;
   profile_patch?: { display_name?: string; series?: BacSeries; mention?: BacMention };
   preference_patch?: { primary_goal?: PrimaryGoal; career_keywords?: string[] };
-  academic_patch?: { strengths?: string[]; notes?: string };
+  academic_patch?: { strengths?: string[]; notes?: string; notes_enabled?: boolean; ranking_subjects?: Record<string, number>; subjects?: Record<string, number> };
   programme_id?: number;
 };
 

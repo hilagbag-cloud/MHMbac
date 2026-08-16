@@ -10,7 +10,7 @@ type AssistantRequest = {
   message?: unknown;
   profile_patch?: { display_name?: unknown; series?: unknown; mention?: unknown };
   preference_patch?: { primary_goal?: unknown; career_keywords?: unknown };
-  academic_patch?: { strengths?: unknown; notes?: unknown };
+  academic_patch?: { strengths?: unknown; notes?: unknown; notes_enabled?: unknown; ranking_subjects?: unknown; subjects?: unknown };
   programme_id?: unknown;
 };
 
@@ -116,6 +116,34 @@ function asSeries(value: unknown): Series | null {
 
 function asMention(value: unknown): Mention | null {
   return value === 'Passable' || value === 'Assez bien' || value === 'Bien' || value === 'Très bien' ? value : null;
+}
+
+const RANKING_CONFIG: Record<Exclude<Series, 'Autre'>, Array<{ key: string; coefficient: number }>> = {
+  A: [{ key: 'francais', coefficient: 5 }, { key: 'philosophie', coefficient: 4 }, { key: 'histoire_geographie', coefficient: 3 }],
+  B: [{ key: 'francais', coefficient: 4 }, { key: 'economie', coefficient: 4 }, { key: 'histoire_geographie', coefficient: 4 }],
+  C: [{ key: 'mathematiques', coefficient: 6 }, { key: 'sciences_physiques', coefficient: 5 }, { key: 'svt', coefficient: 2 }],
+  D: [{ key: 'svt', coefficient: 5 }, { key: 'mathematiques', coefficient: 4 }, { key: 'sciences_physiques', coefficient: 4 }],
+  E: [{ key: 'mathematiques', coefficient: 5 }, { key: 'sciences_physiques', coefficient: 4 }, { key: 'construction_mecanique', coefficient: 3 }],
+};
+
+function cleanScoreMap(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const result: Record<string, number> = {};
+  for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+    const score = typeof raw === 'number' ? raw : Number(raw);
+    if (!Number.isFinite(score) || score < 0 || score > 20) return null;
+    result[key] = Math.round(score * 100) / 100;
+  }
+  return result;
+}
+
+function calculateRankingAverage(series: Series | null, scores: Record<string, number>): number | null {
+  if (!series || series === 'Autre' || !RANKING_CONFIG[series as Exclude<Series, 'Autre'>]) return null;
+  const config = RANKING_CONFIG[series as Exclude<Series, 'Autre'>];
+  if (config.some((item) => typeof scores[item.key] !== 'number')) return null;
+  const coefficientTotal = config.reduce((sum, item) => sum + item.coefficient, 0);
+  const weightedTotal = config.reduce((sum, item) => sum + scores[item.key] * item.coefficient, 0);
+  return Math.round((weightedTotal / coefficientTotal) * 100) / 100;
 }
 
 function cleanKeywords(value: unknown): string[] | null {
@@ -225,7 +253,7 @@ function guideReferenceFor(recommendation: Recommendation, guideReferences: Guid
   return guideReferences.find((item) => item.recommendation_programme === recommendation.programme) || null;
 }
 
-function compactFacts(recommendations: Recommendation[], freshness: any, profile: any, preferences: any, guideReferences: GuideReference[]) {
+function compactFacts(recommendations: Recommendation[], freshness: any, profile: any, preferences: any, academicSignals: any, guideReferences: GuideReference[]) {
   return {
     data_freshness: {
       total_programmes: freshness?.total_programmes ?? 0,
@@ -238,6 +266,8 @@ function compactFacts(recommendations: Recommendation[], freshness: any, profile
       mention: profile?.mention ?? null,
       objective: preferences?.primary_goal ?? 'bourse',
       career_keywords: Array.isArray(preferences?.career_keywords) ? preferences.career_keywords.slice(0, MAX_KEYWORDS) : [],
+      ranking_average: academicSignals?.ranking_average ?? null,
+      calculation_version: academicSignals?.calculation_version ?? null,
     },
     recommendations: recommendations.slice(0, 3).map((item) => ({
       rank: recommendations.indexOf(item) + 1,
@@ -442,6 +472,7 @@ Deno.serve(async (request) => {
   }
 
   const academicPatch: Record<string, unknown> = {};
+  const { data: existingAcademicProfile } = await supabase.from('profiles').select('series').eq('id', user.id).maybeSingle();
   if (body?.academic_patch && typeof body.academic_patch === 'object') {
     if ('strengths' in body.academic_patch) {
       const strengths = cleanKeywords(body.academic_patch.strengths);
@@ -450,6 +481,21 @@ Deno.serve(async (request) => {
     }
     if ('notes' in body.academic_patch) {
       academicPatch.notes = cleanText(body.academic_patch.notes, 400) || null;
+    }
+    if ('notes_enabled' in body.academic_patch) {
+      if (typeof body.academic_patch.notes_enabled !== 'boolean') return json(request, { ok: false, error: 'Le choix des notes est invalide.' }, 400);
+      academicPatch.notes_enabled = body.academic_patch.notes_enabled;
+    }
+    if ('ranking_subjects' in body.academic_patch || 'subjects' in body.academic_patch) {
+      const rawScores = body.academic_patch.ranking_subjects ?? body.academic_patch.subjects;
+      const scores = cleanScoreMap(rawScores);
+      const seriesForCalculation = asSeries(profilePatch.series) || asSeries(existingAcademicProfile?.series);
+      const average = scores && calculateRankingAverage(seriesForCalculation, scores);
+      if (!scores || average === null) return json(request, { ok: false, error: 'Les trois notes principales de cette série sont nécessaires, entre 0 et 20.' }, 400);
+      academicPatch.subjects = scores;
+      academicPatch.ranking_subjects = scores;
+      academicPatch.ranking_average = average;
+      academicPatch.calculation_version = 'mesrs_2026_2027_ranking_v1';
     }
   }
 
@@ -474,9 +520,10 @@ Deno.serve(async (request) => {
     if (error) return json(request, { ok: false, error: 'Impossible d’enregistrer ce signal académique.' }, 500);
   }
 
-  const [{ data: profile }, { data: preferences }, { data: freshnessResult }] = await Promise.all([
+  const [{ data: profile }, { data: preferences }, { data: academicSignals }, { data: freshnessResult }] = await Promise.all([
     supabase.from('profiles').select('id, display_name, series, mention').eq('id', user.id).maybeSingle(),
     supabase.from('user_preferences').select('user_id, primary_goal, career_keywords').eq('user_id', user.id).maybeSingle(),
+    supabase.from('user_academic_signals').select('notes_enabled, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
     supabase.rpc('get_data_freshness').maybeSingle(),
   ]);
   const freshness: any = freshnessResult;
@@ -543,7 +590,7 @@ Deno.serve(async (request) => {
     const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
     const quota: any = quotaResult;
     aiRemaining = Number(quota?.remaining_calls ?? 0);
-    const facts = compactFacts(topThree, freshness, profile, preferences, guideReferences);
+    const facts = compactFacts(topThree, freshness, profile, preferences, academicSignals, guideReferences);
 
     if (aiRemaining > 0) {
       const geminiResponse = await callGemini(userMessage, facts);

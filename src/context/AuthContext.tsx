@@ -19,6 +19,7 @@ import {
   SignupDeviceClass,
   SignupEntrypoint,
   SignupIntent,
+  UserAcademicSignals,
   UserPreferences,
   UserProfile,
 } from '../types/orientation';
@@ -40,6 +41,7 @@ interface AuthContextType {
   user: any | null;
   profile: UserProfile | null;
   preferences: UserPreferences | null;
+  academicSignals: UserAcademicSignals | null;
   betaTester: BetaTester | null;
   isBetaTester: boolean;
   isLoading: boolean;
@@ -53,6 +55,7 @@ interface AuthContextType {
   leaveBetaProgram: () => Promise<{ success: boolean; error?: string }>;
   updateProfile: (updates: Partial<UserProfile>) => Promise<boolean>;
   updatePreferences: (updates: Partial<UserPreferences>) => Promise<boolean>;
+  updateAcademicSignals: (updates: Partial<UserAcademicSignals>) => Promise<boolean>;
   switchDemoPersona: (personaKey: 'dossou_d' | 'amina_c' | 'junior_a' | 'new_empty') => void;
 }
 
@@ -62,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [preferences, setPreferences] = useState<UserPreferences | null>(null);
+  const [academicSignals, setAcademicSignals] = useState<UserAcademicSignals | null>(null);
   const [betaTester, setBetaTester] = useState<BetaTester | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -77,9 +81,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const fetchSupabaseUserData = useCallback(async (userId: string, authUser?: any): Promise<boolean> => {
     if (!realSupabase) return false;
     try {
-      const [{ data: profData, error: profErr }, { data: prefData }, { data: betaData, error: betaError }] = await Promise.all([
+      const [{ data: profData, error: profErr }, { data: prefData }, { data: academicData }, { data: betaData, error: betaError }] = await Promise.all([
         realSupabase.from('profiles').select('*').eq('id', userId).single(),
         realSupabase.from('user_preferences').select('*').eq('user_id', userId).maybeSingle(),
+        realSupabase.from('user_academic_signals').select('*').eq('user_id', userId).maybeSingle(),
         realSupabase.from('beta_testers').select('user_id, status, cohort, joined_at, consent_at, created_at, updated_at').eq('user_id', userId).maybeSingle(),
       ]);
 
@@ -105,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (prefData) setPreferences(prefData as UserPreferences);
+      setAcademicSignals((academicData as UserAcademicSignals | null) || null);
 
       if (betaError) {
         console.warn('Lecture du statut bêta indisponible:', betaError.message);
@@ -135,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setUser(null);
             setProfile(null);
             setPreferences(null);
+            setAcademicSignals(null);
             setBetaTester(null);
           }
         } else {
@@ -163,6 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(null);
           setProfile(null);
           setPreferences(null);
+          setAcademicSignals(null);
           setBetaTester(null);
         }
       });
@@ -404,6 +412,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setProfile(null);
       setPreferences(null);
+      setAcademicSignals(null);
       setBetaTester(null);
     } catch (err) {
       console.error('Erreur déconnexion:', err);
@@ -516,6 +525,53 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Mise à jour des notes et signaux académiques personnels
+  const updateAcademicSignals = async (updates: Partial<UserAcademicSignals>): Promise<boolean> => {
+    try {
+      if (!user) return false;
+      const updated: UserAcademicSignals = {
+        strengths: academicSignals?.strengths || [],
+        subjects: academicSignals?.subjects || {},
+        notes: academicSignals?.notes || null,
+        notes_enabled: academicSignals?.notes_enabled ?? false,
+        ranking_subjects: academicSignals?.ranking_subjects || {},
+        ranking_average: academicSignals?.ranking_average ?? null,
+        calculation_version: academicSignals?.calculation_version || 'mesrs_2026_2027_ranking_v1',
+        ...updates,
+        user_id: user.id,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (isSupabaseLive && realSupabase) {
+        const payload = {
+          user_id: updated.user_id,
+          strengths: updated.strengths || [],
+          subjects: updated.subjects || {},
+          notes: updated.notes || null,
+          notes_enabled: updated.notes_enabled,
+          ranking_subjects: updated.ranking_subjects || {},
+          ranking_average: updated.ranking_average ?? null,
+          calculation_version: updated.calculation_version,
+          updated_at: updated.updated_at,
+        };
+        const { data, error } = await realSupabase
+          .from('user_academic_signals')
+          .upsert(payload, { onConflict: 'user_id' })
+          .select('*')
+          .single();
+        if (error) throw new Error(`Notes Supabase (${error.code || 'erreur'}): ${error.message}`);
+        setAcademicSignals((data as UserAcademicSignals) || updated);
+      } else {
+        setAcademicSignals(updated);
+      }
+      return true;
+    } catch (err: any) {
+      console.error('Erreur updateAcademicSignals:', err);
+      setErrorMessage(err.message || 'Impossible d’enregistrer tes notes.');
+      return false;
+    }
+  };
+
   // Changement rapide de persona de démonstration pour les tests du MVP1
   const switchDemoPersona = (personaKey: 'dossou_d' | 'amina_c' | 'junior_a' | 'new_empty') => {
     if (personaKey === 'dossou_d') {
@@ -583,6 +639,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         profile,
         preferences,
+        academicSignals,
         isLoading,
         isSupabaseLive,
         isDemoMode,
@@ -593,8 +650,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signOut,
         leaveBetaProgram,
         updateProfile,
-      updatePreferences,
-      betaTester,
+        updatePreferences,
+        updateAcademicSignals,
+        betaTester,
       isBetaTester,
       switchDemoPersona,
       }}
