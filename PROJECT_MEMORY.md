@@ -13,7 +13,7 @@
 | Dernier commit confirmé | `4ff7e02` — correction du chargement de la page d’inscription |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
-| Date de cette mémoire | 15 août 2026 |
+| Date de cette mémoire | 16 août 2026 |
 
 ## 1. État produit confirmé
 
@@ -44,6 +44,16 @@ Extension Chrome autorisée
     → RPC déterministe : fraîcheur + classement Top 3
     → Edge Function orientation-assistant (JWT obligatoire)
     → Interface BacPilot : conversation, reçu de calcul, Top 3
+
+Nouvelle inscription de profil
+    → webhook base de données authentifié
+    → Edge Function notify-new-user
+    → alerte privée Telegram de l’opérateur
+
+Commande Telegram de l’opérateur
+    → webhook Telegram authentifié + chat autorisé
+    → Edge Function bacpilot-telegram
+    → lecture ciblée, gestion bêta confirmée et audit serveur
 ```
 
 | Composant | Rôle | Règle de sécurité |
@@ -53,6 +63,9 @@ Extension Chrome autorisée
 | Supabase | Stocker observations, profils, sessions et résultats. | RLS active ; droits privés limités au propriétaire. |
 | `orientation-assistant` | Lire les données autorisées, appeler le score déterministe, sauvegarder seulement les réponses du candidat connecté, expliquer un résultat. | JWT requis ; pas de SQL libre, pas de `service_role`, outils bornés. |
 | React / Vercel | Afficher le parcours et les résultats. | Aucune clé IA ou clé d’administration dans `VITE_*`, GitHub ou le navigateur. |
+| `notify-new-user` | Reçoit exclusivement un évènement d’insertion de profil autorisé et transmet une alerte d’inscription via Telegram. | Vérifie un secret de webhook, détermine le statut bêta côté serveur, journalise l’envoi de façon idempotente ; aucun secret ne figure dans le code. |
+| `bacpilot-telegram` | Console opérateur Telegram : états agrégés, fiche utilisateur ciblée, retours bêta et préparation/confirmation des statuts bêta. | Webhook Telegram protégé par secret et liste blanche d’un seul chat ; aucune commande ne fournit mots de passe, jetons, conversations, captures privées ou secrets. Les changements de statut exigent un code de confirmation temporaire et sont audités. |
+| `bacpilot-telegram-control` | Configure une fois le webhook Telegram et le menu de commandes. | Accès protégé par secret dédié ; ne doit être invoquée que depuis une session administrateur autorisée. |
 
 ## 4. Décisions non négociables
 
@@ -64,6 +77,7 @@ Extension Chrome autorisée
 6. **États transparents.** Les messages tels que « Dernière mise à jour des données » ou « Comparaison selon ton profil » correspondent à des opérations réellement réalisées.
 7. **IA facultative.** BacPilot reste utilisable sans clé IA : une explication déterministe est toujours disponible.
 8. **Secrets hors dépôt.** Les clés ne sont jamais enregistrées dans les fichiers, commits, journaux, slides ou mémoire projet.
+9. **Administration Telegram bornée.** Le bot est réservé au chat opérateur configuré, délivre uniquement des données administratives ciblées, ne retourne jamais de secret ou de capture privée, et exige une confirmation serveur temporaire pour chaque changement de statut bêta.
 
 ## 5. État de l’agent et de l’IA
 
@@ -99,6 +113,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | Candidat | `profiles`, `user_preferences` | Série, mention, objectif et domaines. |
 | Agent | `orientation_sessions`, `user_academic_signals`, `recommendation_runs`, `ai_usage_daily` | Conversation, signaux volontaires, résultats et quota. |
 | Collecte | `collection_runs` | Couverture et métadonnées des scans ; à exploiter/compléter dans l’évolution extension. |
+| Opérateur Telegram | `operator_notifications`, `operator_command_audit`, `operator_pending_actions` | Journal privé des alertes d’inscription, traçabilité des commandes et confirmations temporaires. RLS activée et droits navigateur révoqués ; accès réservé aux fonctions `service_role`. |
 | Synchronisation extension — incident au 15 août 2026 | Export local validé : 159 observations uniques, sans erreur de collecte, réparties en 4 lots conservés (40/40/40/39). Aucune écriture associée n’est encore présente dans `sync_batches` ni `collection_runs`. | Le contrat actif place désormais `syncToken` dans le corps JSON : enregistrer le jeton, attendre « Test validé » si le package officiel est utilisé, puis synchroniser les lots existants et contrôler l’accusé serveur. |
 | Fonctions | `get_data_freshness`, `get_top_recommendations` et fonctions de quota | Fonctions bornées : base du Top 3 et de l’explication. |
 
@@ -117,18 +132,19 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 
 | Priorité | Action | Critère de fin |
 |---:|---|---|
-| 1 | Réactiver la synchronisation des quatre lots conservés par l’extension officielle. | La console affiche un accusé de réception ; `sync_batches` et `collection_runs` reçoivent une trace nouvelle ; les compteurs et horodatages Supabase progressent. |
-| 2 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
-| 3 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
-| 4 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
-| 5 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
-| 6 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
-| 7 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
-| 8 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
-| 9 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
-| 10 | Contrôler l’état d’indexation et les performances organiques dans Google Search Console. | L’accueil est sélectionné par Google comme URL canonique/indexée et les requêtes, impressions et éventuelles erreurs sont suivies. |
-| 11 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
-| 12 | Vérifier la réception et l’envoi réels des boîtes `contact@bacpilot.site` et `support@bacpilot.site`, puis activer DKIM/DMARC si LWS les propose. | Un message de test entrant et sortant est confirmé pour chaque boîte ; SPF/DKIM/DMARC sont documentés sans secret. |
+| 1 | Finaliser les secrets et webhooks Telegram, puis tester une commande et une alerte d’inscription réelle. | Le bot répond seulement au chat opérateur, `/help` et `/user` fonctionnent, une action bêta exige confirmation et une inscription réelle produit une alerte unique. |
+| 2 | Réactiver la synchronisation des quatre lots conservés par l’extension officielle. | La console affiche un accusé de réception ; `sync_batches` et `collection_runs` reçoivent une trace nouvelle ; les compteurs et horodatages Supabase progressent. |
+| 3 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
+| 4 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
+| 5 | Réaliser une recette réelle de l’extension officielle `extensions/bacpilot-official/`. | Une session autorisée confirme la couverture collectée, la reprise après fermeture, l’accusé `mhmbac-sync` et l’exploitation de `collection_runs` côté backend. |
+| 6 | Intégrer ultérieurement le guide officiel avec extraits sourcés. | Aucune recommandation issue du guide sans source affichable. |
+| 7 | Évaluer les embeddings seulement après disponibilité d’un corpus officiel propre et consentement sur les données utilisées. | Recherche sémantique sourcée, sans modifier le scoring déterministe. |
+| 8 | Lancer l’acquisition organique BacPilot avec le kit Jour 1. | Publication validée explicitement, lien UTM correct et relevé des résultats à +2 h / +24 h. |
+| 9 | Publier le message Assomption BacPilot du 15 août 2026. | Post de vœux non commercial, réponse sobre aux interactions, sans CTA produit. |
+| 10 | Mettre à jour les liens publics, bios et UTM pour utiliser `https://bacpilot.site`. | Les supports de lancement pointent vers le domaine principal et non vers l’ancienne URL Vercel. |
+| 11 | Contrôler l’état d’indexation et les performances organiques dans Google Search Console. | L’accueil est sélectionné par Google comme URL canonique/indexée et les requêtes, impressions et éventuelles erreurs sont suivies. |
+| 12 | Configurer le profil Facebook BacPilot existant. | Bio, lien, message Messenger et visuels prêts ; connexion au compte Facebook requise. |
+| 13 | Vérifier la réception et l’envoi réels des boîtes `contact@bacpilot.site` et `support@bacpilot.site`, puis activer DKIM/DMARC si LWS les propose. | Un message de test entrant et sortant est confirmé pour chaque boîte ; SPF/DKIM/DMARC sont documentés sans secret. |
 
 ## 10. Journal de continuité
 
@@ -158,6 +174,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 15 août 2026 | Portail `beta.bacpilot.site` validé et déployé | Ajout de la page hôte dédiée, de `/beta-access` sur le domaine principal et des redirections de connexion/inscription avec conservation de l’intention bêta. Une session Supabase est vérifiée côté serveur via `beta_testers`, puis le compte actif est envoyé vers `/beta`; sans statut actif, l’accès aux outils bêta est refusé avec message explicite tout en laissant BacPilot accessible. Le CNAME LWS `beta` est validé par Vercel pour `mhmbac`; `https://beta.bacpilot.site` répond en HTTPS et affiche le portail. Les balises `noindex, nofollow` sont injectées dans le document pour le portail et le contrôle d’accès. | Enrôler un premier compte bêta, puis effectuer la recette autorisée/refusée et l’envoi d’un retour privé. |
 | 15 août 2026 | `f31850e` déployé | Le portail bêta propose explicitement « Créer mon compte » vers l’inscription principale avec l’intention `returnTo=beta`, ainsi que « J’ai déjà un compte ». Toute personne peut donc créer un compte BacPilot ; seules les fonctions de bêta-test exigent une validation serveur dans `beta_testers`. Compilation Vite, contrôle de diff et déploiement Vercel ont réussi. | Vérifier le parcours d’inscription publié, puis configurer le canal de notification privé de l’opérateur. |
 | 15 août 2026 | `4ff7e02` déployé et vérifié | Diagnostic d’un crash sur `/register` et `/register?returnTo=beta` : l’import différé attendait un export par défaut alors que `RegisterPage` est un export nommé. `App.tsx` charge désormais explicitement `module.RegisterPage`. La compilation Vite, le contrôle de diff, la publication Vercel et le rendu public des deux variantes de l’inscription sont validés. Le bouton de création du portail bêta ouvre bien `/register?returnTo=beta`. | Choisir puis configurer le canal de notification privé de l’opérateur. |
+| 16 août 2026 | Fonctions Supabase actives, commit en cours | Les fonctions `notify-new-user`, `bacpilot-telegram` et `bacpilot-telegram-control` sont déployées. Les migrations créent les journaux privés d’alerte, d’audit et de confirmation avec RLS et droits navigateur révoqués. La console Telegram offre des commandes de lecture ciblée de profils, de statistiques, de retours bêta et de gestion bêta avec confirmation temporaire. | Enregistrer les secrets uniquement dans Supabase, créer le webhook de profils, lancer la configuration Telegram, puis tester avec une inscription réelle et le chat opérateur. |
 
 ## 11. Règle de reprise de session
 
@@ -175,6 +192,7 @@ Au début de toute nouvelle session ou intervention :
 - `ARCHITECTURE_BACPILOT_AGENT_IA.md` — architecture longue et évolution future.
 - `AGENT_BACPILOT_IMPLEMENTATION_SPEC.md` — contrat technique de l’endpoint assistant.
 - `CONFIGURATION_SECRETS_AGENT_BACPILOT.md` — procédure de secrets et rotation.
+- `BACPILOT_TELEGRAM_OPERATOR_GUIDE.md` — commandes de la console Telegram, confirmations et limites de confidentialité.
 - `PRODUCTION_VERIFICATION_AGENT.md` — contrôles publics et sécurité réalisés.
 - `SPEC_UI_PREUVES_TOP3.md` — décision UX/UI et microcopies.
 - `MARKETING_JOUR1_LANCEMENT_BACPILOT.md` — kit de lancement organique du Jour 1.
