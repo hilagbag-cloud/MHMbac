@@ -32,8 +32,50 @@ export const rankingSubjectsBySeries: Partial<Record<BacSeries, RankingSubject[]
   ],
 };
 
+const additionalSubjectsBySeries: Partial<Record<BacSeries, RankingSubject[]>> = {
+  A: [
+    { key: 'langue_vivante_1', label: 'Langue vivante 1', coefficient: 3 },
+    { key: 'langue_vivante_2', label: 'Langue vivante 2', coefficient: 2 },
+    { key: 'mathematiques', label: 'Mathématiques', coefficient: 2 },
+    { key: 'svt', label: 'SVT', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+  B: [
+    { key: 'philosophie', label: 'Philosophie', coefficient: 3 },
+    { key: 'langue_vivante_1', label: 'Langue vivante 1', coefficient: 2 },
+    { key: 'mathematiques', label: 'Mathématiques', coefficient: 2 },
+    { key: 'svt', label: 'SVT', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+  C: [
+    { key: 'francais', label: 'Français', coefficient: 2 },
+    { key: 'anglais', label: 'Anglais', coefficient: 2 },
+    { key: 'histoire_geographie', label: 'Histoire-Géographie', coefficient: 2 },
+    { key: 'philosophie', label: 'Philosophie', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+  D: [
+    { key: 'francais', label: 'Français', coefficient: 2 },
+    { key: 'anglais', label: 'Anglais', coefficient: 2 },
+    { key: 'histoire_geographie', label: 'Histoire-Géographie', coefficient: 2 },
+    { key: 'philosophie', label: 'Philosophie', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+  E: [
+    { key: 'francais', label: 'Français', coefficient: 2 },
+    { key: 'manipulation', label: 'Manipulation / travaux pratiques', coefficient: 3 },
+    { key: 'etude_fabrication', label: 'Étude de fabrication ou technologie', coefficient: 2 },
+    { key: 'eps', label: 'EPS', coefficient: 1 },
+  ],
+};
+
 export function getRankingSubjects(series: BacSeries | null | undefined): RankingSubject[] {
   return series ? rankingSubjectsBySeries[series] || [] : [];
+}
+
+export function getAllSubjects(series: BacSeries | null | undefined): RankingSubject[] {
+  if (!series) return [];
+  return [...getRankingSubjects(series), ...(additionalSubjectsBySeries[series] || [])];
 }
 
 export function calculateRankingAverage(series: BacSeries | null | undefined, scores: AcademicSubjectScores): number | null {

@@ -1,7 +1,7 @@
 import React, { FormEvent, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Bot, ChevronRight, LoaderCircle, Send, ShieldCheck, Sparkles, UserRound } from 'lucide-react';
 import { askOrientationAssistant } from '../lib/orientationAssistant';
-import { calculateRankingAverage, getRankingSubjects, isValidScore } from '../lib/rankingCalculator';
+import { calculateRankingAverage, getAllSubjects, getRankingSubjects, isValidScore } from '../lib/rankingCalculator';
 import { useAuth } from '../context/AuthContext';
 import { BacMention, BacSeries, PrimaryGoal } from '../types/orientation';
 
@@ -121,9 +121,11 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [gradeDraft, setGradeDraft] = useState<Record<string, number>>({});
 
   const quickReplies = getQuickReplies(step, goal);
   const subjectsForSeries = getRankingSubjects(profile?.series);
+  const allSubjectsForSeries = getAllSubjects(profile?.series);
   const placeholder = step === 'name' ? 'Écris ton prénom ou ton nom…' : step === 'career' ? 'Ex. informatique, santé, agronomie…' : step === 'notes_input' ? subjectsForSeries.map((subject) => `${subject.label}=note`).join(', ') || 'Ex. SVT=14, Mathématiques=13, Sciences Physiques=12' : step === 'signals' ? 'Ex. je suis à l’aise en mathématiques…' : 'Écris ta réponse…';
 
   const appendAgent = (content: string) => setMessages((current) => [...current, { id: `agent-${Date.now()}-${current.length}`, role: 'agent', content }]);
@@ -146,7 +148,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
     const answer = rawAnswer.trim();
     if (!answer || isSaving || step === 'complete') return;
     setError(null);
-    appendUser(answer === '__skip__' ? 'Passer cette étape' : answer);
+    appendUser(answer === '__skip__' ? 'Passer cette étape' : answer === '__grade_form__' ? 'Mes notes sont saisies' : answer);
     setInput('');
     setIsSaving(true);
 
@@ -208,15 +210,17 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
           appendAgent(questions.notes_input);
         }
       } else if (step === 'notes_input') {
-        const parsed: Record<string, number> = {};
-        answer.split(',').forEach((part) => {
-          const [rawKey, rawValue] = part.split('=').map((value) => value.trim());
-          if (!rawKey || !rawValue) return;
-          const normalized = rawKey.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
-          const subject = subjectsForSeries.find((item) => item.key.replace(/_/g, '') === normalized || item.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '') === normalized);
-          const score = Number(rawValue.replace(',', '.'));
-          if (subject && isValidScore(score)) parsed[subject.key] = score;
-        });
+        const parsed: Record<string, number> = { ...gradeDraft };
+        if (answer !== '__grade_form__') {
+          answer.split(',').forEach((part) => {
+            const [rawKey, rawValue] = part.split('=').map((value) => value.trim());
+            if (!rawKey || !rawValue) return;
+            const normalized = rawKey.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+            const subject = allSubjectsForSeries.find((item) => item.key.replace(/_/g, '') === normalized || item.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '') === normalized);
+            const score = Number(rawValue.replace(',', '.'));
+            if (subject && isValidScore(score)) parsed[subject.key] = score;
+          });
+        }
         if (subjectsForSeries.length !== 3 || subjectsForSeries.some((subject) => parsed[subject.key] === undefined)) {
           throw new Error(`Renseigne les trois notes principales : ${subjectsForSeries.map((subject) => subject.label).join(', ')}. Chaque note doit être comprise entre 0 et 20.`);
         }
@@ -256,6 +260,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
     <section aria-live="polite" className="flex-1 space-y-5 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8">
       {messages.length <= 1 && <div className="flex flex-col items-center justify-center gap-3 pb-2 text-center"><AgentAvatar large /><p className="max-w-sm text-xs leading-5 text-slate-500">Je vais te poser quelques questions simples, puis comparer les données observées et les repères officiels utiles à ton profil.</p></div>}
       {academicSignals?.ranking_average !== null && academicSignals?.ranking_average !== undefined && <div className="mx-auto max-w-2xl rounded-xl border border-sky-400/20 bg-sky-400/5 px-4 py-3 text-xs text-sky-100">Moyenne de classement enregistrée : <strong>{academicSignals.ranking_average.toFixed(2)}/20</strong> · calcul officiel par trois matières principales.</div>}
+      {step === 'notes_input' && <section className="mx-auto max-w-2xl rounded-2xl border border-sky-300/15 bg-slate-950/35 p-4 sm:p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-sm font-black text-white">Tes notes au Bac</p><p className="mt-1 text-xs leading-5 text-slate-400">Les trois matières marquées « classement » servent à calculer le repère officiel. Les autres sont enregistrées pour ton profil, sans moyenne générale inventée.</p></div><span className="shrink-0 rounded-full bg-sky-300/10 px-2.5 py-1 text-[11px] font-bold text-sky-200">{Object.keys(gradeDraft).length}/{allSubjectsForSeries.length}</span></div><div className="mt-4 grid gap-3 sm:grid-cols-2">{allSubjectsForSeries.map((subject, index) => { const ranking = index < subjectsForSeries.length; return <label key={subject.key} className="block"><span className="mb-1.5 flex items-center justify-between text-xs font-semibold text-slate-200">{subject.label}<span className={ranking ? 'text-amber-200' : 'text-slate-500'}>{ranking ? `Classement · coef. ${subject.coefficient}` : `Profil · coef. ${subject.coefficient}`}</span></span><input type="number" min="0" max="20" step="0.25" inputMode="decimal" value={gradeDraft[subject.key] ?? ''} onChange={(event) => { const raw = event.target.value; setGradeDraft((current) => raw === '' ? Object.fromEntries(Object.entries(current).filter(([key]) => key !== subject.key)) : { ...current, [subject.key]: Number(raw) }); }} placeholder="0 – 20" className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-sm text-white outline-none transition focus:border-sky-300" /></label>; })}</div><p className="mt-4 text-[11px] leading-5 text-slate-500">Les notes facultatives seront proposées dans une prochaine étape, après vérification de leur règle officielle exacte.</p></section>}
       {messages.map((message, index) => message.role === 'agent'
         ? <React.Fragment key={message.id}><AgentBubble message={message} animate={index === messages.length - 1 && !isSaving} /></React.Fragment>
         : <div key={message.id} className="ml-auto flex max-w-2xl items-start gap-3"><div className="rounded-2xl rounded-tr-md bg-amber-300 px-4 py-3 text-sm leading-6 text-slate-950 sm:text-[15px]">{message.content}</div><div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700"><UserRound className="h-4 w-4" /></div></div>)}
@@ -264,6 +269,7 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
     </section>
 
     {isReady ? <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><button onClick={() => navigate('/dashboard')} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 px-5 py-3.5 text-sm font-black text-slate-950 transition active:scale-[0.98]">Découvrir mes 3 pistes <Sparkles className="h-4 w-4" /><ChevronRight className="h-4 w-4" /></button><p className="mt-3 text-center text-[11px] leading-5 text-slate-500">BacPilot te propose des pistes. Tu vérifies et tu valides toi-même sur le portail officiel.</p></footer>
+      : step === 'notes_input' ? <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><button type="button" disabled={isSaving || subjectsForSeries.some((subject) => !isValidScore(gradeDraft[subject.key]))} onClick={() => void submitAnswer('__grade_form__')} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-sky-300 px-5 py-3.5 text-sm font-black text-slate-950 transition active:scale-[0.98] disabled:opacity-40">Calculer ma moyenne de classement <ChevronRight className="h-4 w-4" /></button><p className="mt-3 text-center text-[11px] leading-5 text-slate-500">BacPilot enregistre tes notes uniquement dans ton espace personnel.</p></footer>
       : <footer className="border-t border-slate-800 bg-slate-900 px-4 py-4 sm:px-7"><div className="mb-3 flex flex-wrap gap-2">{quickReplies.map((reply) => <button key={reply.value} type="button" disabled={isSaving} onClick={() => void submitAnswer(reply.value)} className="rounded-full border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:border-amber-300 hover:text-white disabled:opacity-50">{reply.label}</button>)}</div><form onSubmit={onSubmit} className="flex items-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 p-2 focus-within:border-amber-300"><input value={input} onChange={(event) => setInput(event.target.value)} disabled={isSaving} placeholder={placeholder} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-500" /><button type="submit" disabled={isSaving || !input.trim()} aria-label="Envoyer ma réponse" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-300 text-slate-950 transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></form><p className="mt-3 text-center text-[11px] text-slate-500">BacPilot utilise les données observées. Elles peuvent évoluer et ne garantissent jamais une admission ou une bourse.</p></footer>}
   </div></main>;
 };
