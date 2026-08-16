@@ -53,6 +53,17 @@ const commandNames = new Set<OperatorCommand>([
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
+const DATABASE_OPERATION_TIMEOUT_MS = 6_000;
+
+function withTimeout<T>(task: Promise<T>, timeoutMs = DATABASE_OPERATION_TIMEOUT_MS): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`Opération interrompue après ${timeoutMs} ms.`)), timeoutMs);
+  });
+  return Promise.race([task, timeout]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
 
 function getSupabaseAdminKey(): string | null {
   const modernKeys = Deno.env.get('SUPABASE_SECRET_KEYS');
@@ -482,12 +493,22 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   let command: OperatorCommand | null = parsed.command;
   let argument = parsed.argument;
-  const activeSession = await getInputSession(admin, sourceChatId);
+  let activeSession: InputSession | null = null;
+  try {
+    activeSession = await withTimeout(getInputSession(admin, sourceChatId));
+  } catch (error) {
+    console.error('Erreur de session Telegram:', error instanceof Error ? error.message : JSON.stringify(error));
+    await sendMessage(telegramToken, operatorChatId, 'BacPilot — session temporairement indisponible. Réessaie dans quelques secondes ou utilise /cancel.').catch(() => undefined);
+    // Toujours acquitter une mise à jour Telegram déjà authentifiée pour stopper les retries.
+    return json({ ok: true, handled: false, error: 'Session indisponible.' }, 200);
+  }
 
   if (!command && activeSession) {
     command = activeSession.origin_command;
     argument = text(update.message?.text, 180);
-    await clearInputSession(admin, sourceChatId);
+    await clearInputSession(admin, sourceChatId).catch((error) => {
+      console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
+    });
   }
 
   if (!command) {
@@ -496,7 +517,9 @@ Deno.serve(async (request) => {
   }
 
   if (activeSession && command !== '/cancel' && command !== activeSession.origin_command) {
-    await clearInputSession(admin, sourceChatId);
+    await clearInputSession(admin, sourceChatId).catch((error) => {
+      console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
+    });
   }
 
   let reply = '';
@@ -506,56 +529,59 @@ Deno.serve(async (request) => {
     if (command === '/start' || command === '/help') {
       reply = helpMessage();
     } else if (command === '/status' || command === '/health') {
-      reply = await getStatusMessage(admin);
+      reply = await withTimeout(getStatusMessage(admin));
     } else if (command === '/stats') {
-      reply = await getStatsMessage(admin);
+      reply = await withTimeout(getStatsMessage(admin));
     } else if (command === '/test') {
       reply = 'BacPilot — test réussi. Le bot, son webhook et le contrôle de chat répondent.';
     } else if (command === '/user') {
-      if (!argument) reply = await beginInputSession(admin, sourceChatId, '/user');
+      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user'));
       else {
-        const user = await resolveUser(admin, argument);
+        const user = await withTimeout(resolveUser(admin, argument));
         if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie avec /user.';
         else {
           targetUserId = user.id;
-          reply = await getUserMessage(admin, user);
+          reply = await withTimeout(getUserMessage(admin, user));
         }
       }
     } else if (command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke') {
-      if (!argument) reply = await beginInputSession(admin, sourceChatId, command);
+      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, command));
       else {
-        const user = await resolveUser(admin, argument);
+        const user = await withTimeout(resolveUser(admin, argument));
         if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie.';
         else {
           targetUserId = user.id;
           const action = command === '/beta_add' ? 'beta_activate' : command === '/beta_pause' ? 'beta_pause' : 'beta_revoke';
-          reply = await createPendingAction(admin, sourceChatId, command, action, user);
+          reply = await withTimeout(createPendingAction(admin, sourceChatId, command, action, user));
         }
       }
     } else if (command === '/beta_list') {
-      reply = await listBeta(admin, argument);
+      reply = await withTimeout(listBeta(admin, argument));
     } else if (command === '/feedback') {
-      reply = await listFeedback(admin);
+      reply = await withTimeout(listFeedback(admin));
     } else if (command === '/pending') {
-      reply = await listPending(admin, sourceChatId);
+      reply = await withTimeout(listPending(admin, sourceChatId));
     } else if (command === '/cancel' && !argument) {
       await clearInputSession(admin, sourceChatId);
       reply = 'Saisie en cours annulée.';
     } else if (command === '/confirm') {
-      reply = await confirmAction(admin, sourceChatId, argument);
+      reply = await withTimeout(confirmAction(admin, sourceChatId, argument));
     } else if (command === '/cancel') {
-      reply = await cancelAction(admin, sourceChatId, argument);
+      reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }
 
     if (!['/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel'].includes(command)) {
-      await audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) });
+      await withTimeout(audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) })).catch((error) => {
+        console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
+      });
     }
-    await sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.');
+    await withTimeout(sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.'), 8_000);
     return json({ ok: true, command });
   } catch (error) {
     console.error('Erreur de commande Telegram:', error instanceof Error ? error.message : JSON.stringify(error));
-    await audit(admin, sourceChatId, command, 'failed', targetUserId, { has_argument: Boolean(argument) }).catch(() => undefined);
-    await sendMessage(telegramToken, operatorChatId, 'BacPilot — la commande n’a pas pu être exécutée. Consulte les journaux de la fonction pour le diagnostic.').catch(() => undefined);
-    return json({ ok: false, error: 'Commande indisponible.' }, 500);
+    await withTimeout(audit(admin, sourceChatId, command, 'failed', targetUserId, { has_argument: Boolean(argument) })).catch(() => undefined);
+    await withTimeout(sendMessage(telegramToken, operatorChatId, 'BacPilot — la commande n’a pas pu être exécutée. Réessaie avec /help ou /cancel.'), 8_000).catch(() => undefined);
+    // Pour une mise à jour Telegram déjà authentifiée, répondre 200 évite la répétition infinie.
+    return json({ ok: true, handled: false, error: 'Commande indisponible.' }, 200);
   }
 });

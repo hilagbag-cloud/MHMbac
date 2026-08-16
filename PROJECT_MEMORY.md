@@ -10,7 +10,7 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | `f517db9` — accès Telegram aux données et saisie guidée rétablis |
+| Dernier commit confirmé | état à versionner — correctif Telegram v8 privilèges, timeout et anti-boucle |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
 | Date de cette mémoire | 16 août 2026 |
@@ -132,7 +132,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 
 | Priorité | Action | Critère de fin |
 |---:|---|---|
-| 1 | Réaliser la recette réelle de la console Telegram et d’une alerte d’inscription. | La version 7 corrige l’accès aux clés secret modernes et ajoute la saisie guidée ; valider maintenant `/status`, `/stats`, `/user`, une confirmation bêta et une alerte unique lors de la prochaine vraie inscription. |
+| 1 | Réaliser la recette réelle de la console Telegram et d’une alerte d’inscription. | La version 8 ajoute les privilèges minimaux du rôle serveur, un délai de 6 secondes par opération de base, un délai d’envoi de 8 secondes et un acquittement HTTP 200 sur erreur pour stopper les retries Telegram ; valider maintenant `/status`, `/stats`, `/user`, une confirmation bêta et une alerte unique lors de la prochaine vraie inscription. |
 | 2 | Réactiver la synchronisation des quatre lots conservés par l’extension officielle. | La console affiche un accusé de réception ; `sync_batches` et `collection_runs` reçoivent une trace nouvelle ; les compteurs et horodatages Supabase progressent. |
 | 3 | Configurer de nouvelles clés Gemini/Groq dans les secrets Supabase si la reformulation IA est souhaitée. | Test connecté d’une explication IA, puis vérification du quota et du repli. |
 | 4 | Réaliser une recette connectée complète du dashboard Preuves & Top 3. | Vérifier les trois pistes réelles, les facteurs, le changement d’objectif et la question libre. |
@@ -177,6 +177,7 @@ Documents UI : `SPEC_UI_PREUVES_TOP3.md`, `DIRECTIONS_UI_AGENT_BACPILOT.md`, `VE
 | 16 août 2026 | `f88f452` publié ; fonctions Supabase actives | Les fonctions `notify-new-user`, `bacpilot-telegram` et `bacpilot-telegram-control` sont déployées. Les migrations créent les journaux privés d’alerte, d’audit et de confirmation avec RLS et droits navigateur révoqués. La console Telegram offre des commandes de lecture ciblée de profils, de statistiques, de retours bêta et de gestion bêta avec confirmation temporaire. | Configurer puis vérifier les secrets, le webhook Telegram et le trigger de profils. |
 | 16 août 2026 | `cd98cc8` — configuration Telegram achevée | Les six secrets Telegram sont enregistrés dans Supabase ; le webhook Telegram pointe vers `bacpilot-telegram`, son test serveur répond en HTTP 200, et le menu de commandes est configuré. Le secret du webhook de profils est stocké dans Vault ; `pg_net` est activé et le trigger asynchrone `bacpilot_notify_new_profile` est attaché à `public.profiles`. Un incident de tableau Supabase causé par une extension navigateur a été contourné sans modifier le code public. | Tester `/help`, `/status`, `/user` et une gestion bêta depuis le chat opérateur ; confirmer une alerte unique avec la prochaine inscription réelle. |
 | 16 août 2026 | `f517db9` — correctif Telegram v7 | Les commandes Telegram échouaient car elles s’appuyaient sur la clé `service_role` legacy alors que le projet fournit les clés Edge modernes. `bacpilot-telegram` et `notify-new-user` utilisent désormais `SUPABASE_SECRET_KEYS` avec repli legacy. Le bot conserve une session privée de dix minutes lorsqu’une commande `/user` ou bêta est envoyée sans argument, puis demande et traite l’e-mail ou l’ID au message suivant. La table `operator_input_sessions` est RLS, sans accès navigateur. | Vérifier les réponses en chat sur la version 7, puis préparer de nouvelles clés Gemini/Groq. |
+| 16 août 2026 | État v8 à versionner — diagnostic et anti-boucle | Les journaux ont confirmé `42501 permission denied for table profiles` : le rôle `service_role` n’avait aucun SELECT explicite sur plusieurs tables créées par les migrations RLS. Une migration accorde uniquement au rôle serveur les SELECT nécessaires sur les tables de lecture et les droits CRUD sur les tables opérateur ; aucun droit navigateur n’est ajouté. La fonction limite les opérations DB à 6 s, les envois Telegram à 8 s et acquitte HTTP 200 même après une erreur authentifiée afin que Telegram cesse de renvoyer la même mise à jour. Version Edge active : 8. | Tester une nouvelle commande Telegram après les droits, puis préparer les clés Gemini/Groq. |
 
 ## 11. Règle de reprise de session
 
