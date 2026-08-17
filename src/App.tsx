@@ -149,7 +149,7 @@ function AppContent() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased selection:bg-rose-500 selection:text-white">
       
-      <Seo route={routePath} />
+      <Seo route={routePath.startsWith('/r/') ? '/invitation' : routePath} />
 
       {/* Barre de navigation globale */}
       <Navbar

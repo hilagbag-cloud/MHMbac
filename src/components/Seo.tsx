@@ -108,6 +108,12 @@ const configs: Record<string, SeoConfig> = {
     path: '/parrainage',
     noindex: true,
   },
+  '/invitation': {
+    title: 'Invitation BacPilot',
+    description: 'Créez votre profil BacPilot pour préparer vos pistes d’orientation.',
+    path: '/',
+    noindex: true,
+  },
   '/privacy': {
     title: 'Politique de confidentialité | BacPilot',
     description:
