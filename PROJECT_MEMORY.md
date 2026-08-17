@@ -484,3 +484,9 @@ L’alerte frontend « L’assistant est momentanément indisponible » provenai
 Un endpoint interne idempotent `bacpilot-incident-broadcast` a été déployé avec authentification par `BACPILOT_DB_WEBHOOK_SECRET`. Il envoie sans bouton un avis d’incident texte + HTML aux profils ayant une adresse e-mail valide et journalise chaque tentative dans `incident_email_deliveries`. L’avis `assistant_outage_20260817` a été accepté par Resend pour 21 profils, avec 0 échec, via la requête `pg_net` 20.
 
 L’Edge Function `orientation-assistant` a été redéployée en version 34 avec un `try/catch` autour du parcours d’orientation : les erreurs fournisseur, guide, quota ou lecture interne déclenchent désormais une réponse de secours HTTP 200 sans inventer de filière au lieu d’une erreur 500. Le client `src/lib/orientationAssistant.ts` réessaie une fois après 750 ms pour les erreurs réseau transitoires. La compilation TypeScript et le build Vite passent.
+
+## Résolution confirmée — 17 août 2026
+
+Après le premier déploiement, le dernier chemin de 500 restant était le retour direct de `recommendationError`. Il a été remplacé par une réponse de secours HTTP 200, sans filière inventée. `orientation-assistant` est active en version 35. Le frontend a été publié sur `https://bacpilot.site` avec une seconde tentative après 750 ms.
+
+Une notification de rétablissement sans bouton a été envoyée avec le code `assistant_outage_resolved_20260817` : Resend a accepté 20 messages, 0 échec, via la requête `pg_net` 21. Le premier avis d’incident avait été accepté pour 21 profils ; la différence correspond au périmètre courant des profils ayant une adresse valide au moment du second envoi.
