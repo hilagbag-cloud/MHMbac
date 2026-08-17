@@ -72,7 +72,7 @@ Deno.serve(async (request) => {
       await telegramApi(telegramToken, 'setWebhook', {
         url: webhookUrl,
         secret_token: telegramWebhookSecret,
-        allowed_updates: ['message'],
+        allowed_updates: ['message', 'callback_query'],
         drop_pending_updates: false,
       });
     }

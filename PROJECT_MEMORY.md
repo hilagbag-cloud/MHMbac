@@ -10,7 +10,7 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | `39d5f65` ; correctif callbacks et suivi e-mail déployé, à versionner |
+| Dernier commit confirmé | `ddaafa6` ; correction webhook callbacks en cours de versionnement |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
 | Date de cette mémoire | 16 août 2026 |
@@ -233,6 +233,12 @@ La migration `20260817_bacpilot_email_delivery_tracking.sql` est appliquée. Ell
 Le mot « envoyé » n’est plus présenté comme une preuve de réception : BacPilot distingue explicitement l’acceptation de l’API Resend de la remise confirmée au serveur destinataire. Les envois welcome préparés depuis le bot sont à présent inscrits dans le journal welcome et dans le journal opérateur. La fonction de notification automatique d’une nouvelle inscription conserve son journal welcome indépendant. La recette humaine restante consiste à cliquer sur un bouton du menu, ouvrir une fiche, appuyer sur « État e-mails », puis renvoyer un welcome à un compte réel autorisé et vérifier le dernier événement Resend.
 
 > Aucun identifiant de destinataire, aucune clé API et aucun jeton ne sont inscrits dans cette mémoire.
+
+## 19. Mise à jour du 17 août 2026 — cause racine des boutons inline
+
+La cause racine des boutons inactifs est confirmée dans `supabase/functions/bacpilot-telegram-control/index.ts` : lors de `setWebhook`, le champ `allowed_updates` était limité à `['message']`. Telegram n’envoyait donc pas les `callback_query` au webhook, alors que le handler `bacpilot-telegram` savait déjà les traiter. Les commandes tapées fonctionnaient normalement, ce qui correspond exactement au symptôme observé.
+
+Le configurateur a été corrigé pour enregistrer `allowed_updates: ['message', 'callback_query']` et la compilation est validée. La fonction de contrôle est déployée, mais l’état externe du webhook doit encore être réenregistré par une invocation authentifiée de l’action `configure`; cette invocation nécessite le secret de contrôle conservé côté Supabase et non disponible dans le clone local. Tant que cette action n’a pas été exécutée, les anciens boutons restent muets, même si le code corrigé est déjà en production.
 
 
 ## 14. Mise à jour du 16 août 2026 — demande bêta contextualisée et diagnostic opérateur
