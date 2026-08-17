@@ -40,7 +40,9 @@ function detectBrowser(): SignupBrowser {
 
 export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   const { signUp, errorMessage, clearError } = useAuth();
-  const returnToBeta = new URLSearchParams(window.location.search).get('returnTo') === 'beta';
+  const searchParams = new URLSearchParams(window.location.search);
+  const returnToBeta = searchParams.get('returnTo') === 'beta';
+  const referralCode = (searchParams.get('ref') || window.localStorage.getItem('bacpilot_referral_code') || '').replace(/[^A-Za-z0-9]/g, '').slice(0, 32);
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -89,6 +91,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
         signupDeviceClass: detectDeviceClass(),
         signupBrowser: detectBrowser(),
         signupContextConsent,
+        referralCode: referralCode || null,
       });
       if (res.success) {
         navigate(wantsBeta || returnToBeta ? '/beta-access' : '/onboarding');
@@ -118,6 +121,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
           <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
             {returnToBeta ? 'Demande ton accès bêta ; l’équipe BacPilot le validera côté serveur.' : 'Prépare ton parcours d’orientation post-BAC avec BacPilot, par MHM SOLUTIONS.'}
           </p>
+          {referralCode && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-300">Invitation BacPilot reconnue : le parrainage sera vérifié à la création de ton compte.</p>}
         </div>
 
         <div className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-800 dark:bg-slate-900 sm:p-8">

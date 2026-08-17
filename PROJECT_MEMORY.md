@@ -427,3 +427,20 @@ Les functions `notify-new-user` (version 16) et `bacpilot-telegram` (version 35)
 Contrôles publics réalisés : le sous-domaine Return-Path `send.bacpilot.site` expose un SPF Amazon SES et un MX de feedback, tandis que le domaine principal expose une politique DMARC `p=quarantine`. La vérification du détail DKIM et des options de tracking doit rester contrôlée dans le tableau Resend et dans les en-têtes d’un test réel. Les recommandations opérationnelles sont de maintenir le tracking ouvertures/clics désactivé pour les notifications transactionnelles, d’utiliser un volume progressif et d’inspecter `spf=pass`, `dkim=pass` et `dmarc=pass` dans un message Gmail de test.
 
 > Gmail choisit librement ses catégories. BacPilot réduit les signaux évitables mais ne promet pas un placement systématique dans l’onglet Principal.
+
+
+## Mise à jour du 17 août 2026 — résultats détaillés et communauté BacPilot
+
+La migration `20260817_bacpilot_candidate_community.sql` est appliquée. Elle ajoute une préparation privée de un à trois choix dans `candidate_choice_preparations`, un parrainage à attribution unique (`profiles.referral_code`, `user_referrals` et fonctions propriétaires), des avis (`bacpilot_reviews`) et des intentions de soutien (`support_intents`) avec RLS. Les avis publics et les soutiens mis à l’honneur ne sont visibles qu’après modération ou confirmation par l’équipe via le rôle serveur ; aucune donnée fictive, note artificielle ou reconnaissance non consentie n’est créée.
+
+Le dashboard présente désormais, pour chaque piste, l’université, l’établissement, les effectifs observés, les quotas et la page du Guide MESRS lorsque le rattachement est exact. La localité est affichée uniquement si elle est renseignée dans le guide ; sinon le candidat voit explicitement « Localité à confirmer sur le portail officiel ». Le lien officiel renvoie vers `https://apresmonbac.bj/Home/choice`. Les candidats peuvent ordonner et enregistrer jusqu’à trois pistes, puis copier la liste et ouvrir le portail officiel. BacPilot ne remplit ni ne soumet jamais ce portail à la place du candidat.
+
+La migration `20260817_bacpilot_guide_location_lookup.sql` est appliquée et la fonction `orientation-assistant` est active en version 23. Le nouveau RPC `lookup_guide_programmes_enriched` ajoute la localité lorsque cette donnée est numérisée. Son déploiement requiert désormais le fichier `import_map.json` explicite afin d’éviter une ancienne métadonnée Supabase pointant vers un chemin absolu inexistant.
+
+Les pages publiques `/avis` et `/soutenir`, l’espace connecté `/parrainage` et les liens courts `/r/<code>` sont implémentés côté web. Le parrainage utilise des paliers de reconnaissance non monétaires (sans montant, promesse ni gain financier inventé) ; un lien ne peut être appliqué qu’une fois et l’auto-parrainage est bloqué côté serveur. La page `/avis` ne publie que les retours soumis par un utilisateur connecté, avec consentement et modération. Elle ne contient volontairement aucun `AggregateRating` ou schéma d’étoiles pour BacPilot : Google considère les avis d’une organisation sur elle-même comme auto-attribués et inéligibles aux étoiles enrichies.
+
+La page `/soutenir` ne collecte pas de paiement. Elle enregistre une intention de soutien d’un utilisateur connecté, indique qu’un échange e-mail suivra et rappelle de ne jamais partager de mot de passe, code OTP ou information bancaire dans un message. Toute méthode de dépôt, transaction ou valorisation publique doit être décidée et confirmée séparément avec le donateur. La chaîne WhatsApp officielle est reliée à `https://whatsapp.com/channel/0029VbDpHRNAYlUQHSqika2n`.
+
+Références externes conservées dans `research/EXTERNAL_PLATFORM_RULES_20260817.md` : Telegram Bot API, recommandations Gmail/Resend et règles Google sur les avis.
+
+À vérifier avant publication web : compilation frontend, lecture connectée des RPC communautaires avec un compte réel autorisé, rendu mobile des nouvelles pages et ajout dans le sitemap des routes publiques `/avis` et `/soutenir`.

@@ -90,6 +90,24 @@ const configs: Record<string, SeoConfig> = {
     path: '/a-propos',
     canonicalUrl: 'https://bacpilot.site/about',
   },
+  '/avis': {
+    title: 'Avis utilisateurs BacPilot | Orientation après le bac au Bénin',
+    description:
+      'Découvrez les retours d’expérience vérifiés de la communauté BacPilot et partagez votre avis après avoir utilisé la plateforme.',
+    path: '/avis',
+  },
+  '/soutenir': {
+    title: 'Soutenir BacPilot | MHM SOLUTIONS',
+    description:
+      'Soutenez volontairement l’initiative BacPilot et découvrez comment votre contribution aide à rendre l’orientation post-baccalauréat plus accessible.',
+    path: '/soutenir',
+  },
+  '/parrainage': {
+    title: 'Mon parrainage | BacPilot',
+    description: 'Gérez votre lien de parrainage BacPilot.',
+    path: '/parrainage',
+    noindex: true,
+  },
   '/privacy': {
     title: 'Politique de confidentialité | BacPilot',
     description:

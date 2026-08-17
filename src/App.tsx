@@ -29,6 +29,10 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const BetaPage = lazy(() => import('./pages/BetaPage').then((module) => ({ default: module.BetaPage })));
 const BetaAccessPage = lazy(() => import('./pages/BetaAccessPage'));
 const BetaPortalPage = lazy(() => import('./pages/BetaPortalPage'));
+const ReferralPage = lazy(() => import('./pages/ReferralPage'));
+const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage'));
+const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
+const SupportPage = lazy(() => import('./pages/SupportPage'));
 
 function AppContent() {
   const { user, isBetaTester, isLoading } = useAuth();
@@ -82,6 +86,10 @@ function AppContent() {
       );
     }
 
+    if (routePath.startsWith('/r/')) {
+      return <ReferralLandingPage code={routePath.slice(3)} navigate={navigate} />;
+    }
+
     switch (routePath) {
       case '/':
         return <HomePage navigate={navigate} />;
@@ -95,6 +103,12 @@ function AppContent() {
         return user ? <DashboardPage navigate={navigate} /> : <LoginPage navigate={navigate} />;
       case '/profile':
         return user ? <ProfilePage navigate={navigate} /> : <LoginPage navigate={navigate} />;
+      case '/parrainage':
+        return <ReferralPage navigate={navigate} />;
+      case '/avis':
+        return <ReviewsPage navigate={navigate} />;
+      case '/soutenir':
+        return <SupportPage navigate={navigate} />;
       case '/beta':
         return <BetaPage navigate={navigate} />;
       case '/beta-access':

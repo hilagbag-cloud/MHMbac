@@ -15,11 +15,18 @@ import {
   ShieldCheck,
   Sparkles,
   Bug,
+  Building2,
+  ExternalLink,
+  Landmark,
+  ListChecks,
+  MapPin,
+  Copy,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { askOrientationAssistant, AssistantRecommendation, AssistantResponse, formatAssistantFreshness } from '../lib/orientationAssistant';
 import { formatFreshness, useLiveProgrammes } from '../lib/liveProgrammes';
 import { MHM_PROMOTION_CONFIG } from '../lib/promotion';
+import { OFFICIAL_CHOICE_PORTAL_URL, PreparedChoice, savePreparedChoices } from '../lib/community';
 import { LiveProgramme, PrimaryGoal } from '../types/orientation';
 
 interface DashboardPageProps { navigate: (route: string) => void; }
@@ -58,7 +65,7 @@ function factorText(item: AssistantRecommendation) {
 }
 
 export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
-  const { profile, preferences, isBetaTester, updatePreferences } = useAuth();
+  const { user, profile, preferences, isBetaTester, updatePreferences } = useAuth();
   const [goal, setGoal] = useState<PrimaryGoal>(preferences?.primary_goal || 'bourse');
   const [selected, setSelected] = useState<number[]>([]);
   const [openFactors, setOpenFactors] = useState<number | null>(null);
@@ -68,6 +75,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
   const [question, setQuestion] = useState('');
   const [isExplaining, setIsExplaining] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
+  const [isPreparingChoices, setIsPreparingChoices] = useState(false);
+  const [choiceNotice, setChoiceNotice] = useState<string | null>(null);
   const live = useLiveProgrammes(100);
   const keywords = preferences?.career_keywords || [];
 
@@ -137,11 +146,70 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
     setAssistant((current) => current ? { ...current, ai_explanations_remaining_today: result.ai_explanations_remaining_today ?? current.ai_explanations_remaining_today } : result);
   };
 
-  const toggle = (id: number) => setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
+  const toggle = (id: number) => setSelected((current) => {
+    if (current.includes(id)) return current.filter((item) => item !== id);
+    if (current.length >= 3) {
+      setChoiceNotice('Tu peux préparer au maximum trois choix. Retire une piste avant d’en ajouter une autre.');
+      return current;
+    }
+    setChoiceNotice(null);
+    return [...current, id];
+  });
   const recommendations = assistant?.recommendations || [];
   const guideReferences = assistant?.guide_references || [];
   const freshness = assistant?.freshness?.age_minutes ?? null;
   const proofSteps = assistant?.thinking_steps || ['En attente des données observées.'];
+
+  const preparedRecommendationChoices = recommendations
+    .filter((item) => selected.includes(item.programme_id))
+    .slice(0, 3)
+    .map((item, index): PreparedChoice => {
+      const guideReference = guideReferences.find((reference) => reference.recommendation_programme === item.programme);
+      return {
+        rank: (index + 1) as 1 | 2 | 3,
+        programme_id: item.programme_id,
+        programme: item.programme,
+        university: guideReference?.institution || item.university,
+        school: guideReference?.establishment || item.school,
+        locality: guideReference?.locality || '',
+        guide_page: guideReference?.source_pdf_page,
+        prepared_at: new Date().toISOString(),
+      };
+    });
+
+  const prepareChoices = async () => {
+    if (!user?.id) {
+      navigate('/login');
+      return;
+    }
+    if (preparedRecommendationChoices.length === 0) {
+      setChoiceNotice('Sélectionne d’abord une à trois pistes parmi tes résultats.');
+      return;
+    }
+    setIsPreparingChoices(true);
+    try {
+      await savePreparedChoices(user.id, preparedRecommendationChoices);
+      setChoiceNotice('Tes choix 1, 2 et 3 sont préparés dans ton espace. Vérifie chaque intitulé, puis reporte-les toi-même sur le portail officiel.');
+    } catch (error) {
+      setChoiceNotice(error instanceof Error ? error.message : 'Préparation des choix impossible.');
+    } finally {
+      setIsPreparingChoices(false);
+    }
+  };
+
+  const copyPreparedChoices = async () => {
+    if (!preparedRecommendationChoices.length) {
+      setChoiceNotice('Sélectionne d’abord une à trois pistes.');
+      return;
+    }
+    const text = preparedRecommendationChoices.map((choice) => `${choice.rank}. ${choice.programme} — ${choice.school}${choice.locality ? ` (${choice.locality})` : ''}`).join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      setChoiceNotice('La liste ordonnée a été copiée. Ouvre maintenant le portail officiel et vérifie chaque choix avant toute validation.');
+    } catch {
+      setChoiceNotice('La copie automatique est indisponible sur cet appareil. Consulte les choix préparés à l’écran avant d’ouvrir le portail officiel.');
+    }
+  };
 
   return (
     <main className="min-h-[72vh] bg-[#08111f] px-3 py-3 text-slate-100 sm:px-6 sm:py-7">
@@ -245,9 +313,13 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                         <p className={`text-xs font-bold uppercase tracking-[0.16em] md:mt-3 ${index === 0 ? 'text-amber-200' : 'text-slate-500'}`}>Piste {index + 1}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.university}</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Piste proposée selon les données disponibles</p>
                         <h3 className="mt-2 text-xl font-black leading-tight text-white sm:text-2xl">{item.programme}</h3>
-                        <p className="mt-2 text-sm text-slate-400">{item.school}</p>
+                        <dl className="mt-4 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
+                          <div className="flex items-start gap-2"><Landmark className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Université / institution</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.institution ? guideReference.institution : item.university}</dd></div></div>
+                          <div className="flex items-start gap-2"><Building2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Établissement</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.establishment ? guideReference.establishment : item.school}</dd></div></div>
+                          <div className="flex items-start gap-2 sm:col-span-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Localité</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.locality ? guideReference.locality : 'Localité à confirmer sur le portail officiel.'}</dd></div></div>
+                        </dl>
                         {index === 0 && <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-amber-200"><Sparkles className="h-4 w-4" />Première piste selon les données observées</p>}
                         <button onClick={() => setOpenFactors(isOpen ? null : item.programme_id)} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200">
                           {isOpen ? 'Masquer les éléments comparés' : 'Voir pourquoi cette piste ressort'} <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
@@ -261,7 +333,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                           </div>
                           {guideReference?.match_type === 'exact' && <div className="border-t border-slate-800 pt-4">
                             <p className="text-xs font-bold uppercase tracking-[0.16em] text-sky-300">Repères du guide officiel</p>
-                            <p className="mt-1 text-xs text-slate-500">Guide MESRS 2026-2027 · page {guideReference.source_pdf_page}{guideReference.completeness === 'partial' ? ' · fiche incomplète' : ''}</p>
+                            <p className="mt-1 text-xs text-slate-500">Guide MESRS 2026-2027 · page {guideReference.source_pdf_page}{guideReference.completeness === 'partial' ? ' · fiche incomplète' : ''} · à vérifier avant toute démarche.</p>
                             {guideReference.ranking_rule && <div className="mt-3 border border-amber-300/20 bg-amber-300/[0.05] p-3"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-200">Moyenne de classement de cette filière</p>{guideReference.ranking_rule.calculated_average !== null ? <p className="mt-1 text-lg font-black text-white">{guideReference.ranking_rule.calculated_average.toFixed(2)}<span className="ml-1 text-xs font-semibold text-slate-400">/20</span></p> : <p className="mt-1 text-sm leading-5 text-slate-300">Renseigne encore : {guideReference.ranking_rule.missing_subjects.join(', ')}.</p>}<p className="mt-2 text-xs leading-5 text-slate-400">{guideReference.ranking_rule.subjects.map((subject) => `${subject.label} · coef. ${subject.coefficient}`).join(' · ')}. Guide MESRS 2026-2027 · page {guideReference.ranking_rule.source_pdf_page}.</p></div>}
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                               {guideReference.entry_mode && <p><strong className="text-white">Accès :</strong> {guideReference.entry_mode}.</p>}
@@ -277,13 +349,36 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                       <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
                         <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Indicateur BacPilot</p><p className={`mt-1 text-3xl font-black ${index === 0 ? 'text-amber-300' : 'text-white'}`}>{item.score}<span className="ml-1 text-sm text-slate-500">/100</span></p><p className="mt-1 text-xs leading-5 text-slate-500">Ce n’est pas une garantie d’admission.</p></div>
                         <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${item.confidence === 'high' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' : item.confidence === 'medium' ? 'border-amber-300/30 bg-amber-300/10 text-amber-100' : 'border-slate-600 bg-slate-800 text-slate-300'}`}><Clock3 className="h-3.5 w-3.5" />{freshnessLabel(item.confidence)}</span>
-                        <button onClick={() => toggle(item.programme_id)} className={`inline-flex items-center gap-2 text-sm font-bold transition ${selected.includes(item.programme_id) ? 'text-emerald-300' : 'text-slate-300 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(item.programme_id) ? 'Piste retenue' : 'Retenir cette piste'}</button>
+                        <a href={OFFICIAL_CHOICE_PORTAL_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200"><ExternalLink className="h-4 w-4" />Vérifier sur le portail officiel</a>
+                        <button onClick={() => toggle(item.programme_id)} className={`inline-flex items-center gap-2 text-sm font-bold transition ${selected.includes(item.programme_id) ? 'text-emerald-300' : 'text-slate-300 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(item.programme_id) ? 'Retirée de mes choix' : 'Ajouter à mes choix'}</button>
                       </div>
                     </div>
                   </article>;
                 })}
               </div>
             </div>
+
+            <section className="mt-6 border border-sky-400/30 bg-sky-400/[0.06] px-5 py-5 sm:px-7">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-sky-200">Préparation guidée</p>
+                  <h2 className="mt-2 flex items-center gap-2 text-2xl font-black text-white"><ListChecks className="h-6 w-6 text-sky-300" />Préparer mes choix 1, 2, 3</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">BacPilot conserve ton ordre de préférence. Il ne remplit pas et ne valide pas le portail officiel à ta place : tu restes responsable de vérifier chaque intitulé avant toute sélection.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button onClick={() => void prepareChoices()} disabled={isPreparingChoices || preparedRecommendationChoices.length === 0} className="inline-flex items-center gap-2 bg-sky-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-sky-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"><ListChecks className="h-4 w-4" />{isPreparingChoices ? 'Préparation…' : 'Enregistrer mes choix'}</button>
+                  <button onClick={() => void copyPreparedChoices()} disabled={preparedRecommendationChoices.length === 0} className="inline-flex items-center gap-2 border border-slate-600 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:border-sky-300 disabled:cursor-not-allowed disabled:opacity-40"><Copy className="h-4 w-4" />Copier l’ordre</button>
+                  <a href={OFFICIAL_CHOICE_PORTAL_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 border border-slate-600 px-4 py-2.5 text-sm font-bold text-slate-100 transition hover:border-sky-300"><ExternalLink className="h-4 w-4" />Ouvrir le portail officiel</a>
+                </div>
+              </div>
+              <ol className="mt-5 grid gap-3 md:grid-cols-3">
+                {[1, 2, 3].map((rank) => {
+                  const choice = preparedRecommendationChoices[rank - 1];
+                  return <li key={rank} className="min-h-24 border border-slate-700 bg-slate-950/45 p-4"><p className="text-xs font-black uppercase tracking-[0.16em] text-sky-200">Choix {rank}</p>{choice ? <><p className="mt-2 text-sm font-bold text-white">{choice.programme}</p><p className="mt-1 text-xs leading-5 text-slate-400">{choice.school}{choice.locality ? ` · ${choice.locality}` : ''}</p>{choice.guide_page && <p className="mt-1 text-[11px] text-slate-500">Guide MESRS · p. {choice.guide_page}</p>}</> : <p className="mt-2 text-sm text-slate-500">Ajoute une piste depuis les résultats.</p>}</li>;
+                })}
+              </ol>
+              {choiceNotice && <p role="status" className="mt-4 border-l-2 border-sky-300 pl-3 text-sm leading-6 text-sky-100">{choiceNotice}</p>}
+            </section>
 
             <section className="mt-6 border border-slate-800 bg-[#0c1828] px-5 py-5 sm:px-7">
               <div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-sky-300" /><div className="w-full"><h2 className="font-black text-white">Poser une question à BacPilot</h2><p className="mt-1 text-sm leading-6 text-slate-400">Je peux t’expliquer ce qui fait ressortir une piste. Je ne remplace pas les règles du portail officiel.</p><div className="mt-4 flex gap-2 border border-slate-700 bg-slate-950/60 p-2 focus-within:border-sky-300"><input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void askForExplanation(); }} placeholder="Ex. Pourquoi la piste 1 est-elle en premier ?" className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600" /><button onClick={() => void askForExplanation()} disabled={!question.trim() || isExplaining} aria-label="Envoyer ma question à BacPilot" className="flex h-10 w-10 shrink-0 items-center justify-center bg-sky-500 text-slate-950 transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></div>{isExplaining && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-sky-200"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Je prépare une explication à partir de tes pistes…</p>}{explanation && <div className="mt-4 border-l-2 border-sky-300 bg-slate-950/60 px-4 py-4 text-sm leading-6 text-slate-300"><p className="font-black text-sky-200">BacPilot</p><p className="mt-2">{explanation}</p>{assistant?.ai_explanations_remaining_today !== null && assistant?.ai_explanations_remaining_today !== undefined && <p className="mt-3 text-xs text-slate-500">Explications IA restantes aujourd’hui : {assistant.ai_explanations_remaining_today}</p>}</div>}</div></div>

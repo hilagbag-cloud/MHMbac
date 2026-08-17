@@ -42,6 +42,7 @@ export interface AssistantGuideReference {
   match_type: 'exact' | 'search';
   source_pdf_page: number;
   establishment: string;
+  locality?: string;
   programme: string;
   entry_mode: string;
   scholarship_quota: number | null;

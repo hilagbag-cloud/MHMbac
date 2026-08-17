@@ -34,6 +34,7 @@ type GuideProgramme = {
   source_pdf_page: number;
   institution: string;
   establishment: string;
+  locality?: string;
   programme: string;
   scholarship_quota: number | null;
   aid_or_fpp_quota: number | null;
@@ -237,7 +238,7 @@ async function resolveGuideReferences(supabase: any, recommendations: Recommenda
   const programmeNames = recommendations.slice(0, 3).map((item) => cleanText(item.programme, 180)).filter(Boolean);
   if (!programmeNames.length) return [];
 
-  const { data: exactData } = await supabase.rpc('lookup_guide_programmes', {
+  const { data: exactData } = await supabase.rpc('lookup_guide_programmes_enriched', {
     p_programmes: programmeNames,
     p_series: series,
   });

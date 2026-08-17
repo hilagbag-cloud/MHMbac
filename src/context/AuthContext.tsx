@@ -35,6 +35,7 @@ export interface SignupRequest {
   signupDeviceClass?: SignupDeviceClass;
   signupBrowser?: SignupBrowser;
   signupContextConsent?: boolean;
+  referralCode?: string | null;
 }
 
 interface AuthContextType {
@@ -237,6 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       signupDeviceClass = 'unknown',
       signupBrowser = 'Other',
       signupContextConsent = false,
+      referralCode = null,
     } = request;
     setErrorMessage(null);
 
@@ -302,6 +304,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             updated_at: new Date().toISOString(),
           };
           await realSupabase.from('profiles').upsert(initialProf);
+          if (referralCode?.trim()) {
+            const { error: referralError } = await realSupabase.rpc('apply_referral_code', { p_code: referralCode.trim() });
+            if (referralError) console.warn('Parrainage non appliqué:', referralError.message);
+          }
           setProfile(initialProf);
           return { success: true };
         }
