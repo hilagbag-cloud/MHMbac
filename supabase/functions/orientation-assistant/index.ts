@@ -691,7 +691,17 @@ Deno.serve(async (request) => {
     p_limit: 12,
   });
 
-  if (recommendationError) return json(request, { ok: false, error: 'Les recommandations ne sont pas disponibles pour le moment.' }, 500);
+  if (recommendationError) {
+    const fallbackResponse = 'Les observations sont temporairement difficiles à lire. Je ne vais pas inventer de piste : réessaie dans quelques instants, puis vérifie toujours les conditions sur le portail officiel.';
+    await persistConversation(supabase, user.id, userMessage, fallbackResponse).catch((error) => console.error('fallback conversation persist:', error instanceof Error ? error.message : JSON.stringify(error)));
+    return json(request, {
+      ok: true,
+      mode: 'fallback',
+      response: fallbackResponse,
+      thinking_steps: ['Lecture des observations temporairement interrompue', 'Aucune filière inventée', 'Nouvelle tentative recommandée'],
+      manual_validation_required: true,
+    }, 200);
+  }
   const candidatePool = ((recommendations || []) as Recommendation[]).slice(0, 12);
   let topThree = candidatePool.slice(0, 3);
   let recommendationProvider: string | null = null;
