@@ -444,3 +444,16 @@ La page `/soutenir` ne collecte pas de paiement. Elle enregistre une intention d
 Références externes conservées dans `research/EXTERNAL_PLATFORM_RULES_20260817.md` : Telegram Bot API, recommandations Gmail/Resend et règles Google sur les avis.
 
 À vérifier avant publication web : compilation frontend, lecture connectée des RPC communautaires avec un compte réel autorisé, rendu mobile des nouvelles pages et ajout dans le sitemap des routes publiques `/avis` et `/soutenir`.
+
+
+## Mise à jour du 17 août 2026 — incident critique de recommandations identiques
+
+La cause racine a été confirmée dans `20260815_recommendation_score_v2.sql` et `20260816_bacpilot_a1_a2_series_support.sql` : `get_top_recommendations_for_profile()` ramenait A1/A2 à A et ne transmettaient que l’objectif, la mention et les mots-clés. Dans `get_top_recommendations()`, la série n’entrait pas dans le score, tandis que les notes, les forces, la moyenne calculée et les règles du Guide MESRS étaient ignorées. Les utilisateurs sans mots-clés métier convergeaient donc vers les mêmes lignes globales de `live_programmes`.
+
+La migration `20260817_bacpilot_personalized_recommendations_v1.sql` est appliquée. Elle crée `get_personalized_recommendations()` sans supprimer l’ancien RPC. Le nouveau score combine, selon l’objectif, le signal bourse, la compatibilité de série, les matières du guide, la moyenne académique, la pression observée, la mention, les mots-clés carrière et les forces déclarées. Il expose dans `factors` les signaux utilisés et ajoute des réserves lorsque la série, la moyenne ou une fiche guide exacte manquent. Les règles A1/A2 ne sont plus fusionnées dans cet appel.
+
+`orientation-assistant` version 24 est active et appelle le nouveau RPC avec la série exacte, l’objectif, les mots-clés, les forces, `subjects`, `ranking_average` et les notes uniquement lorsque `notes_enabled` est vrai. Gemini ne calcule pas le classement : il reçoit les résultats SQL validés, le profil autorisé et les extraits des pages du guide pour reformuler et citer, avec repli déterministe.
+
+Recette lecture seule sur les observations existantes : `C + bourse + mathématiques` produit notamment Sociologie rurale et Vulgarisation Agricole (76), Horticulture et Aménagement des espaces Verts (75) et Gestion et Production Végétale et Semencière (75). `C + carrière + informatique` produit Génie rural et Maîtrise de l’Eau (73), Internet et Multimédia (73) et Mathématiques Informatiques (72). `D + carrière + santé` produit Diététique des aliments et Nutrition (70), Génétique Biotechnologies et Applications (69) et Biotechnologie Médicale (69). `D + bourse` produit un autre Top 3 avec Génétique Biotechnologies et Applications (79), Sociologie rurale et Vulgarisation Agricole (79) et Hydrologie quantitative et Gestion intégrée des Ressources (76). Aucune donnée n’a été insérée pendant cette recette.
+
+Limite importante : ces appels de recette utilisent des paramètres de comparaison et non des comptes candidats créés artificiellement. La recette finale doit utiliser au moins deux comptes réels autorisés, avec leurs profils, préférences et signaux académiques effectivement enregistrés, puis contrôler l’explication et le Top 3 affichés.

@@ -337,6 +337,8 @@ function compactFacts(recommendations: Recommendation[], freshness: any, profile
       objective: preferences?.primary_goal ?? 'bourse',
       career_keywords: Array.isArray(preferences?.career_keywords) ? preferences.career_keywords.slice(0, MAX_KEYWORDS) : [],
       ranking_average: academicSignals?.ranking_average ?? null,
+      strengths: Array.isArray(academicSignals?.strengths) ? academicSignals.strengths.slice(0, MAX_KEYWORDS) : [],
+      notes: academicSignals?.notes_enabled ? cleanText(academicSignals?.notes, 400) : null,
       calculation_version: academicSignals?.calculation_version ?? null,
     },
     recommendations: recommendations.slice(0, 3).map((item) => ({
@@ -608,7 +610,7 @@ Deno.serve(async (request) => {
   const [{ data: profile }, { data: preferences }, { data: academicSignals }, { data: freshnessResult }] = await Promise.all([
     supabase.from('profiles').select('id, display_name, series, mention').eq('id', user.id).maybeSingle(),
     supabase.from('user_preferences').select('user_id, primary_goal, career_keywords').eq('user_id', user.id).maybeSingle(),
-    supabase.from('user_academic_signals').select('notes_enabled, subjects, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
+    supabase.from('user_academic_signals').select('notes_enabled, notes, strengths, subjects, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
     supabase.rpc('get_data_freshness').maybeSingle(),
   ]);
   const freshness: any = freshnessResult;
@@ -629,11 +631,16 @@ Deno.serve(async (request) => {
 
   const objective = asObjective(preferences?.primary_goal) || 'bourse';
   const keywords = Array.isArray(preferences?.career_keywords) ? preferences.career_keywords : [];
-  const { data: recommendations, error: recommendationError } = await supabase.rpc('get_top_recommendations_for_profile', {
+  const academicSubjects = academicSignals?.subjects || academicSignals?.ranking_subjects || {};
+  const strengths = Array.isArray(academicSignals?.strengths) ? academicSignals.strengths.slice(0, MAX_KEYWORDS) : [];
+  const { data: recommendations, error: recommendationError } = await supabase.rpc('get_personalized_recommendations', {
     p_objective: objective,
     p_series: asSeries(profile?.series),
     p_mention: asMention(profile?.mention),
     p_career_keywords: keywords,
+    p_strengths: strengths,
+    p_subjects: academicSubjects,
+    p_ranking_average: typeof academicSignals?.ranking_average === 'number' ? academicSignals.ranking_average : null,
     p_limit: 3,
   });
 
