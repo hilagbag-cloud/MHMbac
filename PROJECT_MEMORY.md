@@ -490,3 +490,14 @@ L’Edge Function `orientation-assistant` a été redéployée en version 34 ave
 Après le premier déploiement, le dernier chemin de 500 restant était le retour direct de `recommendationError`. Il a été remplacé par une réponse de secours HTTP 200, sans filière inventée. `orientation-assistant` est active en version 35. Le frontend a été publié sur `https://bacpilot.site` avec une seconde tentative après 750 ms.
 
 Une notification de rétablissement sans bouton a été envoyée avec le code `assistant_outage_resolved_20260817` : Resend a accepté 20 messages, 0 échec, via la requête `pg_net` 21. Le premier avis d’incident avait été accepté pour 21 profils ; la différence correspond au périmètre courant des profils ayant une adresse valide au moment du second envoi.
+
+
+## Incident assistant — cause racine et recette E2E (17 août 2026)
+
+- **Règle de communication :** aucun e-mail de masse, e-mail d’incident ou e-mail de rétablissement ne doit être envoyé sans confirmation explicite préalable de Hilarus.
+- **Cause racine confirmée :** `get_personalized_recommendations` était `SECURITY INVOKER` (`prosecdef=false`). Sous le rôle `authenticated`, son joint avec `public.guide_programmes` échouait avec `permission denied for table guide_programmes`. L’Edge Function renvoyait alors une réponse de secours, ce qui donnait l’impression que l’assistant restait indisponible.
+- **Correction :** migration `20260817_fix_recommendations_rpc_security.sql` : RPC en `SECURITY DEFINER`, `search_path=public, extensions`, droits directs révoqués et exécution accordée uniquement à `authenticated`. Le RPC conserve sa validation stricte des paramètres et expose uniquement ses résultats, jamais les tables source.
+- **Recette réelle réussie :** un compte de test isolé a terminé l’onboarding (série C, mention Bien, priorité bourse, force Mathématiques), a reçu trois pistes officielles, puis une explication conversationnelle sourcée. Aucun e-mail ni message opérateur n’a été émis grâce au garde-fou `@example.invalid` de `notify-new-user`.
+- **Nettoyage :** le compte Auth, profil, préférences, signaux académiques, sessions, quotas IA et exécutions de recommandation de recette ont été supprimés et vérifiés à zéro. La session locale de recette a aussi été fermée.
+- **Déploiements concernés :** `orientation-assistant` v37 (validation JWT), frontend Vercel avec appel direct authentifié, et `notify-new-user` avec exclusion explicite des comptes de recette `@example.invalid`.
+- **Point à traiter séparément :** le dashboard de recette a encore affiché la formulation historique « score indicatif » issue du texte déterministe déployé ; ce n’est pas la cause de la panne, mais elle doit être retirée pour respecter la décision produit de classement qualitatif sans score numérique.

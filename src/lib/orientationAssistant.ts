@@ -90,16 +90,37 @@ export async function askOrientationAssistant(payload: AssistantPayload): Promis
     return { ok: false, error: 'La connexion sécurisée à Supabase est indisponible.' };
   }
 
-  let lastError: unknown = null;
+  const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+  const publishableKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+  const { data: sessionData } = await realSupabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!supabaseUrl || !publishableKey || !accessToken) {
+    return { ok: false, error: 'Ta session a expiré. Connecte-toi à nouveau avant de continuer.' };
+  }
+
+  let lastFailure = '';
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const { data, error } = await realSupabase.functions.invoke<AssistantResponse>('orientation-assistant', { body: payload });
-    if (!error) return data || { ok: false, error: 'Réponse vide de l’assistant.' };
-    lastError = error;
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/orientation-assistant`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          apikey: publishableKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => null) as AssistantResponse | null;
+      if (response.ok && data) return data;
+      lastFailure = data?.error || `HTTP ${response.status}`;
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : 'Erreur réseau inconnue.';
+    }
     if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 750));
   }
 
-  console.warn('orientation-assistant invoke failed after retry', lastError);
-  return { ok: false, error: 'La connexion avec l’assistant est temporairement instable. Réessaie dans un instant.' };
+  console.warn('orientation-assistant request failed after retry', lastFailure);
+  return { ok: false, error: `La connexion avec l’assistant a échoué (${lastFailure}). Réessaie dans un instant.` };
 }
 
 export function formatAssistantFreshness(minutes: number | null | undefined): string {

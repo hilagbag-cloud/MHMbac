@@ -150,6 +150,11 @@ Deno.serve(async (request) => {
   }
 
   const userId = payload.record!.id as string;
+  const testEmail = cleanText(payload.record?.email, 180).toLowerCase();
+  // Compte de recette éphémère : aucun e-mail ni message opérateur ne doit être émis.
+  if (testEmail.endsWith('@example.invalid')) {
+    return json({ ok: true, test: true, message: 'Profil de recette ignoré.' });
+  }
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
 
   const { data: delivery, error: deliveryLookupError } = await admin

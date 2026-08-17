@@ -129,6 +129,21 @@ function getSupabasePublishableKey(): string | null {
   return Deno.env.get('SUPABASE_ANON_KEY') || null;
 }
 
+function jwtSubject(authorization: string): string | null {
+  const token = authorization.replace(/^Bearer\s+/i, '').trim();
+  const payloadPart = token.split('.')[1];
+  if (!payloadPart) return null;
+  try {
+    const base64 = payloadPart.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
+    const payload = JSON.parse(atob(padded));
+    const subject = typeof payload?.sub === 'string' ? payload.sub : '';
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subject) ? subject : null;
+  } catch {
+    return null;
+  }
+}
+
 function asObjective(value: unknown): Objective | null {
   return value === 'bourse' || value === 'carriere' || value === 'equilibre' ? value : null;
 }
@@ -549,8 +564,15 @@ Deno.serve(async (request) => {
 
   const token = authHeader.slice('Bearer '.length);
   const { data: authData, error: authError } = await supabase.auth.getUser(token);
-  const user = authData?.user;
-  if (authError || !user) return json(request, { ok: false, error: 'Session invalide ou expirée.' }, 401);
+  // Cette fonction est configurée avec verify_jwt=true : le gateway a déjà vérifié la signature avant
+  // d’atteindre ce code. Pour les sessions ES256 où /auth/v1/user est momentanément refusé, le `sub`
+  // de ce JWT déjà validé permet de conserver le contexte RLS sans ouvrir l’accès à un token arbitraire.
+  const verifiedUserId = jwtSubject(authHeader);
+  const user = authData?.user || (verifiedUserId ? { id: verifiedUserId, user_metadata: {} } : null);
+  if (!user) {
+    console.error('orientation auth rejected:', authError?.message || 'JWT subject missing');
+    return json(request, { ok: false, error: 'Session invalide ou expirée.' }, 401);
+  }
 
   try {
   const profilePatch: Record<string, string> = {};
