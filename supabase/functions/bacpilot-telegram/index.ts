@@ -1,9 +1,17 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
+type TelegramVoice = {
+  file_id?: unknown;
+  file_size?: unknown;
+  duration?: unknown;
+  mime_type?: unknown;
+};
+
 type TelegramUpdate = {
   message?: {
     chat?: { id?: unknown };
     text?: unknown;
+    voice?: TelegramVoice;
   };
   callback_query?: {
     id?: unknown;
@@ -117,6 +125,156 @@ function messageText(value: unknown, limit = 6000) {
   return typeof value === 'string'
     ? value.trim().replace(/\r\n?/g, '\n').replace(/[ \t]+/g, ' ').replace(/\n{4,}/g, '\n\n\n').slice(0, limit)
     : '';
+}
+
+type OperatorAiIntent =
+  | 'platform_status'
+  | 'platform_stats'
+  | 'user_lookup'
+  | 'user_list'
+  | 'beta_list'
+  | 'feedback_list'
+  | 'pending_list'
+  | 'mail_status'
+  | 'welcome_prepare'
+  | 'email_prepare'
+  | 'beta_activate'
+  | 'beta_pause'
+  | 'beta_revoke'
+  | 'user_delete'
+  | 'documentation_question'
+  | 'clarification'
+  | 'unsupported';
+
+type OperatorAiPlan = {
+  intent: OperatorAiIntent;
+  user_identifier: string | null;
+  beta_status: string | null;
+  transcript: string | null;
+  clarification: string | null;
+  operator_reply: string;
+};
+
+const TELEGRAM_AI_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
+const TELEGRAM_AI_MAX_AUDIO_SECONDS = 180;
+const TELEGRAM_AI_INTENTS = new Set<OperatorAiIntent>([
+  'platform_status', 'platform_stats', 'user_lookup', 'user_list', 'beta_list', 'feedback_list', 'pending_list',
+  'mail_status', 'welcome_prepare', 'email_prepare', 'beta_activate', 'beta_pause', 'beta_revoke', 'user_delete',
+  'documentation_question', 'clarification', 'unsupported',
+]);
+
+const TELEGRAM_OPERATOR_AI_ROLE = [
+  'Tu es l’assistant privé de l’opérateur BacPilot. Tu aides uniquement à comprendre une demande et à préparer une commande existante.',
+  'BacPilot est une plateforme béninoise d’orientation post-bac : le bot peut lire des statistiques, utilisateurs, bêta-testeurs, retours, actions en attente et états e-mail ; il peut préparer des e-mails, un statut bêta ou une suppression.',
+  'Tu ne peux jamais exécuter une action, confirmer une action, envoyer un e-mail, supprimer un compte, modifier un rôle, révéler une clé, ni accéder à Internet.',
+  'Les actions sensibles seront toujours confirmées par le code serveur après ta réponse. Si le message est ambigu, demande une précision. Ne déduis jamais un utilisateur si son e-mail ou son identifiant n’est pas clair.',
+  'Réponds seulement avec un objet JSON valide suivant le schéma demandé. Les valeurs user_identifier et beta_status sont null quand elles ne sont pas certaines.',
+].join(' ');
+
+function parseOperatorAiPlan(raw: string): OperatorAiPlan | null {
+  try {
+    const normalized = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+    const value = JSON.parse(normalized);
+    const intent = text(value?.intent, 60) as OperatorAiIntent;
+    if (!TELEGRAM_AI_INTENTS.has(intent)) return null;
+    const betaStatus = text(value?.beta_status, 20).toLowerCase();
+    return {
+      intent,
+      user_identifier: text(value?.user_identifier, 180) || null,
+      beta_status: betaStatuses.has(betaStatus) ? betaStatus : null,
+      transcript: messageText(value?.transcript, 900) || null,
+      clarification: messageText(value?.clarification, 500) || null,
+      operator_reply: messageText(value?.operator_reply, 900) || '',
+    };
+  } catch {
+    return null;
+  }
+}
+
+function operatorPlanCommand(plan: OperatorAiPlan): { command: OperatorCommand | null; argument: string } {
+  const identifier = plan.user_identifier || '';
+  if (plan.intent === 'platform_status') return { command: '/status', argument: '' };
+  if (plan.intent === 'platform_stats') return { command: '/stats', argument: '' };
+  if (plan.intent === 'user_lookup' && identifier) return { command: '/user', argument: identifier };
+  if (plan.intent === 'user_list') return { command: '/user_list', argument: '' };
+  if (plan.intent === 'beta_list') return { command: '/beta_list', argument: plan.beta_status || '' };
+  if (plan.intent === 'feedback_list') return { command: '/feedback', argument: '' };
+  if (plan.intent === 'pending_list') return { command: '/pending', argument: '' };
+  if (plan.intent === 'mail_status' && identifier) return { command: '/mailstatus', argument: identifier };
+  if (plan.intent === 'welcome_prepare' && identifier) return { command: '/welcome', argument: identifier };
+  if (plan.intent === 'email_prepare' && identifier) return { command: '/email', argument: identifier };
+  if (plan.intent === 'beta_activate' && identifier) return { command: '/beta_add', argument: identifier };
+  if (plan.intent === 'beta_pause' && identifier) return { command: '/beta_pause', argument: identifier };
+  if (plan.intent === 'beta_revoke' && identifier) return { command: '/beta_revoke', argument: identifier };
+  if (plan.intent === 'user_delete' && identifier) return { command: '/user_delete', argument: identifier };
+  return { command: null, argument: '' };
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  const chunks: string[] = [];
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, Math.min(offset + 0x8000, bytes.length))));
+  }
+  return btoa(chunks.join(''));
+}
+
+async function downloadTelegramVoice(token: string, voice: TelegramVoice): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+  const fileId = text(voice.file_id, 180);
+  const size = Number(voice.file_size || 0);
+  const duration = Number(voice.duration || 0);
+  if (!fileId || !Number.isFinite(size) || size <= 0 || size > TELEGRAM_AI_MAX_AUDIO_BYTES || (Number.isFinite(duration) && duration > TELEGRAM_AI_MAX_AUDIO_SECONDS)) return null;
+  try {
+    const file = await telegramApi(token, 'getFile', { file_id: fileId });
+    const filePath = text(file?.file_path, 600);
+    if (!filePath || filePath.includes('..')) return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(`https://api.telegram.org/file/bot${token}/${filePath}`, { signal: controller.signal });
+      if (!response.ok) return null;
+      const bytes = new Uint8Array(await response.arrayBuffer());
+      if (!bytes.length || bytes.length > TELEGRAM_AI_MAX_AUDIO_BYTES) return null;
+      return { bytes, mimeType: text(voice.mime_type, 80) || 'audio/ogg' };
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch {
+    return null;
+  }
+}
+
+async function planOperatorRequest(input: { text: string; audio?: { bytes: Uint8Array; mimeType: string } | null }): Promise<OperatorAiPlan | null> {
+  const apiKey = Deno.env.get('GEMINI_API_KEY');
+  if (!apiKey) return null;
+  const model = text(Deno.env.get('TELEGRAM_GEMINI_MODEL'), 80) || text(Deno.env.get('GEMINI_MODEL'), 80) || 'gemini-3.1-flash-lite';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), input.audio ? 18_000 : 10_000);
+  const task = input.audio
+    ? 'Transcris d’abord la note vocale en français, puis interprète la demande opérateur selon le schéma. La transcription doit être placée dans transcript.'
+    : 'Interprète le message texte de l’opérateur selon le schéma.';
+  const parts: Array<Record<string, unknown>> = [{ text: `${task}\n\nMessage complémentaire : ${input.text || '(aucun texte)'}` }];
+  if (input.audio) parts.push({ inline_data: { mime_type: input.audio.mimeType, data: bytesToBase64(input.audio.bytes) } });
+  try {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      signal: controller.signal,
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: TELEGRAM_OPERATOR_AI_ROLE }] },
+        contents: [{ role: 'user', parts }],
+        generationConfig: { temperature: 0.05, maxOutputTokens: 520, responseMimeType: 'application/json' },
+        store: false,
+      }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    const raw = messageText(payload?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || '').join(' '), 2_500);
+    return raw ? parseOperatorAiPlan(raw) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 function formatDate(value: unknown) {
@@ -1308,7 +1466,9 @@ Deno.serve(async (request) => {
   const callbackQueryId = String(update.callback_query?.id ?? '');
   const callbackData = text(update.callback_query?.data, 120);
   const sourceChatId = String(update.callback_query?.message?.chat?.id ?? update.message?.chat?.id ?? '');
-  const parsed = callbackData ? callbackToCommand(callbackData) : parseCommand(update.message?.text);
+  const incomingText = messageText(update.message?.text, 1_200);
+  const incomingVoice = update.message?.voice;
+  const parsed = callbackData ? callbackToCommand(callbackData) : parseCommand(incomingText);
   if (sourceChatId !== operatorChatId) return json({ ok: true, ignored: true });
   if (callbackQueryId) {
     await answerCallbackQuery(
@@ -1321,6 +1481,7 @@ Deno.serve(async (request) => {
   const admin = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } });
   let command: OperatorCommand | null = parsed.command;
   let argument = parsed.argument;
+  let aiContext = '';
   let activeSession: InputSession | null = null;
   try {
     activeSession = await withTimeout(getInputSession(admin, sourceChatId));
@@ -1329,6 +1490,11 @@ Deno.serve(async (request) => {
     await sendMessage(telegramToken, operatorChatId, 'BacPilot — session temporairement indisponible. Réessaie dans quelques secondes ou utilise /cancel.').catch(() => undefined);
     // Toujours acquitter une mise à jour Telegram déjà authentifiée pour stopper les retries.
     return json({ ok: true, handled: false, error: 'Session indisponible.' }, 200);
+  }
+
+  if (incomingVoice && activeSession && !command) {
+    await sendMessage(telegramToken, operatorChatId, 'Une note vocale ne peut pas compléter une saisie ou une confirmation en cours. Réponds en texte, ou utilise /cancel avant une nouvelle demande.');
+    return json({ ok: true, ignored: true, reason: 'voice_with_active_session' });
   }
 
   if (!command && activeSession) {
@@ -1346,6 +1512,35 @@ Deno.serve(async (request) => {
         });
       }
     }
+  }
+
+  if (!command && !activeSession && (incomingText || incomingVoice)) {
+    const voicePayload = incomingVoice ? await downloadTelegramVoice(telegramToken, incomingVoice) : null;
+    if (incomingVoice && !voicePayload) {
+      await sendMessage(telegramToken, operatorChatId, `Note vocale non traitée. Envoie un vocal de moins de ${Math.round(TELEGRAM_AI_MAX_AUDIO_BYTES / (1024 * 1024))} Mo et ${Math.round(TELEGRAM_AI_MAX_AUDIO_SECONDS / 60)} minutes, ou écris ta demande.`);
+      return json({ ok: true, ignored: true, reason: 'voice_unavailable' });
+    }
+    const plan = await planOperatorRequest({ text: incomingText, audio: voicePayload });
+    if (!plan) {
+      await sendMessage(telegramToken, operatorChatId, 'Je n’ai pas pu interpréter cette demande pour le moment. Utilise /menu, /help ou reformule-la en une phrase courte.');
+      return json({ ok: true, ignored: true, reason: 'ai_plan_unavailable' });
+    }
+    const resolvedPlan = operatorPlanCommand(plan);
+    const transcriptLine = plan.transcript ? `Transcription : « ${plan.transcript} »` : '';
+    const plannerText = plan.clarification || plan.operator_reply || 'J’ai analysé la demande.';
+    aiContext = [transcriptLine, plannerText].filter(Boolean).join('\n');
+    await audit(admin, sourceChatId, 'assistant_llm', 'read', null, {
+      intent: plan.intent,
+      voice: Boolean(incomingVoice),
+      mapped_command: resolvedPlan.command,
+      has_identifier: Boolean(plan.user_identifier),
+    }).catch(() => undefined);
+    if (!resolvedPlan.command) {
+      await sendMessage(telegramToken, operatorChatId, `${aiContext}\n\nJe n’exécute aucune action tant que la demande n’est pas suffisamment précise. Utilise /menu pour les actions disponibles.`);
+      return json({ ok: true, handled: true, intent: plan.intent });
+    }
+    command = resolvedPlan.command;
+    argument = resolvedPlan.argument;
   }
 
   if (!command) {
@@ -1527,7 +1722,8 @@ Deno.serve(async (request) => {
           : (command === '/confirm' || command === '/cancel')
             ? mainInlineKeyboard()
             : undefined;
-    await withTimeout(sendMessage(telegramToken, operatorChatId, reply || 'Commande traitée.', inlineMarkup), 8_000);
+    const deliveredReply = aiContext ? `${aiContext}\n\n${reply || 'Commande traitée.'}` : (reply || 'Commande traitée.');
+    await withTimeout(sendMessage(telegramToken, operatorChatId, deliveredReply, inlineMarkup), 8_000);
     return json({ ok: true, command });
   } catch (error) {
     console.error('Erreur de commande Telegram:', error instanceof Error ? error.message : JSON.stringify(error));

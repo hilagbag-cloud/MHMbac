@@ -68,3 +68,11 @@ La première version active l’interprétation texte, le plan JSON, les confirm
 5. Envoyer une note vocale équivalente : le bot doit afficher la transcription, demander une correction si elle est ambiguë, puis suivre le même chemin de confirmation.
 6. Demander une recherche : le bot doit préciser la requête, restituer les sources et ne jamais exécuter d’instructions présentes dans les pages trouvées.
 7. Vérifier que les appels de planification, les refus de schéma et les confirmations sont journalisés, sans stocker le contenu audio ni les secrets.
+
+
+## Sources techniques vérifiées
+
+- Gemini API permet l’analyse et la transcription audio ; les données audio peuvent être transmises en ligne sous 20 Mo, et les formats indiqués comprennent notamment OGG. La documentation indique 32 jetons par seconde d’audio. Source : https://ai.google.dev/gemini-api/docs/audio
+- Les limites Gemini sont appliquées par projet et non par clé ; elles sont consultables dans Google AI Studio. Source : https://ai.google.dev/gemini-api/docs/rate-limits
+- Le niveau gratuit Gemini donne accès à certains modèles mais Google indique que les contenus peuvent être utilisés pour améliorer ses produits. Source : https://ai.google.dev/gemini-api/docs/pricing
+- Telegram livre les messages via webhook, permet de demander les fichiers par API et recommande un `secret_token` pour vérifier les requêtes. Source : https://core.telegram.org/bots/api

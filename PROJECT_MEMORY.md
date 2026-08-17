@@ -512,3 +512,12 @@ Le contrat actif utilise maintenant `get_personalized_candidate_pool`, un pool d
 Deux recettes authentifiées avec des profils contrastés ont été réalisées via Gemini. Le profil série C visant le développement logiciel, les réseaux et la cybersécurité a reçu Mathématiques Informatiques, Génie Logiciel et Sécurité Informatique. Le profil série D visant l’agriculture durable et la santé animale a reçu Sciences et Techniques de Production Végétale, Productions et santé animales et Gestion et Production Végétale et Semencière. Les deux réponses contenaient des justifications distinctes liées à l’intention libre. Les comptes de recette, profils, sessions, quotas IA et résultats ont ensuite été supprimés et vérifiés à zéro. Aucune communication e-mail ou Telegram n’a été envoyée.
 
 Point de vigilance : le navigateur sandbox a rencontré un blocage de téléchargement HTTP/2 du bundle Vercel, alors que le même bundle est complet et sert correctement en HTTP/1.1. Ce comportement de transport n’a pas empêché les recettes API authentifiées, mais il faut vérifier la nouvelle interface depuis un navigateur candidat réel après rechargement complet.
+
+
+## 17 août 2026 — Assistant opérateur Telegram via Gemini
+
+L’utilisateur a choisi l’option B : utiliser `GEMINI_API_KEY` déjà configurée dans Supabase pour l’assistant Telegram, sans recherche web. La fonction `bacpilot-telegram` v42 ajoute un routeur LLM à plan JSON pour les messages libres et les notes vocales. Les commandes, menus et callbacks existants restent prioritaires. Aucune action sensible ne peut être exécutée par le LLM : il ne fait que mapper une demande vers une commande existante qui crée ensuite une confirmation serveur.
+
+Les notes vocales sont limitées à 10 Mo et 180 secondes. Le fichier Telegram est téléchargé temporairement, analysé inline par Gemini et sa transcription est affichée dans la réponse. Il n’est ni conservé en base ni joint à un journal. Les plans invalides, ambigus ou non mappables demandent une clarification et n’exécutent rien.
+
+Une simulation interne signée avec `bacpilot_db_webhook_secret` a répondu HTTP 401 : ce secret Vault n’est pas le secret Telegram de la fonction. La validation complète doit être faite par un vrai message Telegram, qui portera le `TELEGRAM_WEBHOOK_SECRET` configuré par Telegram. Aucun e-mail, rôle, suppression ou modification utilisateur n’a été exécuté pendant ce développement.
