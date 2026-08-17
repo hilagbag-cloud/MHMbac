@@ -90,11 +90,16 @@ export async function askOrientationAssistant(payload: AssistantPayload): Promis
     return { ok: false, error: 'La connexion sécurisée à Supabase est indisponible.' };
   }
 
-  const { data, error } = await realSupabase.functions.invoke<AssistantResponse>('orientation-assistant', { body: payload });
-  if (error) {
-    return { ok: false, error: 'L’assistant est momentanément indisponible. Réessaie dans un instant.' };
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const { data, error } = await realSupabase.functions.invoke<AssistantResponse>('orientation-assistant', { body: payload });
+    if (!error) return data || { ok: false, error: 'Réponse vide de l’assistant.' };
+    lastError = error;
+    if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 750));
   }
-  return data || { ok: false, error: 'Réponse vide de l’assistant.' };
+
+  console.warn('orientation-assistant invoke failed after retry', lastError);
+  return { ok: false, error: 'La connexion avec l’assistant est temporairement instable. Réessaie dans un instant.' };
 }
 
 export function formatAssistantFreshness(minutes: number | null | undefined): string {

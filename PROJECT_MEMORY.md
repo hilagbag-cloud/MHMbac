@@ -476,3 +476,11 @@ Les tests SQL post-correction du guide passent et les scénarios C-carrière-inf
 - Les réponses libres sont persistées dans `user_preferences.free_intent`; le choix de ne pas renseigner les notes efface désormais les matières, la moyenne et les notes précédemment enregistrées.
 - Le frontend public ordonne les relevés par fraîcheur uniquement. Les colonnes et fonctions historiques de score restent présentes pour rollback et contrôle interne, mais ne sont plus affichées ni utilisées comme décision finale lorsque l’IA répond correctement.
 - Déploiement frontend : alias `https://bacpilot.site` prêt après publication Vercel du 17 août 2026. Edge Function `orientation-assistant` redéployée avec le routeur qualitatif.
+
+## Incident assistant IA — 17 août 2026
+
+L’alerte frontend « L’assistant est momentanément indisponible » provenait d’un mélange de deux facteurs : le client transformait toute erreur `functions.invoke` en message générique, et l’Edge Function déployée n’était pas alignée avec la version locale récente. Le RPC `get_personalized_recommendations` répondait correctement en production avec sa signature actuelle ; les RPC de quota et du guide étaient présents.
+
+Un endpoint interne idempotent `bacpilot-incident-broadcast` a été déployé avec authentification par `BACPILOT_DB_WEBHOOK_SECRET`. Il envoie sans bouton un avis d’incident texte + HTML aux profils ayant une adresse e-mail valide et journalise chaque tentative dans `incident_email_deliveries`. L’avis `assistant_outage_20260817` a été accepté par Resend pour 21 profils, avec 0 échec, via la requête `pg_net` 20.
+
+L’Edge Function `orientation-assistant` a été redéployée en version 34 avec un `try/catch` autour du parcours d’orientation : les erreurs fournisseur, guide, quota ou lecture interne déclenchent désormais une réponse de secours HTTP 200 sans inventer de filière au lieu d’une erreur 500. Le client `src/lib/orientationAssistant.ts` réessaie une fois après 750 ms pour les erreurs réseau transitoires. La compilation TypeScript et le build Vite passent.

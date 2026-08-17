@@ -552,6 +552,7 @@ Deno.serve(async (request) => {
   const user = authData?.user;
   if (authError || !user) return json(request, { ok: false, error: 'Session invalide ou expirée.' }, 401);
 
+  try {
   const profilePatch: Record<string, string> = {};
   if (body?.profile_patch && typeof body.profile_patch === 'object') {
     if ('display_name' in body.profile_patch) {
@@ -806,4 +807,14 @@ Deno.serve(async (request) => {
     ai_explanations_remaining_today: aiRemaining,
     manual_validation_required: true,
   });
+  } catch (error) {
+    console.error('orientation-assistant fallback:', error instanceof Error ? error.message : JSON.stringify(error));
+    return json(request, {
+      ok: true,
+      mode: 'fallback',
+      response: 'Je rencontre un ralentissement temporaire pendant la comparaison. Les modèles IA sont momentanément indisponibles, mais tu peux réessayer dans quelques instants : BacPilot ne fabriquera aucune filière et conservera uniquement les observations officielles disponibles.',
+      thinking_steps: ['Incident fournisseur ou lecture temporaire détecté', 'Réponse de secours activée sans inventer de résultat'],
+      manual_validation_required: true,
+    }, 200);
+  }
 });
