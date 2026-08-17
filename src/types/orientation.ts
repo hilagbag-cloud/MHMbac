@@ -68,6 +68,7 @@ export interface UserPreferences {
   user_id: string;
   primary_goal: PrimaryGoal;
   career_keywords: string[];
+  free_intent?: string | null;
   preferred_universities: string[];
   scholarship_priority: number; // 0 à 100
   career_priority: number;      // 0 à 100
@@ -102,10 +103,11 @@ export interface DemoProgramme {
 
 export interface ScoredProgramme {
   programme: DemoProgramme;
-  score: number; // 0 à 100
-  compatibilityScore: number; // Série
-  scholarshipScore: number;   // Bourse
-  careerScore: number;        // Adéquation métier
+  /** Legacy QA-only shape; no longer used in the candidate experience. */
+  score: number;
+  compatibilityScore: number;
+  scholarshipScore: number;
+  careerScore: number;
   badge: {
     label: string;
     variant: 'emerald' | 'rose' | 'indigo' | 'amber';

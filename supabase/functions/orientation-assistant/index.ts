@@ -181,6 +181,11 @@ function cleanKeywords(value: unknown): string[] | null {
   return [...unique];
 }
 
+function intentTokens(value: unknown): string[] {
+  const stopWords = new Set(['avec', 'dans', 'pour', 'plus', 'moins', 'être', 'etre', 'avoir', 'faire', 'comme', 'très', 'tres', 'mon', 'ma', 'mes', 'une', 'des', 'les', 'qui', 'que', 'sur', 'vers', 'cette', 'cela', 'aider', 'souhaite', 'voudrais']);
+  return [...new Set(cleanText(value, 600).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((token) => token.length >= 4 && !stopWords.has(token)))].slice(0, MAX_KEYWORDS);
+}
+
 function isAction(value: unknown): value is AssistantAction {
   return value === 'answer' || value === 'recommend' || value === 'explain' || value === 'programme_details';
 }
@@ -336,17 +341,17 @@ function compactFacts(recommendations: Recommendation[], freshness: any, profile
       mention: profile?.mention ?? null,
       objective: preferences?.primary_goal ?? 'bourse',
       career_keywords: Array.isArray(preferences?.career_keywords) ? preferences.career_keywords.slice(0, MAX_KEYWORDS) : [],
+      free_intent: cleanText(preferences?.free_intent, 300) || null,
       ranking_average: academicSignals?.ranking_average ?? null,
       strengths: Array.isArray(academicSignals?.strengths) ? academicSignals.strengths.slice(0, MAX_KEYWORDS) : [],
       notes: academicSignals?.notes_enabled ? cleanText(academicSignals?.notes, 400) : null,
       calculation_version: academicSignals?.calculation_version ?? null,
     },
-    recommendations: recommendations.slice(0, 3).map((item) => ({
-      rank: recommendations.indexOf(item) + 1,
+    candidates: recommendations.slice(0, 12).map((item) => ({
+      programme_id: item.programme_id,
       programme: item.programme,
       school: item.school,
       university: item.university,
-      score: item.score,
       confidence: item.confidence,
       observed_at: item.observed_at,
       freshness_minutes: item.freshness_minutes,
@@ -450,6 +455,17 @@ async function callOpenAICompatible(provider: string, endpoint: string, apiKey: 
     return null;
   } finally {
     clearTimeout(timeout);
+  }
+}
+
+function parseAiOrder(text: string, allowedIds: Set<number>): number[] {
+  try {
+    const parsed = JSON.parse(text);
+    const values = Array.isArray(parsed) ? parsed : Array.isArray(parsed?.ordered_programme_ids) ? parsed.ordered_programme_ids : [];
+    const ids: number[] = values.map((value: unknown) => Number(value)).filter((value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && allowedIds.has(value));
+    return Array.from(new Set<number>(ids)).slice(0, 3);
+  } catch {
+    return [];
   }
 }
 
@@ -570,6 +586,9 @@ Deno.serve(async (request) => {
       if (!keywords) return json(request, { ok: false, error: 'Les domaines doivent être une liste de mots-clés.' }, 400);
       preferencePatch.career_keywords = keywords;
     }
+    if ('free_intent' in body.preference_patch) {
+      preferencePatch.free_intent = cleanText(body.preference_patch.free_intent, 600) || null;
+    }
   }
 
   const academicPatch: Record<string, unknown> = {};
@@ -635,7 +654,7 @@ Deno.serve(async (request) => {
 
   const [{ data: profile }, { data: preferences }, { data: academicSignals }, { data: freshnessResult }] = await Promise.all([
     supabase.from('profiles').select('id, display_name, series, mention').eq('id', user.id).maybeSingle(),
-    supabase.from('user_preferences').select('user_id, primary_goal, career_keywords').eq('user_id', user.id).maybeSingle(),
+    supabase.from('user_preferences').select('user_id, primary_goal, career_keywords, free_intent').eq('user_id', user.id).maybeSingle(),
     supabase.from('user_academic_signals').select('notes_enabled, notes, strengths, subjects, ranking_subjects, ranking_average, calculation_version').eq('user_id', user.id).maybeSingle(),
     supabase.rpc('get_data_freshness').maybeSingle(),
   ]);
@@ -656,7 +675,8 @@ Deno.serve(async (request) => {
   }
 
   const objective = asObjective(preferences?.primary_goal) || 'bourse';
-  const keywords = Array.isArray(preferences?.career_keywords) ? preferences.career_keywords : [];
+  const savedKeywords = Array.isArray(preferences?.career_keywords) ? preferences.career_keywords : [];
+  const keywords = [...new Set([...savedKeywords, ...intentTokens(preferences?.free_intent)])].slice(0, MAX_KEYWORDS);
   const academicSubjects = academicSignals?.subjects || academicSignals?.ranking_subjects || {};
   const strengths = Array.isArray(academicSignals?.strengths) ? academicSignals.strengths.slice(0, MAX_KEYWORDS) : [];
   const { data: recommendations, error: recommendationError } = await supabase.rpc('get_personalized_recommendations', {
@@ -667,17 +687,42 @@ Deno.serve(async (request) => {
     p_strengths: strengths,
     p_subjects: academicSubjects,
     p_ranking_average: typeof academicSignals?.ranking_average === 'number' ? academicSignals.ranking_average : null,
-    p_limit: 3,
+    p_limit: 12,
   });
 
   if (recommendationError) return json(request, { ok: false, error: 'Les recommandations ne sont pas disponibles pour le moment.' }, 500);
-  const topThree = (recommendations || []) as Recommendation[];
+  const candidatePool = ((recommendations || []) as Recommendation[]).slice(0, 12);
+  let topThree = candidatePool.slice(0, 3);
+  let recommendationProvider: string | null = null;
   let guideReferences: GuideReference[] = [];
   let guidePdfContext: GuidePageContext[] = [];
   try {
-    guideReferences = await resolveGuideReferences(supabase, topThree, asSeries(profile?.series));
+    guideReferences = await resolveGuideReferences(supabase, candidatePool, asSeries(profile?.series));
     guideReferences = await attachProgrammeRankingRules(supabase, guideReferences, asSeries(profile?.series), academicSignals?.subjects || academicSignals?.ranking_subjects || null);
     guidePdfContext = await resolveGuidePageContext(supabase, guideReferences);
+
+    if (action === 'recommend' && candidatePool.length > 3) {
+      const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
+      const quota: any = quotaResult;
+      let ordering: AiResult | null = null;
+      if (Number(quota?.remaining_calls ?? 0) > 0) {
+        const candidateFacts = compactFacts(candidatePool, freshness, profile, preferences, academicSignals, guideReferences, guidePdfContext);
+        ordering = await callAiChain(
+        'Réordonne les candidats selon le profil complet, les intentions libres, les notes, la série, les observations et les fiches du guide. Réponds UNIQUEMENT en JSON sous la forme {"ordered_programme_ids":[id1,id2,id3]}. Choisis trois identifiants distincts du tableau candidates. Ne crée aucun identifiant, ne donne aucun score et ne commente pas.',
+          candidateFacts,
+        );
+      }
+      const allowedIds = new Set(candidatePool.map((item) => Number(item.programme_id)));
+      const orderedIds = ordering ? parseAiOrder(ordering.text, allowedIds) : [];
+      if (ordering && orderedIds.length === 3 && (quota?.remaining_calls ?? 0) > 0) {
+        const byId = new Map(candidatePool.map((item) => [Number(item.programme_id), item]));
+        topThree = orderedIds.map((id) => byId.get(id)).filter((item): item is Recommendation => Boolean(item));
+        const { data: consumptionResult } = await supabase.rpc('consume_ai_quota').maybeSingle();
+        const consumption: any = consumptionResult;
+        if (consumption?.allowed) recommendationProvider = ordering.provider;
+        else topThree = candidatePool.slice(0, 3);
+      }
+    }
   } catch {
     // La disponibilité du guide ne doit jamais bloquer les observations temps réel ni le classement déterministe.
     guideReferences = [];
@@ -701,15 +746,15 @@ Deno.serve(async (request) => {
     const guideDetail = selectedGuide?.match_type === 'exact'
       ? ` Le Guide MESRS 2026-2027 (p. ${selectedGuide.source_pdf_page}) indique ${selectedGuide.entry_mode ? `un accès par ${selectedGuide.entry_mode.toLowerCase()}` : 'des informations de formation'}${selectedGuide.career_outcomes.length ? ` et cite notamment ${selectedGuide.career_outcomes.slice(0, 3).join(', ')}` : ''}.`
       : '';
-    const response = `Voici ce qui place ${selected.programme} parmi tes pistes : score indicatif ${selected.score}/100, confiance ${selected.confidence === 'high' ? 'élevée' : selected.confidence === 'medium' ? 'moyenne' : 'limitée'} et observation ${formatAge(selected.freshness_minutes)}.${guideDetail} Vérifie toujours les conditions officielles avant de la retenir.`;
+    const response = `Voici pourquoi ${selected.programme} ressort parmi tes pistes : cohérence ${selected.confidence === 'high' ? 'élevée' : selected.confidence === 'medium' ? 'à surveiller' : 'limitée'} avec les éléments comparés et observation ${formatAge(selected.freshness_minutes)}.${guideDetail} Vérifie toujours les conditions officielles avant de la retenir.`;
     await persistConversation(supabase, user.id, userMessage, response);
     return json(request, { ok: true, mode: 'deterministic', response, freshness, recommendations: [selected], guide_references: selectedGuide ? [selectedGuide] : [], thinking_steps: thinkingSteps, manual_validation_required: true });
   }
 
   let response = deterministicMessage(topThree, freshness, guideReferences);
-  let mode: 'deterministic' | 'ai_rephrased' | 'fallback' = 'deterministic';
+  let mode: 'deterministic' | 'ai_reordered' | 'ai_rephrased' | 'fallback' = recommendationProvider ? 'ai_reordered' : 'deterministic';
   let aiRemaining: number | null = null;
-  let aiProvider: string | null = null;
+  let aiProvider: string | null = recommendationProvider;
 
   if (action === 'explain') {
     const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
@@ -755,10 +800,10 @@ Deno.serve(async (request) => {
     response,
     freshness,
     recommendations: topThree,
+    ai_provider: aiProvider,
     guide_references: guideReferences,
     thinking_steps: thinkingSteps,
     ai_explanations_remaining_today: aiRemaining,
-    ai_provider: aiProvider,
     manual_validation_required: true,
   });
 });

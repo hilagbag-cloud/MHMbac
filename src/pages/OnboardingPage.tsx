@@ -199,17 +199,18 @@ export const OnboardingPage: React.FC<OnboardingPageProps> = ({ navigate }) => {
         setStep('career');
         appendAgent(questions.career);
       } else if (step === 'career') {
+        const freeIntent = answer === '__skip__' ? null : answer.trim().slice(0, 600);
         const keywords = answer === '__skip__' ? [] : answer.split(',').map((item) => item.trim()).filter((item) => item.length >= 2).slice(0, 8);
         if (goal !== 'bourse' && !keywords.length) throw new Error('Ajoute au moins un domaine ou un métier pour une recommandation carrière pertinente.');
-        const saved = await updatePreferences({ career_keywords: keywords });
+        const saved = await updatePreferences({ career_keywords: keywords, free_intent: freeIntent });
         if (!saved) throw new Error('Je n’ai pas pu enregistrer ce domaine. Réessaie.');
-        await askOrientationAssistant({ action: 'answer', message: answer, preference_patch: { career_keywords: keywords } });
+        await askOrientationAssistant({ action: 'answer', message: answer, preference_patch: { career_keywords: keywords, free_intent: freeIntent } });
         setStep('notes_prompt');
         appendAgent(questions.notes_prompt);
       } else if (step === 'notes_prompt') {
         if (!['yes', 'no'].includes(answer)) throw new Error('Choisis si tu veux saisir tes notes maintenant.');
         if (answer === 'no') {
-          const saved = await updateAcademicSignals({ notes_enabled: false, ranking_subjects: {}, ranking_average: null });
+          const saved = await updateAcademicSignals({ notes_enabled: false, notes: null, subjects: {}, ranking_subjects: {}, ranking_average: null });
           if (!saved) throw new Error('Je n’ai pas pu enregistrer ton choix. Réessaie.');
           setStep('signals');
           appendAgent(questions.signals);

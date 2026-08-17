@@ -31,13 +31,6 @@ import { LiveProgramme, PrimaryGoal } from '../types/orientation';
 
 interface DashboardPageProps { navigate: (route: string) => void; }
 
-function liveScore(row: LiveProgramme, goal: PrimaryGoal): number {
-  if (row.score_opportunity != null) return row.score_opportunity;
-  if (goal === 'bourse') return Math.max(0, Math.min(100, Math.round((row.scholarships / Math.max(row.total, 1)) * 100)));
-  if (goal === 'carriere') return Math.max(0, Math.min(100, Math.round((1 - row.passable / Math.max(row.total, 1)) * 100)));
-  return Math.max(0, Math.min(100, Math.round(((row.scholarships / Math.max(row.total, 1)) * 50) + ((1 - row.passable / Math.max(row.total, 1)) * 50))));
-}
-
 function freshnessTone(confidence: AssistantRecommendation['confidence']) {
   if (confidence === 'high') return 'text-emerald-300';
   if (confidence === 'medium') return 'text-amber-300';
@@ -78,14 +71,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
   const [isPreparingChoices, setIsPreparingChoices] = useState(false);
   const [choiceNotice, setChoiceNotice] = useState<string | null>(null);
   const live = useLiveProgrammes(100);
-  const keywords = preferences?.career_keywords || [];
 
-  const rows = useMemo(() => [...live.rows].sort((a, b) => {
-    const aMatch = keywords.some((word) => `${a.programme} ${a.school}`.toLowerCase().includes(word.toLowerCase()));
-    const bMatch = keywords.some((word) => `${b.programme} ${b.school}`.toLowerCase().includes(word.toLowerCase()));
-    if ((goal === 'carriere' || goal === 'equilibre') && aMatch !== bMatch) return Number(bMatch) - Number(aMatch);
-    return liveScore(b, goal) - liveScore(a, goal);
-  }), [live.rows, goal, keywords]);
+  const rows = useMemo(() => [...live.rows].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()), [live.rows]);
 
   const runAnalysis = async () => {
     setAnalysisError(null);
@@ -347,7 +334,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                         </div>}
                       </div>
                       <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
-                        <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Indicateur BacPilot</p><p className={`mt-1 text-3xl font-black ${index === 0 ? 'text-amber-300' : 'text-white'}`}>{item.score}<span className="ml-1 text-sm text-slate-500">/100</span></p><p className="mt-1 text-xs leading-5 text-slate-500">Ce n’est pas une garantie d’admission.</p></div>
+                        <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lecture qualitative</p><p className={`mt-1 text-lg font-black ${index === 0 ? 'text-amber-300' : 'text-white'}`}>{index === 0 ? 'Piste prioritaire' : 'Piste à comparer'}</p><p className="mt-1 text-xs leading-5 text-slate-500">Décision expliquée à partir du profil et du guide.</p></div>
                         <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${item.confidence === 'high' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' : item.confidence === 'medium' ? 'border-amber-300/30 bg-amber-300/10 text-amber-100' : 'border-slate-600 bg-slate-800 text-slate-300'}`}><Clock3 className="h-3.5 w-3.5" />{freshnessLabel(item.confidence)}</span>
                         <a href={OFFICIAL_CHOICE_PORTAL_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200"><ExternalLink className="h-4 w-4" />Vérifier sur le portail officiel</a>
                         <button onClick={() => toggle(item.programme_id)} className={`inline-flex items-center gap-2 text-sm font-bold transition ${selected.includes(item.programme_id) ? 'text-emerald-300' : 'text-slate-300 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(item.programme_id) ? 'Retirée de mes choix' : 'Ajouter à mes choix'}</button>
@@ -392,7 +379,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
           {live.error && <div className="mt-5 border border-rose-400/30 bg-rose-500/10 p-5 text-sm text-rose-100">Les données sont momentanément indisponibles : {live.error}</div>}
           {!live.loading && !live.error && rows.length === 0 && <div className="mt-5 border border-dashed border-slate-700 p-8 text-center text-sm text-slate-400">Aucune donnée observée n’est disponible pour le moment. Lance une collecte depuis l’extension.</div>}
           <div className="mt-5 grid gap-px border border-slate-800 bg-slate-800 md:grid-cols-2">
-            {rows.map((row, index) => <article key={row.programme_id} className="bg-[#0c1828] p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-slate-500">Filière observée #{index + 1} · {row.university}</p><h3 className="mt-2 font-bold text-white">{row.programme}</h3><p className="mt-1 text-xs text-slate-400">{row.school}</p></div><div className="text-right"><strong className="text-2xl text-amber-300">{liveScore(row, goal)}</strong><span className="block text-[10px] uppercase tracking-wide text-slate-500">indicateur</span></div></div><div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-400"><span><strong className="text-slate-200">{row.scholarships}</strong> bourses observées</span><span><strong className="text-slate-200">{row.passable}</strong> mention Passable</span><span><strong className="text-slate-200">{row.total}</strong> inscriptions</span></div><button onClick={() => toggle(row.programme_id)} className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold ${selected.includes(row.programme_id) ? 'text-emerald-300' : 'text-slate-400 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(row.programme_id) ? 'Piste retenue' : 'Retenir comme piste'}</button></article>)}
+            {rows.map((row, index) => <article key={row.programme_id} className="bg-[#0c1828] p-5"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-semibold text-slate-500">Filière observée #{index + 1} · {row.university}</p><h3 className="mt-2 font-bold text-white">{row.programme}</h3><p className="mt-1 text-xs text-slate-400">{row.school}</p></div><div className="text-right"><strong className="text-sm text-amber-300">Données observées</strong><span className="block text-[10px] uppercase tracking-wide text-slate-500">à comparer</span></div></div><div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-400"><span><strong className="text-slate-200">{row.scholarships}</strong> bourses observées</span><span><strong className="text-slate-200">{row.passable}</strong> mention Passable</span><span><strong className="text-slate-200">{row.total}</strong> inscriptions</span></div><button onClick={() => toggle(row.programme_id)} className={`mt-4 inline-flex items-center gap-2 text-sm font-semibold ${selected.includes(row.programme_id) ? 'text-emerald-300' : 'text-slate-400 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(row.programme_id) ? 'Piste retenue' : 'Retenir comme piste'}</button></article>)}
           </div>
         </section>
       </div>

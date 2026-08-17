@@ -24,7 +24,6 @@ export function useLiveProgrammes(limit = 60): LiveProgrammesState {
       const { data, error } = await realSupabase
         .from('live_programmes')
         .select('*')
-        .order('score_opportunity', { ascending: false, nullsFirst: false })
         .order('updated_at', { ascending: false })
         .limit(limit);
       if (!active) return;
@@ -45,7 +44,7 @@ export function useLiveProgrammes(limit = 60): LiveProgrammesState {
           const incoming = (payload.new || payload.old) as LiveProgramme;
           if (!incoming?.programme_id) return current;
           const without = current.rows.filter((row) => row.programme_id !== incoming.programme_id);
-          const rows = payload.eventType === 'DELETE' ? without : [incoming, ...without].sort((a, b) => (b.score_opportunity ?? -1) - (a.score_opportunity ?? -1)).slice(0, limit);
+          const rows = payload.eventType === 'DELETE' ? without : [incoming, ...without].sort((a, b) => new Date(b.updated_at || 0).getTime() - new Date(a.updated_at || 0).getTime()).slice(0, limit);
           return { ...current, rows, lastUpdated: incoming.updated_at || new Date().toISOString(), realtime: 'connected' };
         });
       })

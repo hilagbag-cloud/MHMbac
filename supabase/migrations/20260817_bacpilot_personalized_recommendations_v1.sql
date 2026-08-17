@@ -40,8 +40,8 @@ BEGIN
   IF p_mention IS NOT NULL AND p_mention NOT IN ('Passable', 'Assez bien', 'Bien', 'Très bien') THEN
     RAISE EXCEPTION 'Mention not allowed';
   END IF;
-  IF p_limit < 1 OR p_limit > 3 THEN
-    RAISE EXCEPTION 'Limit must be between 1 and 3';
+  IF p_limit < 1 OR p_limit > 24 THEN
+    RAISE EXCEPTION 'Limit must be between 1 and 24';
   END IF;
   IF p_ranking_average IS NOT NULL AND (p_ranking_average < 0 OR p_ranking_average > 20) THEN
     RAISE EXCEPTION 'Ranking average not allowed';

@@ -2,5 +2,6 @@
   "compilerOptions": {
     "lib": ["deno.window", "dom", "dom.iterable", "esnext"],
     "strict": true
-  }
+  },
+  "importMap": "./import_map.json"
 }

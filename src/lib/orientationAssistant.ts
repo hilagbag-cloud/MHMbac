@@ -8,7 +8,6 @@ export interface AssistantRecommendation {
   university: string;
   school: string;
   programme: string;
-  score: number;
   confidence: 'low' | 'medium' | 'high';
   observed_at: string | null;
   updated_at: string | null;
@@ -59,7 +58,8 @@ export interface AssistantGuideReference {
 export interface AssistantResponse {
   ok: boolean;
   error?: string;
-  mode?: 'deterministic' | 'ai_rephrased' | 'fallback';
+  mode?: 'deterministic' | 'ai_reordered' | 'ai_rephrased' | 'fallback';
+  ai_provider?: string | null;
   response?: string;
   next_question?: string;
   freshness?: {
@@ -80,7 +80,7 @@ export type AssistantPayload = {
   action?: AssistantAction;
   message?: string;
   profile_patch?: { display_name?: string; series?: BacSeries; mention?: BacMention };
-  preference_patch?: { primary_goal?: PrimaryGoal; career_keywords?: string[] };
+  preference_patch?: { primary_goal?: PrimaryGoal; career_keywords?: string[]; free_intent?: string | null };
   academic_patch?: { strengths?: string[]; notes?: string; notes_enabled?: boolean; ranking_subjects?: Record<string, number>; subjects?: Record<string, number> };
   programme_id?: number;
 };

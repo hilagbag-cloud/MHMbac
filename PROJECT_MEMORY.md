@@ -468,3 +468,11 @@ La fonction `orientation-assistant` version 27 est active. Elle contient mainten
 Nouvelles variables possibles dans les secrets Supabase : `OPENROUTER_API_KEY`, `OPENROUTER_MODEL`, `CEREBRAS_API_KEY`, `CEREBRAS_MODEL`, `AI_PROVIDER_ORDER`. Les modèles OpenRouter/Cerebras restent désactivés tant que leurs clés ne sont pas fournies. Together AI n’est pas retenu comme gratuit : sa documentation exige un achat minimum de 5 dollars. Cerebras fournit un essai limité et conditionné, pas un quota permanent gratuit. Fireworks fournit un crédit de démarrage mais n’est pas gratuit de façon permanente.
 
 Les tests SQL post-correction du guide passent et les scénarios C-carrière-informatique et D-carrière-santé renvoient des Top 3 distincts. Aucun compte ou dataset fictif n’a été créé.
+
+## 2026-08-17 — Classement qualitatif piloté par IA
+- L’expérience candidat n’affiche plus de score `/100`, de `score_opportunity` ni de score local simulé.
+- L’assistant récupère un pool interne élargi de 12 candidats, transmet un contexte compact sans score aux fournisseurs IA et accepte uniquement un JSON contenant trois identifiants existants.
+- Le fournisseur IA est consommé au maximum une fois par analyse; en cas de quota épuisé, d’erreur ou de réponse invalide, BacPilot conserve un repli déterministe explicitement présenté comme tel.
+- Les réponses libres sont persistées dans `user_preferences.free_intent`; le choix de ne pas renseigner les notes efface désormais les matières, la moyenne et les notes précédemment enregistrées.
+- Le frontend public ordonne les relevés par fraîcheur uniquement. Les colonnes et fonctions historiques de score restent présentes pour rollback et contrôle interne, mais ne sont plus affichées ni utilisées comme décision finale lorsque l’IA répond correctement.
+- Déploiement frontend : alias `https://bacpilot.site` prêt après publication Vercel du 17 août 2026. Edge Function `orientation-assistant` redéployée avec le routeur qualitatif.
