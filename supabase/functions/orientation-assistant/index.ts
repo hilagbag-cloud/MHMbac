@@ -386,7 +386,13 @@ function compactFacts(recommendations: Recommendation[], freshness: any, profile
   };
 }
 
-async function callGemini(prompt: string, facts: unknown): Promise<string | null> {
+type AiResult = { text: string; provider: string };
+
+function aiPrompt(prompt: string, facts: unknown): string {
+  return `Demande du candidat : ${prompt || 'Explique les trois pistes de manière utile.'}\n\nFaits validés :\n${JSON.stringify(facts)}`;
+}
+
+async function callGemini(prompt: string, facts: unknown): Promise<AiResult | null> {
   const apiKey = Deno.env.get('GEMINI_API_KEY');
   if (!apiKey) return null;
 
@@ -397,28 +403,19 @@ async function callGemini(prompt: string, facts: unknown): Promise<string | null
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey,
-      },
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
       signal: controller.signal,
       body: JSON.stringify({
         system_instruction: { parts: [{ text: ASSISTANT_ROLE }] },
-        contents: [{
-          role: 'user',
-          parts: [{
-            text: `Demande du candidat : ${prompt || 'Explique les trois pistes de manière utile.'}\n\nFaits validés :\n${JSON.stringify(facts)}`,
-          }],
-        }],
+        contents: [{ role: 'user', parts: [{ text: aiPrompt(prompt, facts) }] }],
         generationConfig: { temperature: 0.25, maxOutputTokens: 240 },
         store: false,
       }),
     });
-
     if (!response.ok) return null;
     const payload = await response.json();
     const text = cleanText(payload?.candidates?.[0]?.content?.parts?.map((part: any) => part?.text || '').join(' '), 1_200);
-    return text || null;
+    return text ? { text, provider: 'gemini' } : null;
   } catch {
     return null;
   } finally {
@@ -426,21 +423,14 @@ async function callGemini(prompt: string, facts: unknown): Promise<string | null
   }
 }
 
-async function callGroq(prompt: string, facts: unknown): Promise<string | null> {
-  const apiKey = Deno.env.get('GROQ_API_KEY');
+async function callOpenAICompatible(provider: string, endpoint: string, apiKey: string | undefined, model: string, prompt: string, facts: unknown, extraHeaders: Record<string, string> = {}): Promise<AiResult | null> {
   if (!apiKey) return null;
-
-  const model = cleanText(Deno.env.get('GROQ_MODEL'), 80) || 'llama-3.1-8b-instant';
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
-
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, ...extraHeaders },
       signal: controller.signal,
       body: JSON.stringify({
         model,
@@ -448,19 +438,43 @@ async function callGroq(prompt: string, facts: unknown): Promise<string | null> 
         max_tokens: 240,
         messages: [
           { role: 'system', content: ASSISTANT_ROLE },
-          { role: 'user', content: `Demande du candidat : ${prompt || 'Explique les trois pistes de manière utile.'}\n\nFaits validés :\n${JSON.stringify(facts)}` },
+          { role: 'user', content: aiPrompt(prompt, facts) },
         ],
       }),
     });
-
     if (!response.ok) return null;
     const payload = await response.json();
-    return cleanText(payload?.choices?.[0]?.message?.content, 1_200) || null;
+    const text = cleanText(payload?.choices?.[0]?.message?.content, 1_200);
+    return text ? { text, provider } : null;
   } catch {
     return null;
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function callAiChain(prompt: string, facts: unknown): Promise<AiResult | null> {
+  const configured = cleanText(Deno.env.get('AI_PROVIDER_ORDER'), 160) || 'gemini,groq,openrouter,cerebras';
+  const providers = [...new Set(configured.split(',').map((item) => item.trim().toLowerCase()).filter(Boolean))];
+  for (const provider of providers) {
+    if (provider === 'gemini') {
+      const result = await callGemini(prompt, facts);
+      if (result) return result;
+    } else if (provider === 'groq') {
+      const result = await callOpenAICompatible('groq', 'https://api.groq.com/openai/v1/chat/completions', Deno.env.get('GROQ_API_KEY'), cleanText(Deno.env.get('GROQ_MODEL'), 80) || 'llama-3.1-8b-instant', prompt, facts);
+      if (result) return result;
+    } else if (provider === 'openrouter') {
+      const result = await callOpenAICompatible('openrouter', 'https://openrouter.ai/api/v1/chat/completions', Deno.env.get('OPENROUTER_API_KEY'), cleanText(Deno.env.get('OPENROUTER_MODEL'), 120) || 'openrouter/free', prompt, facts, {
+        'HTTP-Referer': 'https://bacpilot.site',
+        'X-Title': 'BacPilot — MHM SOLUTIONS',
+      });
+      if (result) return result;
+    } else if (provider === 'cerebras') {
+      const result = await callOpenAICompatible('cerebras', 'https://api.cerebras.ai/v1/chat/completions', Deno.env.get('CEREBRAS_API_KEY'), cleanText(Deno.env.get('CEREBRAS_MODEL'), 120) || 'gpt-oss-120b', prompt, facts);
+      if (result) return result;
+    }
+  }
+  return null;
 }
 
 async function persistConversation(supabase: any, userId: string, userMessage: string, assistantMessage: string) {
@@ -587,9 +601,21 @@ Deno.serve(async (request) => {
   }
 
   if (Object.keys(profilePatch).length) {
-    const { error } = await supabase
+    const { data: existingProfileRow } = await supabase
       .from('profiles')
-      .upsert({ id: user.id, ...profilePatch, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+    const profileWrite = { ...profilePatch, updated_at: new Date().toISOString() };
+    const profileMutation = existingProfileRow?.id
+      ? supabase.from('profiles').update(profileWrite).eq('id', user.id)
+      : supabase.from('profiles').insert({
+        id: user.id,
+        display_name: profilePatch.display_name || cleanText(user.user_metadata?.full_name, 120) || 'Candidat',
+        ...profilePatch,
+        updated_at: new Date().toISOString(),
+      });
+    const { error } = await profileMutation;
     if (error) return json(request, { ok: false, error: 'Impossible d’enregistrer ce point de ton profil.' }, 500);
   }
 
@@ -683,6 +709,7 @@ Deno.serve(async (request) => {
   let response = deterministicMessage(topThree, freshness, guideReferences);
   let mode: 'deterministic' | 'ai_rephrased' | 'fallback' = 'deterministic';
   let aiRemaining: number | null = null;
+  let aiProvider: string | null = null;
 
   if (action === 'explain') {
     const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
@@ -691,18 +718,17 @@ Deno.serve(async (request) => {
     const facts = compactFacts(topThree, freshness, profile, preferences, academicSignals, guideReferences, guidePdfContext);
 
     if (aiRemaining > 0) {
-      const geminiResponse = await callGemini(userMessage, facts);
-      const groqResponse = geminiResponse ? null : await callGroq(userMessage, facts);
-      const aiResponse = geminiResponse || groqResponse;
+      const aiResult = await callAiChain(userMessage, facts);
 
-      if (aiResponse) {
-          const { data: consumptionResult } = await supabase.rpc('consume_ai_quota').maybeSingle();
-          const consumption: any = consumptionResult;
-          if (consumption?.allowed) {
-          response = aiResponse;
+      if (aiResult) {
+        const { data: consumptionResult } = await supabase.rpc('consume_ai_quota').maybeSingle();
+        const consumption: any = consumptionResult;
+        if (consumption?.allowed) {
+          response = aiResult.text;
+          aiProvider = aiResult.provider;
           mode = 'ai_rephrased';
           aiRemaining = Number(consumption.remaining_calls ?? 0);
-          thinkingSteps.push(geminiResponse ? 'Reformulation claire par l’assistant' : 'Reformulation claire par le service de secours');
+          thinkingSteps.push(`Reformulation claire par ${aiResult.provider}`);
         }
       }
     }
@@ -732,6 +758,7 @@ Deno.serve(async (request) => {
     guide_references: guideReferences,
     thinking_steps: thinkingSteps,
     ai_explanations_remaining_today: aiRemaining,
+    ai_provider: aiProvider,
     manual_validation_required: true,
   });
 });
