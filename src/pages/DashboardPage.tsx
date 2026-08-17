@@ -288,7 +288,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
               </div>
 
               <div className="divide-y divide-slate-800">
-                {recommendations.length === 0 && <div className="px-5 py-10 sm:px-7"><div className="flex items-center gap-3 text-sm text-slate-400"><LoaderCircle className="h-5 w-5 animate-spin text-amber-300" />BacPilot prépare tes pistes à partir des données observées…</div></div>}
+                {recommendations.length === 0 && <div className="px-5 py-10 sm:px-7"><div className="flex items-start gap-3 text-sm leading-6 text-slate-400">{isAnalysing ? <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-300" /> : <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />}<p>{isAnalysing ? 'BacPilot prépare une comparaison personnalisée à partir des observations et du guide…' : assistant?.response || 'Aucune comparaison personnalisée n’est encore disponible.'}</p></div></div>}
                 {recommendations.map((item, index) => {
                   const factors = factorText(item);
                   const isOpen = openFactors === item.programme_id;
@@ -300,14 +300,15 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                         <p className={`text-xs font-bold uppercase tracking-[0.16em] md:mt-3 ${index === 0 ? 'text-amber-200' : 'text-slate-500'}`}>Piste {index + 1}</p>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Piste proposée selon les données disponibles</p>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Piste retenue après comparaison personnalisée</p>
                         <h3 className="mt-2 text-xl font-black leading-tight text-white sm:text-2xl">{item.programme}</h3>
                         <dl className="mt-4 grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
                           <div className="flex items-start gap-2"><Landmark className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Université / institution</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.institution ? guideReference.institution : item.university}</dd></div></div>
                           <div className="flex items-start gap-2"><Building2 className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Établissement</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.establishment ? guideReference.establishment : item.school}</dd></div></div>
                           <div className="flex items-start gap-2 sm:col-span-2"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" /><div><dt className="text-xs font-bold uppercase tracking-wide text-slate-500">Localité</dt><dd className="mt-0.5">{guideReference?.match_type === 'exact' && guideReference.locality ? guideReference.locality : 'Localité à confirmer sur le portail officiel.'}</dd></div></div>
                         </dl>
-                        {index === 0 && <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-amber-200"><Sparkles className="h-4 w-4" />Première piste selon les données observées</p>}
+                        {item.rationale && <div className="mt-4 border-l-2 border-amber-300/70 pl-3 text-sm leading-6 text-slate-300"><p className="text-xs font-bold uppercase tracking-[0.14em] text-amber-200">Pourquoi cette piste ressort pour toi</p><p className="mt-1">{item.rationale}</p></div>}
+                        {index === 0 && <p className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-amber-200"><Sparkles className="h-4 w-4" />Piste prioritaire pour ton profil actuel</p>}
                         <button onClick={() => setOpenFactors(isOpen ? null : item.programme_id)} className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200">
                           {isOpen ? 'Masquer les éléments comparés' : 'Voir pourquoi cette piste ressort'} <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
                         </button>
@@ -334,7 +335,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
                         </div>}
                       </div>
                       <div className="flex flex-col gap-3 border-t border-slate-800 pt-4 md:border-l md:border-t-0 md:pl-5 md:pt-0">
-                        <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Lecture qualitative</p><p className={`mt-1 text-lg font-black ${index === 0 ? 'text-amber-300' : 'text-white'}`}>{index === 0 ? 'Piste prioritaire' : 'Piste à comparer'}</p><p className="mt-1 text-xs leading-5 text-slate-500">Décision expliquée à partir du profil et du guide.</p></div>
+                        <div><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Analyse personnalisée</p><p className={`mt-1 text-lg font-black ${index === 0 ? 'text-amber-300' : 'text-white'}`}>{index === 0 ? 'Piste prioritaire' : 'Piste complémentaire'}</p><p className="mt-1 text-xs leading-5 text-slate-500">Décision IA contrôlée par les observations et le guide.</p></div>
                         <span className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-bold ${item.confidence === 'high' ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200' : item.confidence === 'medium' ? 'border-amber-300/30 bg-amber-300/10 text-amber-100' : 'border-slate-600 bg-slate-800 text-slate-300'}`}><Clock3 className="h-3.5 w-3.5" />{freshnessLabel(item.confidence)}</span>
                         <a href={OFFICIAL_CHOICE_PORTAL_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-sky-300 transition hover:text-sky-200"><ExternalLink className="h-4 w-4" />Vérifier sur le portail officiel</a>
                         <button onClick={() => toggle(item.programme_id)} className={`inline-flex items-center gap-2 text-sm font-bold transition ${selected.includes(item.programme_id) ? 'text-emerald-300' : 'text-slate-300 hover:text-white'}`}><Bookmark className="h-4 w-4" />{selected.includes(item.programme_id) ? 'Retirée de mes choix' : 'Ajouter à mes choix'}</button>

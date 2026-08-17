@@ -26,6 +26,7 @@ export interface AssistantRecommendation {
     [key: string]: unknown;
   };
   caveats: string[];
+  rationale?: string;
 }
 
 export interface AssistantProgrammeRankingRule {
@@ -58,7 +59,7 @@ export interface AssistantGuideReference {
 export interface AssistantResponse {
   ok: boolean;
   error?: string;
-  mode?: 'deterministic' | 'ai_reordered' | 'ai_rephrased' | 'fallback';
+  mode?: 'ai_recommended' | 'ai_rephrased' | 'fallback';
   ai_provider?: string | null;
   response?: string;
   next_question?: string;
