@@ -67,3 +67,13 @@ Les étapes de contrôle après publication sont : tester l’URL active, vérif
 ## Contrôle local après correction LinkedIn
 
 Après hydratation locale de `/fondateur-hilarus-gbagoule`, le titre rendu est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`. Le JSON-LD rendu contient `@type: ProfilePage`, `dateModified: 2026-08-18T00:00:00+01:00`, une `mainEntity` `Person` identifiée par `https://bacpilot.site/fondateur-hilarus-gbagoule#person` et le `sameAs` LinkedIn canonique `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`. Le bouton visible « Profil professionnel » utilise la même URL.
+
+
+## Contrôle public après publication LinkedIn
+
+La page publique `https://bacpilot.site/fondateur-hilarus-gbagoule` répond correctement, affiche le titre attendu après hydratation, montre la date de mise à jour du 18 août 2026 et présente le bouton « Profil professionnel » vers `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`.
+
+
+## Contrôle JSON-LD public final
+
+Le JSON-LD rendu en production contient `ProfilePage`, `dateModified: 2026-08-18T00:00:00+01:00`, l’identifiant Person stable `https://bacpilot.site/fondateur-hilarus-gbagoule#person` et le lien `sameAs` `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`.
