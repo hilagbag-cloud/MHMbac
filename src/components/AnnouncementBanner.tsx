@@ -93,12 +93,6 @@ export function AnnouncementBanner({ navigate }: AnnouncementBannerProps) {
       aria-label="Actualités BacPilot"
       aria-roledescription="carrousel"
       className="mx-auto max-w-6xl px-4 pt-8 sm:pt-10"
-      onMouseEnter={() => setIsPaused(true)}
-      onMouseLeave={() => setIsPaused(false)}
-      onFocusCapture={() => setIsPaused(true)}
-      onBlurCapture={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsPaused(false);
-      }}
     >
       <div className="overflow-hidden rounded-[2rem] border border-violet-100 bg-slate-950 shadow-[0_18px_55px_-30px_rgba(15,23,42,0.8)] dark:border-violet-300/15">
         <div className="flex transition-transform duration-500 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${activeIndex * 100}%)` }}>

@@ -521,3 +521,11 @@ L’utilisateur a choisi l’option B : utiliser `GEMINI_API_KEY` déjà configu
 Les notes vocales sont limitées à 10 Mo et 180 secondes. Le fichier Telegram est téléchargé temporairement, analysé inline par Gemini et sa transcription est affichée dans la réponse. Il n’est ni conservé en base ni joint à un journal. Les plans invalides, ambigus ou non mappables demandent une clarification et n’exécutent rien.
 
 Une simulation interne signée avec `bacpilot_db_webhook_secret` a répondu HTTP 401 : ce secret Vault n’est pas le secret Telegram de la fonction. La validation complète doit être faite par un vrai message Telegram, qui portera le `TELEGRAM_WEBHOOK_SECRET` configuré par Telegram. Aucun e-mail, rôle, suppression ou modification utilisateur n’a été exécuté pendant ce développement.
+
+## 20. Mise à jour du 18 août 2026 — carrousel d’annonces d’accueil
+
+La bannière de parrainage statique de l’accueil a été remplacée par un carrousel horizontal composé de cinq visuels BacPilot optimisés en WebP. Les actifs totalisent environ 160 Ko au lieu d’environ 18 Mo pour les PNG originaux. Le carrousel avance automatiquement toutes les 6,5 secondes, avec transition horizontale, sans exiger de clic ; les liens des visuels restent facultatifs et ouvrent uniquement des routes BacPilot existantes. Les contrôles d’accessibilité restent disponibles, et l’arrêt ne se produit qu’à la demande explicite de l’utilisateur.
+
+La procédure de publication qui a effectivement fonctionné est : travailler depuis `/tmp/bacpilot-stable/`, valider avec `pnpm lint && pnpm build`, puis exécuter exactement `pnpm dlx vercel@latest --prod` **sans** `CI=1` et sans forcer de projet alternatif. La liaison `.vercel/project.json` pointe vers le projet Vercel canonique `hila2/mhmbac` ; cette commande renvoie une URL de production temporaire puis l’alias `https://bacpilot.site`. La livraison du 18 août est vérifiée sur `https://mhmbac-mdr11u331-hila2.vercel.app` et `https://bacpilot.site`.
+
+> Ne pas confondre avec l’ancienne cible `mhmbac-live-prod` ni avec un déploiement Git automatique : le domaine BacPilot a été publié de façon fiable par la commande Vercel directe ci-dessus.
