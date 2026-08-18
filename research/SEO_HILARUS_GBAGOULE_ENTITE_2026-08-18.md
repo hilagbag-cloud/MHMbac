@@ -10,7 +10,7 @@ Renforcer l’identification publique de **Hilarus Gbagoule** comme créateur de
 |---|---|---|
 | [Portfolio public](https://hilarusblog.vercel.app/) | Hilarus Gbagoule se présente comme développeur web et créateur de contenu, intéressé par l’IA et l’innovation numérique. Il présente des projets de sites, applications, outils IA, contenu et design. | Ne pas reprendre ses coordonnées personnelles sur BacPilot. Ne pas utiliser les compteurs affichés à zéro ou les formulations non étayées. |
 | [BacPilot — À propos](https://bacpilot.site/about) | BacPilot est une initiative de MHM SOLUTIONS ; Hilarus Gbagoule y est présenté comme créateur de BacPilot. | Renforcer la page avec une page de profil dédiée, des liens vers les preuves et la vision, plutôt que multiplier des phrases identiques. |
-| [Profil LinkedIn public](https://linkedin.com/in/hilarus-gbagoule-514496373) | Le nom, le champ de l’innovation technologique, de l’IA, du web et du design sont cohérents avec le portfolio. | Éviter de reproduire localisation fine, statut scolaire, données de réseau ou expériences peu détaillées. |
+| [Profil LinkedIn public](https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/) | Le nom, le champ de l’innovation technologique, de l’IA, du web et du design sont cohérents avec le portfolio. | Éviter de reproduire localisation fine, statut scolaire, données de réseau ou expériences peu détaillées. |
 | [Google Search Central — ProfilePage](https://developers.google.com/search/docs/appearance/structured-data/profile-page) | Une page de profil doit avoir une personne ou une organisation comme sujet principal ; `Person`, `description` et `sameAs` peuvent aider Google à la comprendre. | Les données structurées ne garantissent pas un affichage enrichi ni un classement. |
 | [Google Search Central — Organization](https://developers.google.com/search/docs/appearance/structured-data/organization) | Le balisage organisation peut aider à désambiguïser une entité et à préciser nom, URL, logo et contacts publics pertinents. | Publier seulement les propriétés applicables et réellement visibles sur les pages. |
 
@@ -39,7 +39,7 @@ Cette formulation est cohérente avec le portfolio et la page BacPilot. Elle ne 
 
 [1] https://hilarusblog.vercel.app/
 [2] https://bacpilot.site/about
-[3] https://linkedin.com/in/hilarus-gbagoule-514496373
+[3] https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/
 [4] https://developers.google.com/search/docs/appearance/structured-data/profile-page
 [5] https://developers.google.com/search/docs/appearance/structured-data/organization
 
@@ -54,3 +54,16 @@ La version publiée sur `https://bacpilot.site/fondateur-hilarus-gbagoule` est a
 ## Contrôle HTTP final
 
 Après la dernière publication, la réponse HTML initiale de `https://bacpilot.site/` contient l’entité `Person` du fondateur avec son URL canonique et son LinkedIn. La route `https://bacpilot.site/fondateur-hilarus-gbagoule` répond en HTTP 200 et elle est inscrite dans `https://bacpilot.site/sitemap.xml` avec la date `2026-08-18`.
+
+## Vérification du profil LinkedIn et amélioration ProfilePage
+
+Le 18 août 2026, Hilarus Gbagoule a confirmé son URL LinkedIn publique : `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`. Le profil est accessible publiquement sous le titre « Hilarus Gbagoule - Cotonou, Littoral, Benin | Professional Profile | LinkedIn » et contient des publications qui relient BacPilot, la plateforme bêta, le site partenaire et la page de soutien. Tous les paramètres de partage `utm_*` sont exclus des liens publics et de `sameAs`.
+
+La capture Search Console confirme que Google détecte une `ProfilePage` avec une entité principale `Person`, l’identifiant stable de la personne, son nom, son URL, son rôle, son portfolio et son LinkedIn. Le balisage conserve ce modèle et ajoute `dateModified`, une propriété recommandée par Google, avec une date de mise à jour visible sur la page. Aucune photo externe, statistique sociale, expérience ou donnée biographique non explicitement confirmée n’est ajoutée.
+
+Les étapes de contrôle après publication sont : tester l’URL active, vérifier que `ProfilePage` reste valide dans la section Améliorations, puis demander une nouvelle indexation seulement après cette modification significative. Les données structurées aident Google à comprendre l’entité, sans garantir un résultat enrichi ou une position particulière.
+
+
+## Contrôle local après correction LinkedIn
+
+Après hydratation locale de `/fondateur-hilarus-gbagoule`, le titre rendu est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`. Le JSON-LD rendu contient `@type: ProfilePage`, `dateModified: 2026-08-18T00:00:00+01:00`, une `mainEntity` `Person` identifiée par `https://bacpilot.site/fondateur-hilarus-gbagoule#person` et le `sameAs` LinkedIn canonique `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`. Le bouton visible « Profil professionnel » utilise la même URL.

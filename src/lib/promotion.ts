@@ -52,11 +52,11 @@ export const MHM_PROMOTION_CONFIG = {
     officialEmail: 'contact@bacpilot.site',
     supportEmail: 'support@bacpilot.site',
     creatorPortfolio: 'https://hilarusblog.vercel.app/',
-    creatorLinkedIn: 'https://www.linkedin.com/in/hilarus-gbagoule-514496373',
+    creatorLinkedIn: 'https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/',
   },
 
   socialLinks: [
-    { name: 'LinkedIn', url: 'https://www.linkedin.com/in/hilarus-gbagoule-514496373', icon: 'Linkedin' },
+    { name: 'LinkedIn', url: 'https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/', icon: 'Linkedin' },
     { name: 'X / Twitter', url: 'https://x.com/mhmsolutions', icon: 'Twitter' },
     { name: 'Facebook', url: 'https://facebook.com/mhmsolutions.bj', icon: 'Facebook' },
     { name: 'WhatsApp Pro', url: 'https://wa.me/22997000000', icon: 'MessageCircle' },

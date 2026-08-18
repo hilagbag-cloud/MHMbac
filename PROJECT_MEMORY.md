@@ -587,3 +587,10 @@ Le quota d’assistance IA est maintenant calculé uniquement côté serveur ave
 `get_ai_quota_status()` renvoie désormais le nombre utilisé, la limite effective, les bonus, les inscriptions attribuées et le nombre restant. `consume_ai_quota()` consomme atomiquement selon cette limite effective. L’assistant d’orientation v40 renvoie le mode `quota_exhausted` avec un message clair, plutôt qu’un fallback ambigu, et le client affiche une alerte avec le compteur réel, le retour le lendemain et un bouton vers `/parrainage`. Le champ de question est désactivé lorsque le quota connu est nul.
 
 Validation sans compte de test ni écriture de données : 2/3 sans parrainage laisse 1 utilisation ; 3/3 sans parrainage bloque ; 3 utilisations avec 1 inscription attribuée laisse une 4e utilisation. Documentation : `docs/QUOTA_IA_PARRAINAGE_20260818.md`.
+
+
+## 26. Mise à jour du 18 août 2026 — identité créateur et LinkedIn canonique
+
+La Search Console reconnaît déjà la page `https://bacpilot.site/fondateur-hilarus-gbagoule` comme une `ProfilePage` dont la `mainEntity` est `Person` : Hilarus Gbagoule. Le profil LinkedIn canonique a été fourni et vérifié : `https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/`. Toute ancienne référence `hilarus-gbagoule-514496373`, ainsi que les paramètres `utm_*`, doivent rester exclus des liens visibles et de `sameAs`.
+
+Le balisage `ProfilePage` conserve l’`@id` stable `https://bacpilot.site/fondateur-hilarus-gbagoule#person`, le portfolio et le LinkedIn confirmé. La propriété recommandée `dateModified` est présente, avec une date de mise à jour visible sur la page. Ne pas ajouter de photo de profil externe, de statistiques sociales, de localisation fine ou de parcours non explicitement confirmé. Les données structurées aident Google à comprendre l’entité mais ne garantissent pas un affichage enrichi ou un classement.

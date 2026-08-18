@@ -74,7 +74,7 @@ const founderPerson: JsonLd = {
   },
   sameAs: [
     'https://hilarusblog.vercel.app/',
-    'https://www.linkedin.com/in/hilarus-gbagoule-514496373',
+    'https://www.linkedin.com/in/hilarus-gbagoule-6a926b426/',
   ],
   knowsAbout: ['Développement web', 'Création de contenu', 'Intelligence artificielle', 'Innovation numérique'],
 };
@@ -82,6 +82,7 @@ const founderPerson: JsonLd = {
 const founderProfileSchema: JsonLd = {
   '@context': 'https://schema.org',
   '@type': 'ProfilePage',
+  dateModified: '2026-08-18T00:00:00+01:00',
   mainEntity: founderPerson,
 };
 

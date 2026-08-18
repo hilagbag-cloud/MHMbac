@@ -108,6 +108,7 @@ export const FounderPage: React.FC<FounderPageProps> = ({ navigate }) => {
         <section className="rounded-3xl bg-slate-100 p-7 dark:bg-slate-900/60 sm:p-10">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">Repères publics</p>
           <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600 dark:text-slate-300">Cette page réunit uniquement les informations pertinentes à BacPilot et accessibles publiquement : son créateur, sa vision, le portfolio où sont présentés ses projets et le profil professionnel associé. Elle ne prétend pas remplacer ces sources ni exposer des informations personnelles.</p>
+          <p className="mt-4 text-xs font-semibold text-slate-500 dark:text-slate-400">Profil BacPilot mis à jour le 18 août 2026.</p>
         </section>
       </main>
     </div>
