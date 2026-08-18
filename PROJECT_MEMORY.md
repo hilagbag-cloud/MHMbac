@@ -571,3 +571,10 @@ Le format observé sous le résultat TalyPay est celui des **liens annexes** (si
 Pour renforcer cette éligibilité, la page publique `/beta` est enrichie : elle explique la mission volontaire du programme, les zones de test, la manière de signaler un retour et la limite éthique des résultats. Le pied de page contient désormais une ancre HTML explicite `Programme bêta BacPilot`. Les candidats de liens annexes cohérents sont : `Guide orientation après le bac au Bénin`, `Comment BacPilot fonctionne`, `Articles et conseils d’orientation`, `À propos de MHM SOLUTIONS`, `Programme bêta BacPilot` et `Hilarus Gbagoule, créateur de BacPilot`.
 
 Cette livraison doit être publiée puis les URL importantes doivent être testées dans Search Console. Ne jamais ajouter de balisage fictif ou tenter de forcer les sitelinks.
+
+
+## 24. Vérification publique finale — 18 août 2026
+
+La publication Vercel finale des signaux de marque et d’éligibilité aux liens annexes est active sur `https://bacpilot.site`. La vérification navigateur publique confirme que `/beta` affiche le contenu d’information enrichi avec son titre SEO spécifique, les liens internes du pied de page et le crédit créateur avec portfolio. `sitemap.xml` servi sans cache contient `/beta`.
+
+Action opérateur restante : soumettre/actualiser `https://bacpilot.site/sitemap.xml` dans Google Search Console et demander l’indexation individuelle de `/`, `/about`, `/fondateur-hilarus-gbagoule` et `/beta`. Les sitelinks restent automatiques ; ne pas chercher à les forcer par une balise ou une demande séparée.

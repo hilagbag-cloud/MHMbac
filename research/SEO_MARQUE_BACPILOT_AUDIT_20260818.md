@@ -37,3 +37,8 @@ La vérification locale de l’accueil après hydratation confirme le titre `Bac
 ## Éligibilité aux liens annexes
 
 Le format fourni correspond aux **liens annexes** de Google sous un résultat de marque. Google indique qu’ils sont générés automatiquement à partir de la structure et des liens internes du site ; aucun balisage ne permet de les imposer ou de les commander. La page `/beta` a donc été enrichie avec un contenu public autonome et reliée par l’ancre descriptive `Programme bêta BacPilot` dans le pied de page. Les candidats naturels aux liens annexes de marque sont désormais : Guide orientation, Comment BacPilot fonctionne, Articles et conseils, À propos de MHM SOLUTIONS, Programme bêta BacPilot et Hilarus Gbagoule, créateur de BacPilot.
+
+
+## Vérification publique après publication
+
+Après propagation Vercel, `https://bacpilot.site/beta` affiche bien le contenu public enrichi et le titre `Programme bêta BacPilot | Tester l’orientation post-bac au Bénin`. Le sitemap servi sans cache inclut `https://bacpilot.site/beta`. Le pied de page public contient l’ancre `Programme bêta BacPilot` ainsi que les autres ancres candidates aux liens annexes. La première récupération textuelle de page reflétait un cache antérieur ; la vérification navigateur publique finale confirme la version publiée.
