@@ -551,3 +551,14 @@ La fonction `bacpilot-telegram` est active en version **47**, `verify_jwt=false`
 Depuis `Retours bêta`, l’opérateur peut préparer un message **Reçu** ou **Préparer résolution** par signalement. Le corps est habillé au format BacPilot et inclut uniquement les statistiques réelles de l’activité du bêta-testeur concerné. L’e-mail reste toujours en attente d’une confirmation inline opérateur. Après acceptation de l’envoi par Resend, le statut du retour passe à `in_progress` pour l’accusé, puis à `resolved` pour le message de résolution. Aucun e-mail de suivi n’est envoyé automatiquement.
 
 Les deux fonctions ont été compilées et déployées via la connexion Supabase autorisée ; la compilation Vite est également réussie. Voir `docs/TRAITEMENT_FEEDBACK_BETA_TELEGRAM_20260818.md` pour le diagnostic et la recette restante.
+
+
+## 22. Mise à jour du 18 août 2026 — SEO de marque BacPilot et page bêta
+
+Audit public effectué sur les variantes de marque **BacPilot** et **BackPilot**. La recherche Google directe sur `BacPilot` est encore dominée par des résultats liés à l’aviation et ne présente pas BacPilot parmi les premiers résultats visibles ; ne pas promouvoir l’orthographe erronée `BackPilot`, qui renforcerait cette confusion. La forme à utiliser de façon uniforme est **BacPilot**.
+
+Le SEO de l’accueil est renforcé dans `index.html` et `src/components/Seo.tsx` : titre à marque en tête, description factuelle reliant BacPilot à MHM SOLUTIONS et à Hilarus Gbagoule, et données structurées `Organization`/`Person` déjà reliées au portfolio et LinkedIn. La page `/beta` possède maintenant un titre et une description indexables, tout en laissant `/beta-access`, login, dashboard et parcours privés en `noindex`.
+
+Le pied de page de toutes les pages affiche désormais « Créé et développé par Hilarus GBAGOULE » avec lien vers la page fondateur et le portfolio public. L’accueil expose le même crédit, de manière sobre, sous le héros. `public/sitemap.xml` inclut maintenant `/beta` avec une date de mise à jour du 18 août 2026. La page de référencement documentée est `research/SEO_MARQUE_BACPILOT_AUDIT_20260818.md`.
+
+Avant la prochaine vérification de résultats, demander l’exploration dans Google Search Console de `/`, `/about`, `/fondateur-hilarus-gbagoule` et `/beta`, puis patienter : l’indexation et les extraits restent décidés par Google.

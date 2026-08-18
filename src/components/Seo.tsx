@@ -96,7 +96,7 @@ const aboutOrganizationSchema: JsonLd = {
       url: SITE_URL,
       logo: `${SITE_URL}/branding/bacpilot-mark-512.png`,
       email: 'contact@bacpilot.site',
-      description: 'MHM SOLUTIONS conçoit BacPilot, une initiative indépendante qui aide les bacheliers à comparer des pistes d’orientation à vérifier.',
+      description: 'MHM SOLUTIONS conçoit BacPilot, initiative indépendante créée et développée par Hilarus Gbagoule pour aider les bacheliers à comparer des pistes d’orientation à vérifier.',
       founder: { '@id': `${SITE_URL}/fondateur-hilarus-gbagoule#person` },
     },
     founderPerson,
@@ -105,9 +105,9 @@ const aboutOrganizationSchema: JsonLd = {
 
 const configs: Record<string, SeoConfig> = {
   '/': {
-    title: 'Orientation après le bac au Bénin | BacPilot',
+    title: 'BacPilot | Orientation après le bac au Bénin',
     description:
-      'BacPilot aide les nouveaux bacheliers béninois à comparer des filières selon leur série, leur mention et leur objectif, à partir d’observations disponibles à vérifier.',
+      'BacPilot, créé et développé par Hilarus Gbagoule via MHM SOLUTIONS, aide les nouveaux bacheliers béninois à comparer des pistes d’orientation à vérifier.',
     path: '/',
   },
   '/articles': {
@@ -151,9 +151,15 @@ const configs: Record<string, SeoConfig> = {
   '/fondateur-hilarus-gbagoule': {
     title: 'Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS',
     description:
-      'Découvrez Hilarus Gbagoule, créateur de BacPilot et fondateur de MHM SOLUTIONS : sa vision, son parcours de création numérique et son portfolio public.',
+      'Découvrez Hilarus Gbagoule, créateur et développeur de BacPilot, fondateur de MHM SOLUTIONS : sa vision, son parcours de création numérique et son portfolio public.',
     path: '/fondateur-hilarus-gbagoule',
     schema: founderProfileSchema,
+  },
+  '/beta': {
+    title: 'Programme bêta BacPilot | Tester l’orientation post-bac au Bénin',
+    description:
+      'Rejoignez le programme bêta de BacPilot, initiative de MHM SOLUTIONS créée par Hilarus Gbagoule, pour tester les outils d’orientation et transmettre vos retours.',
+    path: '/beta',
   },
   '/a-propos': {
     title: 'À propos de BacPilot et MHM SOLUTIONS | BacPilot',

@@ -28,7 +28,7 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
               </div>
             </div>
             <p className="max-w-md text-xs leading-relaxed text-slate-400 sm:text-sm">{MHM_PROMOTION_CONFIG.subheadline}</p>
-            <div className="border-t border-slate-900/80 pt-2 text-xs text-slate-300">Conçu et développé par <strong className="font-semibold text-white">{MHM_PROMOTION_CONFIG.creatorName}</strong> ({MHM_PROMOTION_CONFIG.creatorTitle}).</div>
+            <div className="border-t border-slate-900/80 pt-2 text-xs text-slate-300">Créé et développé par <a href="/fondateur-hilarus-gbagoule" onClick={(event) => onInternalLink(event, '/fondateur-hilarus-gbagoule')} className="font-semibold text-white underline decoration-rose-400/70 underline-offset-4 transition hover:text-rose-200">{MHM_PROMOTION_CONFIG.creatorName}</a> ({MHM_PROMOTION_CONFIG.creatorTitle}) · <a href={MHM_PROMOTION_CONFIG.contact.creatorPortfolio} target="_blank" rel="noreferrer" className="font-semibold text-rose-300 underline underline-offset-4 transition hover:text-rose-200">Voir son portfolio</a>.</div>
           </div>
 
           <div className="space-y-3">
