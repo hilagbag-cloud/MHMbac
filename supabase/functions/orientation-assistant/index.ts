@@ -860,7 +860,8 @@ Deno.serve(async (request) => {
       ai_provider: aiProvider,
       mode,
     },
-    results: { recommendations: topThree, plan: recommendationPlan },
+    // La contrainte SQL exige un tableau JSON. Le paquet unique conserve le Top 3 et le plan IA sans rompre l’historique.
+    results: [{ recommendations: topThree, plan: recommendationPlan }],
     freshness_snapshot: freshness || {},
   });
 

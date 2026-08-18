@@ -10,7 +10,7 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | `86abe13` ; balisage initial de l’entité fondateur renforcé et publié le 18 août 2026 |
+| Dernier commit confirmé | Correctif assistant v39, console Telegram v47 et suivi bêta publiés le 18 août 2026 ; consulter `git log -1 --oneline` pour l’identifiant courant. |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
 | Date de cette mémoire | 18 août 2026 |
@@ -540,3 +540,14 @@ Le maillage interne renvoie vers cette page depuis le pied de page, la page À p
 Les contrôles publics sont positifs : la route renvoie HTTP 200, le titre après rendu est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`, la directive est `index, follow, max-image-preview:large`, le canonical est correct et le sitemap expose l’URL. Les commits locaux sont `2b47afd` puis `86abe13`, synchronisés vers le dépôt GitHub public jusqu’au commit distant `4b29139eea033771c018de8b8ef145c8540bf288`; la production Vercel `hila2/mhmbac` est aliasée sur `https://bacpilot.site`.
 
 > Action externe restante : dans Google Search Console, soumettre ou actualiser `https://bacpilot.site/sitemap.xml`, demander l’indexation de `/fondateur-hilarus-gbagoule`, puis demander une nouvelle exploration de `/about`. Aucun outil ne peut forcer l’indexation ni garantir la position d’une requête dans Google.
+
+
+## 21. Mise à jour du 18 août 2026 — suivi bêta et console Telegram v47
+
+Un retour bêta récent a été vérifié contre les journaux Supabase. La cause confirmée était l’écriture rejetée de `recommendation_runs.results` : la contrainte `recommendation_runs_results_check` exigeait un tableau JSON mais `orientation-assistant` persistait un objet `{ recommendations, plan }`. La fonction est corrigée et active en version **39** : elle écrit désormais `[{ recommendations, plan }]` tout en préservant le Top 3 et le plan IA. Le retour concerné est placé à `in_progress`, non résolu tant qu’une recette réelle autorisée n’a pas confirmé le nouvel affichage et l’enregistrement des pistes.
+
+La fonction `bacpilot-telegram` est active en version **47**, `verify_jwt=false` étant maintenu uniquement parce que le webhook est authentifié par son secret Telegram et restreint au chat opérateur. Le menu ajoute **E-mail personnalisé** : sélection explicite du destinataire par bouton ou e-mail/ID, sujet, corps, puis confirmation. Les callbacks de composition, destinataire, accusé de réception et résolution bêta sont séparés. La réponse de destinataire ne doit jamais être envoyée à Gemini pendant cette session.
+
+Depuis `Retours bêta`, l’opérateur peut préparer un message **Reçu** ou **Préparer résolution** par signalement. Le corps est habillé au format BacPilot et inclut uniquement les statistiques réelles de l’activité du bêta-testeur concerné. L’e-mail reste toujours en attente d’une confirmation inline opérateur. Après acceptation de l’envoi par Resend, le statut du retour passe à `in_progress` pour l’accusé, puis à `resolved` pour le message de résolution. Aucun e-mail de suivi n’est envoyé automatiquement.
+
+Les deux fonctions ont été compilées et déployées via la connexion Supabase autorisée ; la compilation Vite est également réussie. Voir `docs/TRAITEMENT_FEEDBACK_BETA_TELEGRAM_20260818.md` pour le diagnostic et la recette restante.
