@@ -56,10 +56,21 @@ export interface AssistantGuideReference {
   ranking_rule?: AssistantProgrammeRankingRule;
 }
 
+export interface AssistantQuota {
+  used_calls: number;
+  base_daily_limit: number;
+  referral_bonus_calls: number;
+  daily_limit: number;
+  remaining_calls: number;
+  confirmed_referrals: number;
+  referral_bonus_cap: number;
+  referrals_until_next_bonus: number;
+}
+
 export interface AssistantResponse {
   ok: boolean;
   error?: string;
-  mode?: 'ai_recommended' | 'ai_rephrased' | 'fallback';
+  mode?: 'ai_recommended' | 'ai_rephrased' | 'fallback' | 'quota_exhausted';
   ai_provider?: string | null;
   response?: string;
   next_question?: string;
@@ -74,6 +85,7 @@ export interface AssistantResponse {
   guide_references?: AssistantGuideReference[];
   thinking_steps?: string[];
   ai_explanations_remaining_today?: number | null;
+  ai_quota?: AssistantQuota | null;
   manual_validation_required?: boolean;
 }
 

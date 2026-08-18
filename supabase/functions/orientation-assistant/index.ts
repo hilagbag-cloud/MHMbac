@@ -230,6 +230,18 @@ function unavailableRecommendationMessage(): string {
   return 'Je n’ai pas encore finalisé une comparaison personnalisée fiable. Je préfère ne pas te montrer un Top 3 préfabriqué : réessaie dans un instant afin que je puisse analyser ton profil avec les données observées et le guide officiel.';
 }
 
+function quotaReachedMessage(quota: any): string {
+  const used = Math.max(0, Number(quota?.used_calls ?? 0));
+  const limit = Math.max(1, Number(quota?.daily_limit ?? 3));
+  const referrals = Math.max(0, Number(quota?.confirmed_referrals ?? 0));
+  const bonus = Math.max(0, Number(quota?.referral_bonus_calls ?? 0));
+  const bonusCap = Math.max(0, Number(quota?.referral_bonus_cap ?? 3));
+  const bonusHint = bonus < bonusCap
+    ? ` Partage ton lien de parrainage : chaque personne qui crée réellement son profil via ton lien débloque 1 utilisation supplémentaire par jour, jusqu’à ${bonusCap} bonus.`
+    : ' Tu as déjà atteint le plafond de bonus obtenu par parrainage.';
+  return `Tu as atteint ta limite quotidienne d’assistance IA : ${used}/${limit} utilisation(s) aujourd’hui. Elle sera réinitialisée demain. Tu peux toujours consulter les données observées et le guide officiel.${bonusHint} Invitation(s) attribuée(s) à ton lien : ${referrals}.`;
+}
+
 function normalizeProgramme(value: string): string {
   return value
     .normalize('NFD')
@@ -743,6 +755,7 @@ Deno.serve(async (request) => {
   let recommendationPlan: AiRecommendationPlan | null = null;
   let guideReferences: GuideReference[] = [];
   let guidePdfContext: GuidePageContext[] = [];
+  let quotaSnapshot: any = null;
   try {
     guideReferences = await resolveGuideReferences(supabase, candidatePool, asSeries(profile?.series));
     guideReferences = await attachProgrammeRankingRules(supabase, guideReferences, asSeries(profile?.series), academicSignals?.subjects || academicSignals?.ranking_subjects || null);
@@ -751,6 +764,7 @@ Deno.serve(async (request) => {
     if ((action === 'recommend' || action === 'explain' || action === 'programme_details') && candidatePool.length >= 3) {
       const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
       const quota: any = quotaResult;
+      quotaSnapshot = quota;
       let decision: AiResult | null = null;
       if (Number(quota?.remaining_calls ?? 0) > 0) {
         const candidateFacts = compactFacts(candidatePool, freshness, profile, preferences, academicSignals, guideReferences, guidePdfContext);
@@ -765,8 +779,15 @@ Deno.serve(async (request) => {
       if (decision && parsedPlan && (quota?.remaining_calls ?? 0) > 0) {
         const { data: consumptionResult } = await supabase.rpc('consume_ai_quota').maybeSingle();
         const consumption: any = consumptionResult;
-        if (consumption?.allowed) {
-          const byId = new Map(candidatePool.map((item) => [Number(item.programme_id), item]));
+          if (consumption?.allowed) {
+            quotaSnapshot = {
+              ...quota,
+              used_calls: Number(consumption?.used_calls ?? Number(quota?.used_calls ?? 0) + 1),
+              remaining_calls: Number(consumption?.remaining_calls ?? 0),
+              daily_limit: Number(consumption?.daily_limit ?? quota?.daily_limit ?? 3),
+              referral_bonus_calls: Number(consumption?.referral_bonus_calls ?? quota?.referral_bonus_calls ?? 0),
+            };
+            const byId = new Map(candidatePool.map((item) => [Number(item.programme_id), item]));
           topThree = parsedPlan.ordered_programme_ids
             .map((id) => {
               const candidate = byId.get(id);
@@ -812,14 +833,20 @@ Deno.serve(async (request) => {
     return json(request, { ok: true, mode: 'ai_recommended', response, freshness, recommendations: [selected], guide_references: selectedGuide ? [selectedGuide] : [], thinking_steps: thinkingSteps, manual_validation_required: true });
   }
 
-  let response = recommendationPlan?.summary || unavailableRecommendationMessage();
-  let mode: 'ai_recommended' | 'ai_rephrased' | 'fallback' = recommendationProvider && recommendationPlan ? 'ai_recommended' : 'fallback';
-  let aiRemaining: number | null = null;
+  const quotaExhaustedForRecommendation = (action === 'recommend' || action === 'programme_details')
+    && candidatePool.length >= 3
+    && topThree.length === 0
+    && quotaSnapshot
+    && Number(quotaSnapshot.remaining_calls ?? 0) <= 0;
+  let response = quotaExhaustedForRecommendation ? quotaReachedMessage(quotaSnapshot) : (recommendationPlan?.summary || unavailableRecommendationMessage());
+  let mode: 'ai_recommended' | 'ai_rephrased' | 'fallback' | 'quota_exhausted' = quotaExhaustedForRecommendation ? 'quota_exhausted' : (recommendationProvider && recommendationPlan ? 'ai_recommended' : 'fallback');
+  let aiRemaining: number | null = quotaSnapshot ? Number(quotaSnapshot.remaining_calls ?? 0) : null;
   let aiProvider: string | null = recommendationProvider;
 
   if (action === 'explain') {
     const { data: quotaResult } = await supabase.rpc('get_ai_quota_status').maybeSingle();
     const quota: any = quotaResult;
+    quotaSnapshot = quota;
     aiRemaining = Number(quota?.remaining_calls ?? 0);
     const facts = compactFacts(topThree, freshness, profile, preferences, academicSignals, guideReferences, guidePdfContext);
 
@@ -829,17 +856,28 @@ Deno.serve(async (request) => {
       if (aiResult) {
         const { data: consumptionResult } = await supabase.rpc('consume_ai_quota').maybeSingle();
         const consumption: any = consumptionResult;
-        if (consumption?.allowed) {
-          response = aiResult.text;
-          aiProvider = aiResult.provider;
-          mode = 'ai_rephrased';
-          aiRemaining = Number(consumption.remaining_calls ?? 0);
-          thinkingSteps.push(`Reformulation claire par ${aiResult.provider}`);
-        }
+      if (consumption?.allowed) {
+        response = aiResult.text;
+        aiProvider = aiResult.provider;
+        mode = 'ai_rephrased';
+        aiRemaining = Number(consumption.remaining_calls ?? 0);
+        quotaSnapshot = {
+          ...quota,
+          used_calls: Number(consumption?.used_calls ?? Number(quota?.used_calls ?? 0) + 1),
+          remaining_calls: aiRemaining,
+          daily_limit: Number(consumption?.daily_limit ?? quota?.daily_limit ?? 3),
+          referral_bonus_calls: Number(consumption?.referral_bonus_calls ?? quota?.referral_bonus_calls ?? 0),
+        };
+        thinkingSteps.push(`Reformulation claire par ${aiResult.provider}`);
+      }
       }
     }
 
-    if (mode !== 'ai_rephrased') {
+    if (aiRemaining !== null && aiRemaining <= 0) {
+      mode = 'quota_exhausted';
+      response = quotaReachedMessage(quotaSnapshot);
+      thinkingSteps.push('Limite quotidienne IA atteinte : aucune utilisation supplémentaire consommée');
+    } else if (mode !== 'ai_rephrased') {
       mode = recommendationProvider ? 'ai_recommended' : 'fallback';
       response = recommendationPlan?.summary || unavailableRecommendationMessage();
       thinkingSteps.push(recommendationProvider ? 'Justifications personnalisées du plan IA conservées' : 'Aucune explication fabriquée sans plan IA valide');
@@ -876,6 +914,7 @@ Deno.serve(async (request) => {
     guide_references: guideReferences,
     thinking_steps: thinkingSteps,
     ai_explanations_remaining_today: aiRemaining,
+    ai_quota: quotaSnapshot,
     manual_validation_required: true,
   });
   } catch (error) {

@@ -578,3 +578,12 @@ Cette livraison doit être publiée puis les URL importantes doivent être test�
 La publication Vercel finale des signaux de marque et d’éligibilité aux liens annexes est active sur `https://bacpilot.site`. La vérification navigateur publique confirme que `/beta` affiche le contenu d’information enrichi avec son titre SEO spécifique, les liens internes du pied de page et le crédit créateur avec portfolio. `sitemap.xml` servi sans cache contient `/beta`.
 
 Action opérateur restante : soumettre/actualiser `https://bacpilot.site/sitemap.xml` dans Google Search Console et demander l’indexation individuelle de `/`, `/about`, `/fondateur-hilarus-gbagoule` et `/beta`. Les sitelinks restent automatiques ; ne pas chercher à les forcer par une balise ou une demande séparée.
+
+
+## 25. Mise à jour du 18 août 2026 — quota IA explicite et bonus de parrainage
+
+Le quota d’assistance IA est maintenant calculé uniquement côté serveur avec la migration `20260818_referral_ai_quota_unlock.sql`. La règle publiée est : **3 utilisations de base par jour**, plus **1 utilisation quotidienne par inscription réellement attribuée** dans `user_referrals`, plafonnée à **3 bonus** (maximum 6 utilisations quotidiennes). Un partage seul, un clic, un code non suivi d’inscription ou l’auto-parrainage ne peuvent pas débloquer de bonus.
+
+`get_ai_quota_status()` renvoie désormais le nombre utilisé, la limite effective, les bonus, les inscriptions attribuées et le nombre restant. `consume_ai_quota()` consomme atomiquement selon cette limite effective. L’assistant d’orientation v40 renvoie le mode `quota_exhausted` avec un message clair, plutôt qu’un fallback ambigu, et le client affiche une alerte avec le compteur réel, le retour le lendemain et un bouton vers `/parrainage`. Le champ de question est désactivé lorsque le quota connu est nul.
+
+Validation sans compte de test ni écriture de données : 2/3 sans parrainage laisse 1 utilisation ; 3/3 sans parrainage bloque ; 3 utilisations avec 1 inscription attribuée laisse une 4e utilisation. Documentation : `docs/QUOTA_IA_PARRAINAGE_20260818.md`.

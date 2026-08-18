@@ -21,6 +21,7 @@ import {
   ListChecks,
   MapPin,
   Copy,
+  Gift,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { askOrientationAssistant, AssistantRecommendation, AssistantResponse, formatAssistantFreshness } from '../lib/orientationAssistant';
@@ -130,7 +131,12 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
     }
     setQuestion('');
     setExplanation(result.response || 'Les éléments utilisés sont déjà indiqués dans tes trois pistes.');
-    setAssistant((current) => current ? { ...current, ai_explanations_remaining_today: result.ai_explanations_remaining_today ?? current.ai_explanations_remaining_today } : result);
+    setAssistant((current) => current ? {
+      ...current,
+      mode: result.mode ?? current.mode,
+      ai_explanations_remaining_today: result.ai_explanations_remaining_today ?? current.ai_explanations_remaining_today,
+      ai_quota: result.ai_quota ?? current.ai_quota,
+    } : result);
   };
 
   const toggle = (id: number) => setSelected((current) => {
@@ -144,6 +150,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
   });
   const recommendations = assistant?.recommendations || [];
   const guideReferences = assistant?.guide_references || [];
+  const quota = assistant?.ai_quota || null;
+  const quotaReached = Boolean(quota && quota.remaining_calls === 0);
   const freshness = assistant?.freshness?.age_minutes ?? null;
   const proofSteps = assistant?.thinking_steps || ['En attente des données observées.'];
 
@@ -288,7 +296,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
               </div>
 
               <div className="divide-y divide-slate-800">
-                {recommendations.length === 0 && <div className="px-5 py-10 sm:px-7"><div className="flex items-start gap-3 text-sm leading-6 text-slate-400">{isAnalysing ? <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-300" /> : <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />}<p>{isAnalysing ? 'BacPilot prépare une comparaison personnalisée à partir des observations et du guide…' : assistant?.response || 'Aucune comparaison personnalisée n’est encore disponible.'}</p></div></div>}
+                {recommendations.length === 0 && <div className="px-5 py-10 sm:px-7"><div className="flex items-start gap-3 text-sm leading-6 text-slate-400">{isAnalysing ? <LoaderCircle className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-300" /> : <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" />}<p>{isAnalysing ? 'BacPilot prépare une comparaison personnalisée à partir des observations et du guide…' : assistant?.response || 'Aucune comparaison personnalisée n’est encore disponible.'}</p></div>{quotaReached && <div role="alert" className="mt-6 border border-amber-300/40 bg-amber-300/[0.08] p-5"><div className="flex items-start gap-3"><Gift className="mt-0.5 h-5 w-5 shrink-0 text-amber-300" /><div><p className="font-black text-amber-100">Limite quotidienne atteinte</p><p className="mt-2 text-sm leading-6 text-slate-300">Tu as utilisé {quota.used_calls}/{quota.daily_limit} utilisation(s) d’assistance IA aujourd’hui. Ton accès de base est de {quota.base_daily_limit} par jour{quota.referral_bonus_calls ? `, avec ${quota.referral_bonus_calls} bonus déjà débloqué(s) grâce au parrainage` : ''}. La limite revient demain.</p><p className="mt-2 text-sm leading-6 text-slate-400">Chaque personne qui crée réellement son profil via ton lien débloque 1 utilisation supplémentaire par jour, jusqu’à {quota.referral_bonus_cap} bonus. Invitations attribuées : {quota.confirmed_referrals}.</p><button onClick={() => navigate('/parrainage')} className="mt-4 inline-flex items-center gap-2 bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition hover:bg-amber-200 active:scale-[0.98]"><Gift className="h-4 w-4" />Partager mon lien</button></div></div></div>}</div>}
                 {recommendations.map((item, index) => {
                   const factors = factorText(item);
                   const isOpen = openFactors === item.programme_id;
@@ -369,7 +377,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ navigate }) => {
             </section>
 
             <section className="mt-6 border border-slate-800 bg-[#0c1828] px-5 py-5 sm:px-7">
-              <div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-sky-300" /><div className="w-full"><h2 className="font-black text-white">Poser une question à BacPilot</h2><p className="mt-1 text-sm leading-6 text-slate-400">Je peux t’expliquer ce qui fait ressortir une piste. Je ne remplace pas les règles du portail officiel.</p><div className="mt-4 flex gap-2 border border-slate-700 bg-slate-950/60 p-2 focus-within:border-sky-300"><input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void askForExplanation(); }} placeholder="Ex. Pourquoi la piste 1 est-elle en premier ?" className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600" /><button onClick={() => void askForExplanation()} disabled={!question.trim() || isExplaining} aria-label="Envoyer ma question à BacPilot" className="flex h-10 w-10 shrink-0 items-center justify-center bg-sky-500 text-slate-950 transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></div>{isExplaining && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-sky-200"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Je prépare une explication à partir de tes pistes…</p>}{explanation && <div className="mt-4 border-l-2 border-sky-300 bg-slate-950/60 px-4 py-4 text-sm leading-6 text-slate-300"><p className="font-black text-sky-200">BacPilot</p><p className="mt-2">{explanation}</p>{assistant?.ai_explanations_remaining_today !== null && assistant?.ai_explanations_remaining_today !== undefined && <p className="mt-3 text-xs text-slate-500">Explications IA restantes aujourd’hui : {assistant.ai_explanations_remaining_today}</p>}</div>}</div></div>
+              <div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5 shrink-0 text-sky-300" /><div className="w-full"><h2 className="font-black text-white">Poser une question à BacPilot</h2><p className="mt-1 text-sm leading-6 text-slate-400">Je peux t’expliquer ce qui fait ressortir une piste. Je ne remplace pas les règles du portail officiel.</p><div className="mt-4 flex gap-2 border border-slate-700 bg-slate-950/60 p-2 focus-within:border-sky-300"><input value={question} onChange={(event) => setQuestion(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void askForExplanation(); }} placeholder={quotaReached ? 'Limite quotidienne atteinte : partage ton lien ou reviens demain.' : 'Ex. Pourquoi la piste 1 est-elle en premier ?'} disabled={Boolean(quotaReached)} className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 disabled:cursor-not-allowed disabled:opacity-50" /><button onClick={() => void askForExplanation()} disabled={!question.trim() || isExplaining || Boolean(quotaReached)} aria-label="Envoyer ma question à BacPilot" className="flex h-10 w-10 shrink-0 items-center justify-center bg-sky-500 text-slate-950 transition active:scale-95 disabled:opacity-40"><Send className="h-4 w-4" /></button></div>{quotaReached && <div role="alert" className="mt-3 border-l-2 border-amber-300 pl-3 text-sm leading-6 text-amber-100"><p className="font-bold">Limite quotidienne atteinte.</p><p className="mt-1">Ton accès IA revient demain. Une inscription réellement attribuée à ton lien débloque 1 utilisation supplémentaire par jour.</p><button onClick={() => navigate('/parrainage')} className="mt-2 inline-flex items-center gap-2 font-bold text-amber-200 transition hover:text-amber-100"><Gift className="h-4 w-4" />Partager mon lien</button></div>}{isExplaining && <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-sky-200"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Je prépare une explication à partir de tes pistes…</p>}{explanation && <div className="mt-4 border-l-2 border-sky-300 bg-slate-950/60 px-4 py-4 text-sm leading-6 text-slate-300"><p className="font-black text-sky-200">BacPilot</p><p className="mt-2">{explanation}</p>{assistant?.ai_explanations_remaining_today !== null && assistant?.ai_explanations_remaining_today !== undefined && <p className="mt-3 text-xs text-slate-500">Explications IA restantes aujourd’hui : {assistant.ai_explanations_remaining_today}</p>}</div>}</div></div>
             </section>
           </section>
         </div>
