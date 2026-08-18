@@ -10,10 +10,10 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | `ddaafa6` ; correction webhook callbacks en cours de versionnement |
+| Dernier commit confirmé | `86abe13` ; balisage initial de l’entité fondateur renforcé et publié le 18 août 2026 |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
-| Date de cette mémoire | 16 août 2026 |
+| Date de cette mémoire | 18 août 2026 |
 
 ## 1. État produit confirmé
 
@@ -529,3 +529,14 @@ La bannière de parrainage statique de l’accueil a été remplacée par un car
 La procédure de publication qui a effectivement fonctionné est : travailler depuis `/tmp/bacpilot-stable/`, valider avec `pnpm lint && pnpm build`, puis exécuter exactement `pnpm dlx vercel@latest --prod` **sans** `CI=1` et sans forcer de projet alternatif. La liaison `.vercel/project.json` pointe vers le projet Vercel canonique `hila2/mhmbac` ; cette commande renvoie une URL de production temporaire puis l’alias `https://bacpilot.site`. La livraison du 18 août est vérifiée sur `https://mhmbac-mdr11u331-hila2.vercel.app` et `https://bacpilot.site`.
 
 > Ne pas confondre avec l’ancienne cible `mhmbac-live-prod` ni avec un déploiement Git automatique : le domaine BacPilot a été publié de façon fiable par la commande Vercel directe ci-dessus.
+
+
+## 20. Mise à jour du 18 août 2026 — entité publique Hilarus Gbagoule
+
+La page canonique `https://bacpilot.site/fondateur-hilarus-gbagoule` est créée et publiée. Elle présente **Hilarus Gbagoule** comme créateur de BacPilot et acteur de MHM SOLUTIONS, avec une vision du projet, les domaines de création confirmés et des liens publics vers le portfolio `https://hilarusblog.vercel.app/` ainsi que le profil LinkedIn vérifié. Aucun fait biographique, chiffre, distinction, expérience, projet tiers ou donnée personnelle non vérifiée n’a été ajouté.
+
+Le maillage interne renvoie vers cette page depuis le pied de page, la page À propos et l’accueil. Le sitemap contient sa route avec la date du 18 août 2026. La page publie un `ProfilePage` dont l’entité principale est une `Person`, avec URL canonique et liens `sameAs`. Le balisage `Organization` de BacPilot sur la page À propos référence également le fondateur. Le document HTML initial du site déclare désormais, lui aussi, le fondateur avec son URL et ses deux références publiques : cela rend le signal d’entité disponible avant le rendu JavaScript.
+
+Les contrôles publics sont positifs : la route renvoie HTTP 200, le titre après rendu est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`, la directive est `index, follow, max-image-preview:large`, le canonical est correct et le sitemap expose l’URL. Les commits locaux sont `2b47afd` puis `86abe13`, synchronisés vers le dépôt GitHub public jusqu’au commit distant `4b29139eea033771c018de8b8ef145c8540bf288`; la production Vercel `hila2/mhmbac` est aliasée sur `https://bacpilot.site`.
+
+> Action externe restante : dans Google Search Console, soumettre ou actualiser `https://bacpilot.site/sitemap.xml`, demander l’indexation de `/fondateur-hilarus-gbagoule`, puis demander une nouvelle exploration de `/about`. Aucun outil ne peut forcer l’indexation ni garantir la position d’une requête dans Google.

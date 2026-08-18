@@ -50,3 +50,7 @@ Le 18 août 2026, la route locale `/fondateur-hilarus-gbagoule` a été vérifi�
 ## Vérification publique après publication
 
 La version publiée sur `https://bacpilot.site/fondateur-hilarus-gbagoule` est accessible et affiche le contenu de profil attendu ainsi que les liens vers le portfolio et LinkedIn. Après hydratation de l’application, le titre de document constaté est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`.
+
+## Contrôle HTTP final
+
+Après la dernière publication, la réponse HTML initiale de `https://bacpilot.site/` contient l’entité `Person` du fondateur avec son URL canonique et son LinkedIn. La route `https://bacpilot.site/fondateur-hilarus-gbagoule` répond en HTTP 200 et elle est inscrite dans `https://bacpilot.site/sitemap.xml` avec la date `2026-08-18`.
