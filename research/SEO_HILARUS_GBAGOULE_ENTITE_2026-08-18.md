@@ -46,3 +46,7 @@ Cette formulation est cohérente avec le portfolio et la page BacPilot. Elle ne 
 ## Vérification locale avant publication
 
 Le 18 août 2026, la route locale `/fondateur-hilarus-gbagoule` a été vérifiée avec son titre spécifique et ses liens publics vers le portfolio et le profil LinkedIn. Le DOM contient un script JSON-LD `ProfilePage` avec `mainEntity` de type `Person`, le nom `Hilarus Gbagoule`, les deux URL `sameAs`, un canonical vers `https://bacpilot.site/fondateur-hilarus-gbagoule` et la directive `index, follow, max-image-preview:large`.
+
+## Vérification publique après publication
+
+La version publiée sur `https://bacpilot.site/fondateur-hilarus-gbagoule` est accessible et affiche le contenu de profil attendu ainsi que les liens vers le portfolio et LinkedIn. Après hydratation de l’application, le titre de document constaté est `Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS`.
