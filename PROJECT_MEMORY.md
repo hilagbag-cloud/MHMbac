@@ -562,3 +562,12 @@ Le SEO de l’accueil est renforcé dans `index.html` et `src/components/Seo.tsx
 Le pied de page de toutes les pages affiche désormais « Créé et développé par Hilarus GBAGOULE » avec lien vers la page fondateur et le portfolio public. L’accueil expose le même crédit, de manière sobre, sous le héros. `public/sitemap.xml` inclut maintenant `/beta` avec une date de mise à jour du 18 août 2026. La page de référencement documentée est `research/SEO_MARQUE_BACPILOT_AUDIT_20260818.md`.
 
 Avant la prochaine vérification de résultats, demander l’exploration dans Google Search Console de `/`, `/about`, `/fondateur-hilarus-gbagoule` et `/beta`, puis patienter : l’indexation et les extraits restent décidés par Google.
+
+
+## 23. Mise à jour du 18 août 2026 — éligibilité aux liens annexes Google
+
+Le format observé sous le résultat TalyPay est celui des **liens annexes** (sitelinks) de Google. Ils sont générés automatiquement par Google à partir de la structure, des titres, des pages importantes et des liens internes ; BacPilot ne peut ni les imposer ni en choisir l’ordre. La documentation officielle recommande des titres/heading concis et informatifs, une structure logique et des ancres internes descriptives.
+
+Pour renforcer cette éligibilité, la page publique `/beta` est enrichie : elle explique la mission volontaire du programme, les zones de test, la manière de signaler un retour et la limite éthique des résultats. Le pied de page contient désormais une ancre HTML explicite `Programme bêta BacPilot`. Les candidats de liens annexes cohérents sont : `Guide orientation après le bac au Bénin`, `Comment BacPilot fonctionne`, `Articles et conseils d’orientation`, `À propos de MHM SOLUTIONS`, `Programme bêta BacPilot` et `Hilarus Gbagoule, créateur de BacPilot`.
+
+Cette livraison doit être publiée puis les URL importantes doivent être testées dans Search Console. Ne jamais ajouter de balisage fictif ou tenter de forcer les sitelinks.

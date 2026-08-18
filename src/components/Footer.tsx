@@ -40,6 +40,7 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
               <li><a href="/articles" onClick={(event) => onInternalLink(event, '/articles')} className="transition-colors hover:text-white">Articles et conseils d’orientation</a></li>
               <li><a href="/about" onClick={(event) => onInternalLink(event, '/about')} className="transition-colors hover:text-white">À propos de MHM SOLUTIONS</a></li>
               <li><a href="/fondateur-hilarus-gbagoule" onClick={(event) => onInternalLink(event, '/fondateur-hilarus-gbagoule')} className="transition-colors hover:text-white">Hilarus Gbagoule, créateur de BacPilot</a></li>
+              <li><a href="/beta" onClick={(event) => onInternalLink(event, '/beta')} className="transition-colors hover:text-white">Programme bêta BacPilot</a></li>
               <li><a href="https://partenaires.bacpilot.site" className="transition-colors hover:text-white">Devenir partenaire</a></li>
               <li><a href="/onboarding" onClick={(event) => onInternalLink(event, '/onboarding')} className="transition-colors hover:text-white">Préparer mes pistes</a></li>
               <li><a href="/avis" onClick={(event) => onInternalLink(event, '/avis')} className="transition-colors hover:text-white">Avis de la communauté</a></li>

@@ -32,3 +32,8 @@ La route locale `/beta` affiche désormais le titre « Programme bêta BacPilot 
 
 
 La vérification locale de l’accueil après hydratation confirme le titre `BacPilot | Orientation après le bac au Bénin`, la description enrichie, la canonique `https://bacpilot.site/`, la directive `index, follow, max-image-preview:large`, ainsi que la présence de Hilarus Gbagoule et du portfolio dans les données structurées.
+
+
+## Éligibilité aux liens annexes
+
+Le format fourni correspond aux **liens annexes** de Google sous un résultat de marque. Google indique qu’ils sont générés automatiquement à partir de la structure et des liens internes du site ; aucun balisage ne permet de les imposer ou de les commander. La page `/beta` a donc été enrichie avec un contenu public autonome et reliée par l’ancre descriptive `Programme bêta BacPilot` dans le pied de page. Les candidats naturels aux liens annexes de marque sont désormais : Guide orientation, Comment BacPilot fonctionne, Articles et conseils, À propos de MHM SOLUTIONS, Programme bêta BacPilot et Hilarus Gbagoule, créateur de BacPilot.
