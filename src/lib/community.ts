@@ -97,7 +97,7 @@ export async function submitReview(input: { userId: string; rating: number; titl
     body: input.body.trim(),
     display_name: input.displayName.trim(),
     public_consent: true,
-    status: 'pending',
+    status: 'published',
   });
   if (error) throw new Error(`Avis non envoyé : ${error.message}`);
 }

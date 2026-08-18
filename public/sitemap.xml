@@ -2,11 +2,27 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://bacpilot.site/</loc>
-    <lastmod>2026-08-16</lastmod>
+    <lastmod>2026-08-17</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/orientation-bac-benin</loc>
     <lastmod>2026-08-16</lastmod>
+  </url>
+  <url>
+    <loc>https://bacpilot.site/articles</loc>
+    <lastmod>2026-08-17</lastmod>
+  </url>
+  <url>
+    <loc>https://bacpilot.site/articles/preparer-ses-choix-apres-le-bac-benin</loc>
+    <lastmod>2026-08-17</lastmod>
+  </url>
+  <url>
+    <loc>https://bacpilot.site/articles/comparer-filiere-etablissement-debouches</loc>
+    <lastmod>2026-08-17</lastmod>
+  </url>
+  <url>
+    <loc>https://bacpilot.site/articles/guide-et-portail-officiel-orientation-benin</loc>
+    <lastmod>2026-08-17</lastmod>
   </url>
   <url>
     <loc>https://bacpilot.site/methodologie</loc>

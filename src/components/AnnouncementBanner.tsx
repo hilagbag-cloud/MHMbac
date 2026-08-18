@@ -1,64 +1,175 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Copy, Gift, UsersRound, X } from 'lucide-react';
-
-const DISMISS_KEY = 'bacpilot:announcement:referral-v1:dismissed';
+import { ArrowLeft, ArrowRight, ExternalLink, Pause, Play } from 'lucide-react';
 
 export type AnnouncementBannerProps = {
   navigate: (route: string) => void;
 };
 
-/**
- * Bannière éditoriale légère. `imageSrc` peut être remplacée par une image de
- * campagne (stockée dans BacPilot) sans changer la structure ou le parcours.
- */
-const announcement = {
-  imageSrc: '/branding/bacpilot-mark-512.png',
-  eyebrow: 'Programme communauté',
-  title: 'Fais connaître BacPilot autour de toi.',
-  description: 'Ton lien personnel permet de suivre les inscriptions réellement attribuées à ton partage et de faire évoluer ta reconnaissance BacPilot.',
+type CampaignSlide = {
+  src: string;
+  alt: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  cta: string;
+  destination: string;
 };
 
+const slides: CampaignSlide[] = [
+  {
+    src: '/campaign/bacpilot-carrousel-01-decouvrir.webp',
+    alt: 'Visuel de lancement BacPilot présentant la plateforme d’orientation post-bac',
+    eyebrow: 'À découvrir',
+    title: 'BacPilot, ton repère après le Bac',
+    description: 'Explore les possibilités d’orientation à partir des informations officielles et de ton profil.',
+    cta: 'Comprendre l’orientation',
+    destination: '/orientation-bac-benin',
+  },
+  {
+    src: '/campaign/bacpilot-carrousel-02-donnees.webp',
+    alt: 'Visuel BacPilot présentant les données observées sur les filières',
+    eyebrow: 'Données observées',
+    title: 'Des repères issus des données disponibles',
+    description: 'BacPilot affiche clairement la fraîcheur des observations et explique comment elles sont utilisées.',
+    cta: 'Voir la méthode',
+    destination: '/methodologie',
+  },
+  {
+    src: '/campaign/bacpilot-carrousel-03-communaute.webp',
+    alt: 'Visuel BacPilot consacré à sa communauté de candidats et bêta-testeurs',
+    eyebrow: 'Communauté',
+    title: 'Une plateforme construite avec ses utilisateurs',
+    description: 'Découvre les retours de la communauté et partage ton expérience de BacPilot.',
+    cta: 'Lire les avis',
+    destination: '/avis',
+  },
+  {
+    src: '/campaign/bacpilot-carrousel-04-fonctionnement.webp',
+    alt: 'Visuel BacPilot expliquant le parcours d’orientation sur la plateforme',
+    eyebrow: 'Comment ça marche',
+    title: 'Clarifier tes choix, étape par étape',
+    description: 'Prépare ton projet, consulte les pistes proposées et vérifie toujours les conditions officielles.',
+    cta: 'Préparer mes choix',
+    destination: '/orientation-bac-benin',
+  },
+  {
+    src: '/campaign/bacpilot-carrousel-05-parrainage.webp',
+    alt: 'Visuel BacPilot présentant le programme de parrainage communautaire',
+    eyebrow: 'Programme communauté',
+    title: 'Partage BacPilot autour de toi',
+    description: 'Utilise ton lien de parrainage pour suivre les inscriptions réellement attribuées à ton partage.',
+    cta: 'Découvrir le parrainage',
+    destination: '/parrainage',
+  },
+];
+
+const AUTO_ADVANCE_MS = 6500;
+
 export function AnnouncementBanner({ navigate }: AnnouncementBannerProps) {
-  const [visible, setVisible] = useState(true);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+
+  const goTo = (index: number) => setActiveIndex((index + slides.length) % slides.length);
+  const goNext = () => setActiveIndex((current) => (current + 1) % slides.length);
+  const goPrevious = () => setActiveIndex((current) => (current - 1 + slides.length) % slides.length);
 
   useEffect(() => {
-    setVisible(window.localStorage.getItem(DISMISS_KEY) !== '1');
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const updatePreference = () => setPrefersReducedMotion(mediaQuery.matches);
+    updatePreference();
+    mediaQuery.addEventListener?.('change', updatePreference);
+    return () => mediaQuery.removeEventListener?.('change', updatePreference);
   }, []);
 
-  if (!visible) return null;
-
-  const dismiss = () => {
-    window.localStorage.setItem(DISMISS_KEY, '1');
-    setVisible(false);
-  };
+  useEffect(() => {
+    if (isPaused || prefersReducedMotion) return undefined;
+    const timer = window.setInterval(goNext, AUTO_ADVANCE_MS);
+    return () => window.clearInterval(timer);
+  }, [isPaused, prefersReducedMotion]);
 
   return (
-    <section aria-label="Annonce BacPilot" className="mx-auto max-w-6xl px-4 pt-8 sm:pt-10">
-      <div className="relative overflow-hidden rounded-3xl border border-rose-200/70 bg-gradient-to-br from-white via-rose-50 to-violet-50 p-5 shadow-[0_18px_50px_-32px_rgba(15,23,42,0.55)] dark:border-rose-400/15 dark:from-slate-900 dark:via-[#28162d] dark:to-slate-900 sm:p-7">
-        <div className="pointer-events-none absolute -right-10 -top-14 h-48 w-48 rounded-full bg-rose-300/25 blur-3xl dark:bg-rose-400/15" />
-        <button type="button" onClick={dismiss} aria-label="Masquer cette annonce" className="absolute right-4 top-4 rounded-full p-2 text-slate-500 transition hover:bg-slate-900/5 hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-500 dark:text-slate-400 dark:hover:bg-white/10 dark:hover:text-white">
-          <X className="h-4 w-4" />
-        </button>
+    <section
+      aria-label="Actualités BacPilot"
+      aria-roledescription="carrousel"
+      className="mx-auto max-w-6xl px-4 pt-8 sm:pt-10"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsPaused(false);
+      }}
+    >
+      <div className="overflow-hidden rounded-[2rem] border border-violet-100 bg-slate-950 shadow-[0_18px_55px_-30px_rgba(15,23,42,0.8)] dark:border-violet-300/15">
+        <div className="flex transition-transform duration-500 ease-out motion-reduce:transition-none" style={{ transform: `translateX(-${activeIndex * 100}%)` }}>
+          {slides.map((slide, index) => (
+            <article key={slide.src} aria-hidden={index !== activeIndex} className="min-w-full">
+              <div className="grid min-h-[390px] md:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.15fr)] md:min-h-[430px]">
+                <button
+                  type="button"
+                  tabIndex={index === activeIndex ? 0 : -1}
+                  onClick={() => navigate(slide.destination)}
+                  className="group relative flex min-h-[300px] items-center justify-center overflow-hidden bg-[#171126] px-5 py-6 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-6px] focus-visible:outline-rose-300 sm:px-7"
+                  aria-label={`${slide.cta} — ${slide.title}`}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_15%,rgba(236,72,153,0.26),transparent_42%),radial-gradient(circle_at_70%_85%,rgba(139,92,246,0.32),transparent_45%)]" />
+                  <img
+                    src={slide.src}
+                    alt={slide.alt}
+                    width={612}
+                    height={816}
+                    loading={index === 0 ? 'eager' : 'lazy'}
+                    fetchPriority={index === 0 ? 'high' : 'auto'}
+                    className="relative h-[300px] w-auto max-w-full rounded-[1.25rem] object-contain shadow-[0_22px_50px_-25px_rgba(0,0,0,0.8)] transition duration-200 group-hover:scale-[1.015] motion-reduce:transition-none sm:h-[340px] md:h-[382px]"
+                  />
+                </button>
 
-        <div className="relative grid items-center gap-6 md:grid-cols-[auto_1fr_auto]">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-rose-200 bg-white/90 p-3 shadow-sm dark:border-rose-400/15 dark:bg-slate-950/70">
-            <img src={announcement.imageSrc} alt="Programme de parrainage BacPilot" className="h-full w-full object-contain" />
+                <div className="flex flex-col justify-center px-6 py-7 text-white sm:px-8 md:px-10">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-300">{slide.eyebrow}</p>
+                  <h2 className="mt-3 max-w-xl text-2xl font-black tracking-tight sm:text-3xl">{slide.title}</h2>
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">{slide.description}</p>
+                  <div className="mt-7 flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      tabIndex={index === activeIndex ? 0 : -1}
+                      onClick={() => navigate(slide.destination)}
+                      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-rose-500 px-4 py-3 text-sm font-black text-white transition duration-150 hover:bg-rose-400 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300"
+                    >
+                      {slide.cta} <ExternalLink className="h-4 w-4" />
+                    </button>
+                    <span className="text-xs font-semibold text-slate-400">{index + 1} / {slides.length}</span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-white/10 bg-slate-950 px-5 py-3 sm:px-7">
+          <div className="flex items-center gap-1.5" aria-label="Choisir une annonce">
+            {slides.map((slide, index) => (
+              <button
+                key={slide.src}
+                type="button"
+                onClick={() => goTo(index)}
+                aria-label={`Afficher l’annonce ${index + 1} : ${slide.title}`}
+                aria-current={index === activeIndex ? 'true' : undefined}
+                className={`h-2.5 rounded-full transition-all duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 ${index === activeIndex ? 'w-7 bg-rose-400' : 'w-2.5 bg-white/30 hover:bg-white/55'}`}
+              />
+            ))}
           </div>
 
-          <div className="max-w-2xl">
-            <p className="text-xs font-black uppercase tracking-[0.18em] text-rose-600 dark:text-rose-300">{announcement.eyebrow}</p>
-            <h2 className="mt-2 text-xl font-black tracking-tight text-slate-900 dark:text-white sm:text-2xl">{announcement.title}</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{announcement.description}</p>
-            <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
-              <span className="inline-flex items-center gap-1.5"><Copy className="h-3.5 w-3.5 text-rose-500" /> Copie ton lien</span>
-              <span className="inline-flex items-center gap-1.5"><UsersRound className="h-3.5 w-3.5 text-rose-500" /> Invite autour de toi</span>
-              <span className="inline-flex items-center gap-1.5"><Gift className="h-3.5 w-3.5 text-rose-500" /> Suis ta progression</span>
-            </div>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={goPrevious} aria-label="Annonce précédente" className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300">
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => setIsPaused((paused) => !paused)} aria-label={isPaused ? 'Reprendre le défilement automatique' : 'Mettre le défilement automatique en pause'} className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300">
+              {isPaused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            </button>
+            <button type="button" onClick={goNext} aria-label="Annonce suivante" className="rounded-lg p-2 text-slate-300 transition hover:bg-white/10 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-rose-300">
+              <ArrowRight className="h-4 w-4" />
+            </button>
           </div>
-
-          <button type="button" onClick={() => navigate('/parrainage')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white transition duration-150 hover:bg-slate-800 active:scale-[0.97] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500 dark:bg-rose-500 dark:hover:bg-rose-400 md:self-center">
-            Voir mon lien <ArrowRight className="h-4 w-4" />
-          </button>
         </div>
       </div>
     </section>

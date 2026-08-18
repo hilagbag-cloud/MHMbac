@@ -37,6 +37,7 @@ export const Footer: React.FC<FooterProps> = ({ navigate }) => {
               <li><a href="/" onClick={(event) => onInternalLink(event, '/')} className="transition-colors hover:text-white">Accueil BacPilot</a></li>
               <li><a href="/orientation-bac-benin" onClick={(event) => onInternalLink(event, '/orientation-bac-benin')} className="transition-colors hover:text-white">Guide orientation après le bac au Bénin</a></li>
               <li><a href="/methodologie" onClick={(event) => onInternalLink(event, '/methodologie')} className="transition-colors hover:text-white">Comment BacPilot fonctionne</a></li>
+              <li><a href="/articles" onClick={(event) => onInternalLink(event, '/articles')} className="transition-colors hover:text-white">Articles et conseils d’orientation</a></li>
               <li><a href="/about" onClick={(event) => onInternalLink(event, '/about')} className="transition-colors hover:text-white">À propos de MHM SOLUTIONS</a></li>
               <li><a href="https://partenaires.bacpilot.site" className="transition-colors hover:text-white">Devenir partenaire</a></li>
               <li><a href="/onboarding" onClick={(event) => onInternalLink(event, '/onboarding')} className="transition-colors hover:text-white">Préparer mes pistes</a></li>

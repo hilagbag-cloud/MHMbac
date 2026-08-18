@@ -12,6 +12,7 @@ import { VerificationModal } from './components/VerificationModal';
 import { HomePage } from './pages/HomePage';
 import { Seo } from './components/Seo';
 import { recordBetaEvent } from './lib/beta';
+import { getArticleBySlug } from './lib/articles';
 
 const OrientationGuidePage = lazy(() => import('./pages/OrientationGuidePage'));
 const MethodologyPage = lazy(() => import('./pages/MethodologyPage'));
@@ -33,6 +34,8 @@ const ReferralPage = lazy(() => import('./pages/ReferralPage'));
 const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 const SupportPage = lazy(() => import('./pages/SupportPage'));
+const ArticlesPage = lazy(() => import('./pages/ArticlesPage'));
+const ArticlePage = lazy(() => import('./pages/ArticlePage'));
 
 function AppContent() {
   const { user, isBetaTester, isLoading } = useAuth();
@@ -107,6 +110,8 @@ function AppContent() {
         return <ReferralPage navigate={navigate} />;
       case '/avis':
         return <ReviewsPage navigate={navigate} />;
+      case '/articles':
+        return <ArticlesPage navigate={navigate} />;
       case '/soutenir':
         return <SupportPage navigate={navigate} />;
       case '/beta':
@@ -129,6 +134,10 @@ function AppContent() {
       case '/terms':
         return <TermsPage navigate={navigate} />;
       default:
+        if (routePath.startsWith('/articles/')) {
+          const article = getArticleBySlug(routePath.slice('/articles/'.length));
+          return article ? <ArticlePage article={article} navigate={navigate} /> : <NotFoundPage navigate={navigate} />;
+        }
         return <NotFoundPage navigate={navigate} />;
     }
   };

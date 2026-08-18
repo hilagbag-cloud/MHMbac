@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { articlePath, getArticleBySlug } from '../lib/articles';
 
 const SITE_URL = 'https://bacpilot.site';
 
@@ -44,12 +45,32 @@ const guideFaqSchema: JsonLd = {
   ],
 };
 
+function articleSchema(article: NonNullable<ReturnType<typeof getArticleBySlug>>): JsonLd {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: article.title,
+    description: article.description,
+    datePublished: article.publishedAt,
+    dateModified: article.updatedAt,
+    mainEntityOfPage: `${SITE_URL}${articlePath(article)}`,
+    author: { '@type': 'Organization', name: 'BacPilot' },
+    publisher: { '@type': 'Organization', name: 'MHM SOLUTIONS' },
+    citation: article.sourceUrl,
+  };
+}
+
 const configs: Record<string, SeoConfig> = {
   '/': {
     title: 'Orientation après le bac au Bénin | BacPilot',
     description:
       'BacPilot aide les nouveaux bacheliers béninois à comparer des filières selon leur série, leur mention et leur objectif, à partir d’observations disponibles à vérifier.',
     path: '/',
+  },
+  '/articles': {
+    title: 'Articles et conseils d’orientation post-bac au Bénin | BacPilot',
+    description: 'Des conseils pratiques pour préparer ses choix après le bac au Bénin, comparer des filières et vérifier les démarches auprès des sources officielles.',
+    path: '/articles',
   },
   '/orientation-bac-benin': {
     title: 'Orientation après le bac au Bénin : guide pratique | BacPilot',
@@ -187,8 +208,15 @@ export function Seo({ route, partnerPortal = false, betaPortal = false }: { rout
     path: '/',
     canonicalUrl: 'https://partenaires.bacpilot.site/',
   };
+  const article = route.startsWith('/articles/') ? getArticleBySlug(route.slice('/articles/'.length)) : null;
+  const articleConfig: SeoConfig | null = article ? {
+    title: `${article.title} | BacPilot`,
+    description: article.description,
+    path: articlePath(article),
+    schema: articleSchema(article),
+  } : null;
   const config: SeoConfig =
-    betaPortal ? betaConfig : partnerPortal ? partnerConfig : configs[route] ?? {
+    betaPortal ? betaConfig : partnerPortal ? partnerConfig : articleConfig ?? configs[route] ?? {
       title: 'Page introuvable | BacPilot',
       description: 'Cette page BacPilot est introuvable.',
       path: route,
