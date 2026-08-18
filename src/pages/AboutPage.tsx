@@ -71,9 +71,14 @@ export const AboutPage: React.FC<AboutPageProps> = ({ navigate }) => {
             <p className="mt-5 text-sm leading-7 text-slate-600 dark:text-slate-300">
               Hilarus Gbagoule est un développeur web et créateur de contenu qui présente publiquement son intérêt pour l’intelligence artificielle, le numérique et l’innovation. À travers MHM SOLUTIONS, il conçoit BacPilot comme un outil concret pour rendre l’orientation post-baccalauréat plus accessible et plus compréhensible.
             </p>
-            <a href={MHM_PROMOTION_CONFIG.contact.creatorPortfolio} target="_blank" rel="noreferrer" className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-rose-600 underline underline-offset-4 dark:text-rose-300">
-              Consulter le portfolio public de Hilarus Gbagoule <ExternalLink className="h-4 w-4" />
-            </a>
+            <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3">
+              <a href="/fondateur-hilarus-gbagoule" onClick={(event) => go(event, '/fondateur-hilarus-gbagoule')} className="inline-flex items-center gap-2 text-sm font-bold text-slate-900 underline underline-offset-4 dark:text-white">
+                Découvrir le parcours et la vision <ArrowRight className="h-4 w-4" />
+              </a>
+              <a href={MHM_PROMOTION_CONFIG.contact.creatorPortfolio} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-sm font-bold text-rose-600 underline underline-offset-4 dark:text-rose-300">
+                Consulter le portfolio public <ExternalLink className="h-4 w-4" />
+              </a>
+            </div>
           </div>
           <aside className="rounded-3xl border border-amber-200 bg-amber-50 p-7 text-amber-950 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
             <BadgeCheck className="h-6 w-6 text-amber-700 dark:text-amber-300" />

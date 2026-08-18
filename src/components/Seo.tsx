@@ -60,6 +60,49 @@ function articleSchema(article: NonNullable<ReturnType<typeof getArticleBySlug>>
   };
 }
 
+const founderPerson: JsonLd = {
+  '@id': `${SITE_URL}/fondateur-hilarus-gbagoule#person`,
+  '@type': 'Person',
+  name: 'Hilarus Gbagoule',
+  jobTitle: 'Développeur web et créateur de contenu',
+  description: 'Créateur de BacPilot et fondateur de MHM SOLUTIONS, intéressé par l’intelligence artificielle, le numérique et l’innovation.',
+  url: `${SITE_URL}/fondateur-hilarus-gbagoule`,
+  worksFor: {
+    '@type': 'Organization',
+    name: 'MHM SOLUTIONS',
+    url: SITE_URL,
+  },
+  sameAs: [
+    'https://hilarusblog.vercel.app/',
+    'https://www.linkedin.com/in/hilarus-gbagoule-514496373',
+  ],
+  knowsAbout: ['Développement web', 'Création de contenu', 'Intelligence artificielle', 'Innovation numérique'],
+};
+
+const founderProfileSchema: JsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'ProfilePage',
+  mainEntity: founderPerson,
+};
+
+const aboutOrganizationSchema: JsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@id': `${SITE_URL}/#organization`,
+      '@type': 'Organization',
+      name: 'MHM SOLUTIONS',
+      alternateName: 'BacPilot',
+      url: SITE_URL,
+      logo: `${SITE_URL}/branding/bacpilot-mark-512.png`,
+      email: 'contact@bacpilot.site',
+      description: 'MHM SOLUTIONS conçoit BacPilot, une initiative indépendante qui aide les bacheliers à comparer des pistes d’orientation à vérifier.',
+      founder: { '@id': `${SITE_URL}/fondateur-hilarus-gbagoule#person` },
+    },
+    founderPerson,
+  ],
+};
+
 const configs: Record<string, SeoConfig> = {
   '/': {
     title: 'Orientation après le bac au Bénin | BacPilot',
@@ -103,6 +146,14 @@ const configs: Record<string, SeoConfig> = {
     description:
       'Découvrez BacPilot, initiative de MHM SOLUTIONS créée par Hilarus GBAGOULE pour rendre l’orientation post-baccalauréat plus lisible au Bénin.',
     path: '/about',
+    schema: aboutOrganizationSchema,
+  },
+  '/fondateur-hilarus-gbagoule': {
+    title: 'Hilarus Gbagoule | Créateur de BacPilot et MHM SOLUTIONS',
+    description:
+      'Découvrez Hilarus Gbagoule, créateur de BacPilot et fondateur de MHM SOLUTIONS : sa vision, son parcours de création numérique et son portfolio public.',
+    path: '/fondateur-hilarus-gbagoule',
+    schema: founderProfileSchema,
   },
   '/a-propos': {
     title: 'À propos de BacPilot et MHM SOLUTIONS | BacPilot',

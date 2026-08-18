@@ -24,6 +24,7 @@ const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({ default: module.ProfilePage })));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
+const FounderPage = lazy(() => import('./pages/FounderPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
@@ -129,6 +130,8 @@ function AppContent() {
       case '/about':
       case '/a-propos':
         return <AboutPage navigate={navigate} />;
+      case '/fondateur-hilarus-gbagoule':
+        return <FounderPage navigate={navigate} />;
       case '/privacy':
         return <PrivacyPage navigate={navigate} />;
       case '/terms':
