@@ -36,3 +36,9 @@ Le 19 août 2026, la première recette locale de `/contributeurs-beta` a déclen
 ## Recette locale — annuaire public sécurisé
 
 Après correction de l’export de page et remplacement de l’appel RPC direct par l’endpoint Edge `public-beta-contributors`, la route locale `/contributeurs-beta` rend correctement le titre, les principes de consentement, l’état vide et les appels à l’action. La console navigateur ne contient plus d’erreur applicative ou réseau. L’état vide est attendu tant qu’aucun bêta-testeur actif n’a volontairement publié un profil indexable.
+
+## Recette production — 19 août 2026
+
+La page publique `https://bacpilot.site/contributeurs-beta` est en ligne. Elle affiche le contenu de consentement, les trois principes de reconnaissance, l’état vide attendu tant qu’aucun participant ne s’est déclaré public, et les liens vers l’espace bêta. Le titre SEO rendu est `Contributeurs bêta BacPilot | Communauté et reconnaissance`. Aucun profil n’est affiché en l’absence de publication volontaire par son auteur.
+
+Le sitemap de production contient bien `https://bacpilot.site/contributeurs-beta` avec une date de modification du 19 août 2026. L’endpoint public `public-beta-contributors`, accessible sans jeton pour alimenter l’annuaire, retourne actuellement uniquement `{\"contributors\":[]}` : aucun profil privé n’est exposé.

@@ -10,10 +10,22 @@
 | Finalité | Aider les nouveaux bacheliers béninois à explorer des filières à partir de données d’observation réellement collectées. |
 | Production | [https://bacpilot.site](https://bacpilot.site) — HTTPS actif via Vercel. URL de repli : [https://mhmbac.vercel.app](https://mhmbac.vercel.app). |
 | Dépôt canonique | [github.com/hilagbag-cloud/MHMbac](https://github.com/hilagbag-cloud/MHMbac) — public, branche `main` |
-| Dernier commit confirmé | Correctif assistant v39, console Telegram v47 et suivi bêta publiés le 18 août 2026 ; consulter `git log -1 --oneline` pour l’identifiant courant. |
+| Dernier commit confirmé | `608d1d4` local — reconnaissance des contributeurs bêta ; publication GitHub `5b79d8e` et Vercel production du 19 août 2026. |
 | Projet Vercel canonique | `hila2/mhmbac` |
 | Projet Supabase | `mhm-solutions-mvp1` — ref `uxdfrnogiuefoqjpobpf` |
-| Date de cette mémoire | 18 août 2026 |
+| Date de cette mémoire | 19 août 2026 |
+
+## Mise à jour du 19 août 2026 — reconnaissance des contributeurs bêta
+
+Le système de reconnaissance des bêta-testeurs est publié sur `https://bacpilot.site/contributeurs-beta`. La page n’affiche que les profils que leur auteur a volontairement rendus publics ; elle est présente dans le sitemap de production, avec les signaux SEO correspondants. Lors de la recette de publication, elle rend son état vide attendu et l’endpoint public `public-beta-contributors` ne renvoie aucun profil tant qu’aucun consentement de publication n’existe.
+
+Les migrations `20260819_bacpilot_beta_contributor_recognition.sql`, `20260819_bacpilot_beta_public_directory.sql`, `20260819_bacpilot_beta_public_photo_access.sql`, `20260819_bacpilot_beta_public_directory_hardening.sql` et `20260819_bacpilot_recognition_campaign_pending_action.sql` sont appliquées. La fonction `public-beta-contributors` est active en version 1. Les politiques RLS limitent les profils et photos à leur propriétaire ; l’accès public à une photo exige le statut bêta actif, une visibilité de profil et les consentements de profil, photo et indexation. L’API publique ne retourne ni e-mail, ni données académiques, ni détails de feedback, ni identifiant interne.
+
+L’indicateur de contribution est séparé de toute orientation. Il est fondé uniquement sur des actions de test distinctes et des retours réellement soumis, pris en compte ou résolus, avec plafonds transparents. Il n’est ni un score scolaire ni un critère d’admission, de bourse ou de classement académique.
+
+La console `bacpilot-telegram` est active en version 48. La commande `/recognition_invite_draft`, le bouton « Reconnaissance bêta » et l’intention Gemini associée préparent une invitation encourageante personnalisée par activité réelle. Ils créent seulement une action temporaire à confirmer ; aucun e-mail ne part sans validation explicite de l’opérateur. La campagne revalide à l’envoi que chaque destinataire est toujours bêta-testeur actif avec une adresse exploitable, journalise chaque tentative et ne relance pas automatiquement les erreurs.
+
+Actions opérateur : ouvrir le bot, choisir « Reconnaissance bêta » ou envoyer `/recognition_invite_draft`, vérifier l’audience et l’objet, puis cliquer sur « Confirmer » uniquement si l’envoi est souhaité. Pour l’indexation, soumettre à nouveau `https://bacpilot.site/sitemap.xml` dans Google Search Console et demander l’indexation de `https://bacpilot.site/contributeurs-beta`; la page `/beta` reste réservée aux comptes et n’est pas une cible publique d’indexation.
 
 ## 1. État produit confirmé
 
