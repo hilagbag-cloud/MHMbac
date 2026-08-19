@@ -46,6 +46,18 @@ function unavailablePage(status: 404 | 410, title: string, message: string) {
   return new Response(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>${escapeHtml(title)} | BacPilot</title><style>body{margin:0;background:#f8fafc;color:#0f172a;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.shell{max-width:720px;margin:12vh auto;padding:24px}.box{background:#fff;border:1px solid #e2e8f0;border-radius:24px;padding:32px;box-shadow:0 16px 40px rgba(15,23,42,.08)}a{color:#e11d48;font-weight:800;text-decoration:none}</style></head><body><main class="shell"><section class="box"><p style="font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:#e11d48;font-size:12px">Communauté BacPilot</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(message)}</p><p><a href="${PROFILE_PATH}">Découvrir les contributeurs bêta BacPilot</a></p></section></main></body></html>`, { status, headers: htmlHeaders(true) });
 }
 
+function jsonResult(status: number, body: unknown, noindex = false) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store, max-age=0, must-revalidate',
+      'X-Content-Type-Options': 'nosniff',
+      'X-Robots-Tag': noindex ? 'noindex, nofollow' : 'noindex, nofollow',
+    },
+  });
+}
+
 function levelDescription(level: string) {
   if (level === 'Pionnier bêta') return 'Une contribution durable aux améliorations de BacPilot.';
   if (level === 'Contributeur actif') return 'Une participation régulière aux tests et retours de la communauté.';
@@ -161,6 +173,7 @@ Deno.serve(async (request) => {
 
   const url = new URL(request.url);
   const asset = url.searchParams.get('asset');
+  const requestedFormat = url.searchParams.get('format');
   const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !serviceRoleKey) return new Response('Configuration serveur indisponible.', { status: 500, headers: { 'Cache-Control': 'no-store' } });
@@ -177,16 +190,40 @@ Deno.serve(async (request) => {
   }
 
   const slug = (url.searchParams.get('slug') || '').trim().toLocaleLowerCase();
-  if (!SLUG_PATTERN.test(slug)) return unavailablePage(404, 'Profil introuvable', 'Cette fiche contributeur n’existe pas ou n’est pas disponible publiquement.');
+  if (!SLUG_PATTERN.test(slug)) {
+    return requestedFormat === 'json'
+      ? jsonResult(404, { error: { status: 404, message: 'Profil introuvable.' } }, true)
+      : unavailablePage(404, 'Profil introuvable', 'Cette fiche contributeur n’existe pas ou n’est pas disponible publiquement.');
+  }
 
   const { data, error } = await admin.rpc('get_public_beta_contributor_by_slug', { p_slug: slug });
-  if (error) return unavailablePage(404, 'Profil indisponible', 'Cette fiche ne peut pas être affichée pour le moment.');
+  if (error) {
+    return requestedFormat === 'json'
+      ? jsonResult(404, { error: { status: 404, message: 'Profil indisponible.' } }, true)
+      : unavailablePage(404, 'Profil indisponible', 'Cette fiche ne peut pas être affichée pour le moment.');
+  }
   const profile = Array.isArray(data) ? data[0] as PublicProfile | undefined : undefined;
 
   if (!profile) {
     const withdrawn = await admin.rpc('get_withdrawn_beta_contributor_slug', { p_slug: slug });
-    if (withdrawn.data === true) return unavailablePage(410, 'Profil retiré', 'Cette personne a retiré volontairement sa fiche publique.');
-    return unavailablePage(404, 'Profil introuvable', 'Cette fiche contributeur n’existe pas ou n’est pas disponible publiquement.');
+    if (withdrawn.data === true) {
+      return requestedFormat === 'json'
+        ? jsonResult(410, { error: { status: 410, message: 'Cette personne a retiré volontairement sa fiche publique.' } }, true)
+        : unavailablePage(410, 'Profil retiré', 'Cette personne a retiré volontairement sa fiche publique.');
+    }
+    return requestedFormat === 'json'
+      ? jsonResult(404, { error: { status: 404, message: 'Profil introuvable.' } }, true)
+      : unavailablePage(404, 'Profil introuvable', 'Cette fiche contributeur n’existe pas ou n’est pas disponible publiquement.');
+  }
+
+  if (requestedFormat === 'json') {
+    const { photo_path: _privatePhotoPath, ...safeProfile } = profile;
+    return jsonResult(200, {
+      profile: {
+        ...safeProfile,
+        photo_url: profile.photo_path ? `${SITE_URL}${PROFILE_PATH}/${encodeURIComponent(profile.public_slug)}/photo` : null,
+      },
+    });
   }
 
   if (asset === 'photo') {

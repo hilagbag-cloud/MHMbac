@@ -42,7 +42,7 @@
     },
     {
       "source": "/contributeurs-beta/:slug",
-      "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?slug=:slug"
+      "destination": "/api/contributor-profile?slug=:slug"
     },
     {
       "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|sitemap-contributeurs-beta\\.xml|site\\.webmanifest|favicon\\.ico|apple-touch-icon\\.png).*)",
