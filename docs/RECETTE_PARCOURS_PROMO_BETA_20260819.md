@@ -5,3 +5,5 @@ L’aperçu local montre la première étape du parcours dans une fenêtre horiz
 Le passage à la deuxième image a été testé. La progression passe de `1 / 3` à `2 / 3`, le contenu de l’exemple public de l’annuaire est visible dans le visuel et le bouton **Continuer** reste disponible. Le parcours ne s’appuie sur aucune donnée privée et les images sont servies depuis `/campaign/`.
 
 L’étape finale a été testée : elle présente distinctement **Vérifier mon éligibilité** et **Rejoindre le bêta test**. Le second bouton pointe bien vers `https://beta.bacpilot.site`, destiné aux nouveaux visiteurs. La fermeture a aussi été testée depuis cette étape : la fenêtre disparaît immédiatement et l’accueil reste utilisable.
+
+La publication de production a été vérifiée sur `https://bacpilot.site`. La première vue pouvait arriver avant le chargement de l’image, mais après stabilisation le visuel WebP horizontal s’affiche correctement. Les trois fichiers sont servis avec le type `image/webp`, mesurent 1440 × 810 px et pèsent respectivement environ 32 Ko, 48 Ko et 36 Ko.
