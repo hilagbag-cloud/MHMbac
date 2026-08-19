@@ -31,6 +31,7 @@ const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 const BetaPage = lazy(() => import('./pages/BetaPage').then((module) => ({ default: module.BetaPage })));
 const BetaAccessPage = lazy(() => import('./pages/BetaAccessPage'));
 const BetaPortalPage = lazy(() => import('./pages/BetaPortalPage'));
+const BetaContributorsPage = lazy(() => import('./pages/BetaContributorsPage'));
 const ReferralPage = lazy(() => import('./pages/ReferralPage'));
 const ReferralLandingPage = lazy(() => import('./pages/ReferralLandingPage'));
 const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
@@ -119,6 +120,8 @@ function AppContent() {
         return <BetaPage navigate={navigate} />;
       case '/beta-access':
         return <BetaAccessPage navigate={navigate} />;
+      case '/contributeurs-beta':
+        return <BetaContributorsPage navigate={navigate} />;
       case '/orientation-bac-benin':
         return <OrientationGuidePage />;
       case '/methodologie':

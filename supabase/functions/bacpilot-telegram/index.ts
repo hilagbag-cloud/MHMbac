@@ -45,6 +45,7 @@ type OperatorCommand =
   | '/mailstatus'
   | '/templates'
   | '/campaign_referral_draft'
+  | '/recognition_invite_draft'
   | '/collector_issue'
   | '/collector_list'
   | '/collector_revoke';
@@ -141,6 +142,7 @@ type OperatorAiIntent =
   | 'welcome_prepare'
   | 'email_prepare'
   | 'email_campaign_draft'
+  | 'recognition_invite_draft'
   | 'templates_list'
   | 'beta_activate'
   | 'beta_pause'
@@ -164,13 +166,13 @@ const TELEGRAM_AI_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const TELEGRAM_AI_MAX_AUDIO_SECONDS = 180;
 const TELEGRAM_AI_INTENTS = new Set<OperatorAiIntent>([
   'platform_status', 'platform_stats', 'user_lookup', 'user_list', 'beta_list', 'feedback_list', 'pending_list',
-  'mail_status', 'welcome_prepare', 'email_prepare', 'email_campaign_draft', 'templates_list', 'beta_activate', 'beta_pause', 'beta_revoke', 'user_delete',
+  'mail_status', 'welcome_prepare', 'email_prepare', 'email_campaign_draft', 'recognition_invite_draft', 'templates_list', 'beta_activate', 'beta_pause', 'beta_revoke', 'user_delete',
   'documentation_question', 'webhook_repair', 'clarification', 'unsupported',
 ]);
 
 const TELEGRAM_OPERATOR_AI_ROLE = [
   'Tu es l’agent privé de gestion BacPilot. Tout message libre de l’opérateur doit être interprété comme une demande en langage naturel, jamais comme une commande inconnue.',
-  'BacPilot est une plateforme béninoise d’orientation post-bac. Les opérations autorisées sont : lire l’état et les statistiques de la plateforme, rechercher ou lister des utilisateurs, bêta-testeurs et retours, vérifier le statut d’un e-mail, afficher les templates e-mail, préparer un e-mail individuel, préparer un brouillon de campagne de parrainage, préparer une activation, pause ou révocation bêta, préparer une suppression de compte, répondre à une question de documentation et réparer le webhook Telegram.',
+  'BacPilot est une plateforme béninoise d’orientation post-bac. Les opérations autorisées sont : lire l’état et les statistiques de la plateforme, rechercher ou lister des utilisateurs, bêta-testeurs et retours, vérifier le statut d’un e-mail, afficher les templates e-mail, préparer un e-mail individuel, préparer un brouillon de campagne de parrainage ou une invitation de reconnaissance pour les bêta-testeurs actifs, préparer une activation, pause ou révocation bêta, préparer une suppression de compte, répondre à une question de documentation et réparer le webhook Telegram.',
   'Les lectures peuvent être exécutées immédiatement par le serveur. Une écriture, notamment un e-mail, un changement de statut, une révocation, une suppression ou une modification de webhook, doit seulement être préparée puis soumise à la confirmation explicite de l’opérateur. Ne confirme jamais toi-même une action et ne prétends jamais l’avoir exécutée.',
   'Ne révèles aucune clé ni information secrète. N’accèdes pas à Internet. Pour une demande conditionnelle, identifie d’abord la vérification nécessaire et explique la prochaine action qui devra être confirmée. Si la cible n’est pas certaine, demande une précision concise.',
   'Réponds exclusivement avec un objet JSON, sans Markdown et sans texte avant ou après. Utilise exactement les clés intent, user_identifier, beta_status, transcript, clarification et operator_reply. intent doit être une valeur autorisée. Les valeurs user_identifier et beta_status sont null quand elles ne sont pas certaines. operator_reply doit être en français, bref, concret et adapté à l’opérateur.',
@@ -192,6 +194,7 @@ function parseOperatorAiPlan(raw: string): OperatorAiPlan | null {
       send_welcome: 'welcome_prepare', prepare_welcome: 'welcome_prepare',
       send_email: 'email_prepare', prepare_email: 'email_prepare',
       email_campaign: 'email_campaign_draft', campaign_draft: 'email_campaign_draft', referral_campaign: 'email_campaign_draft',
+      recognition_campaign: 'recognition_invite_draft', recognition_invite: 'recognition_invite_draft', beta_recognition: 'recognition_invite_draft',
       templates: 'templates_list', email_templates: 'templates_list', list_templates: 'templates_list',
       activate_beta: 'beta_activate', add_beta: 'beta_activate',
       revoke_beta: 'beta_revoke', pause_beta: 'beta_pause', delete_user: 'user_delete',
@@ -241,6 +244,7 @@ function fallbackReadPlan(input: string): OperatorAiPlan | null {
   if (/(etat|sante|health|status|synchronisation|collecte)/.test(normalized)) return withIntent('platform_status');
   if (/(retour|feedback|avis|suggestion|bug)/.test(normalized) && /(liste|list|affiche|montre|donne|dernier)/.test(normalized)) return withIntent('feedback_list');
   if (/(template|modele|modèle|maquette)/.test(normalized) && /(mail|email|liste|list|dispo|affiche|montre)/.test(normalized)) return withIntent('templates_list');
+  if (/(reconnaissance|contributeur|contribution|profil public)/.test(normalized) && /(beta|testeur|invitation|inviter|mail|email|campagne)/.test(normalized)) return withIntent('recognition_invite_draft');
   if (/(mail|email|courriel)/.test(normalized) && (/(parrainage|partag|inviter|referral)/.test(normalized) || /(tous|tout|all|users|utilisateurs)/.test(normalized))) return withIntent('email_campaign_draft');
   if (/(action|demande)/.test(normalized) && /(attente|pending|confirmer)/.test(normalized)) return withIntent('pending_list');
   return null;
@@ -259,6 +263,7 @@ function operatorPlanCommand(plan: OperatorAiPlan): { command: OperatorCommand |
   if (plan.intent === 'welcome_prepare' && identifier) return { command: '/welcome', argument: identifier };
   if (plan.intent === 'email_prepare' && identifier) return { command: '/email', argument: identifier };
   if (plan.intent === 'email_campaign_draft') return { command: '/campaign_referral_draft', argument: '' };
+  if (plan.intent === 'recognition_invite_draft') return { command: '/recognition_invite_draft', argument: '' };
   if (plan.intent === 'templates_list') return { command: '/templates', argument: '' };
   if (plan.intent === 'beta_activate' && identifier) return { command: '/beta_add', argument: identifier };
   if (plan.intent === 'beta_pause' && identifier) return { command: '/beta_pause', argument: identifier };
@@ -284,6 +289,7 @@ const GEMINI_AGENT_FUNCTIONS = [
   { name: 'list_pending_actions', description: 'Lister les actions déjà préparées qui attendent une confirmation opérateur.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'list_email_templates', description: 'Afficher les modèles e-mail BacPilot disponibles.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'draft_referral_campaign', description: 'Préparer un brouillon de communication sur le parrainage. Ceci ne doit jamais envoyer d’e-mail.', parameters: { type: 'OBJECT', properties: {} } },
+  { name: 'draft_recognition_invite', description: 'Préparer une invitation de reconnaissance encourageante pour les bêta-testeurs actifs. Cette action ne doit jamais envoyer d’e-mail automatiquement et doit afficher l’audience avant confirmation humaine.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'list_collectors', description: 'Lister les collecteurs et leur état.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'prepare_welcome_email', description: 'Préparer, sans envoyer, un e-mail de bienvenue pour une personne précise. Une confirmation humaine sera obligatoire.', parameters: { type: 'OBJECT', properties: { identifier: { type: 'STRING', description: 'E-mail ou UUID BacPilot de la personne.' } }, required: ['identifier'] } },
   { name: 'prepare_custom_email', description: 'Préparer, sans envoyer, un e-mail individuel. Une confirmation humaine sera obligatoire avant tout envoi.', parameters: { type: 'OBJECT', properties: { identifier: { type: 'STRING', description: 'E-mail ou UUID BacPilot de la personne.' } }, required: ['identifier'] } },
@@ -316,6 +322,7 @@ function agentFunctionToCommand(call: GeminiAgentFunctionCall): { command: Opera
   if (call.name === 'list_pending_actions') return { command: '/pending', argument: '' };
   if (call.name === 'list_email_templates') return { command: '/templates', argument: '' };
   if (call.name === 'draft_referral_campaign') return { command: '/campaign_referral_draft', argument: '' };
+  if (call.name === 'draft_recognition_invite') return { command: '/recognition_invite_draft', argument: '' };
   if (call.name === 'list_collectors') return { command: '/collector_list', argument: '' };
   if (call.name === 'prepare_welcome_email' && identifier) return { command: '/welcome', argument: identifier };
   if (call.name === 'prepare_custom_email' && identifier) return { command: '/email', argument: identifier };
@@ -607,6 +614,7 @@ function mainInlineKeyboard(): InlineKeyboard {
     [{ text: '📊 Statistiques', callback_data: 'menu:stats' }, { text: '👥 Utilisateurs', callback_data: 'menu:users' }],
     [{ text: '🧪 Bêta-testeurs', callback_data: 'menu:beta' }, { text: '💬 Retours bêta', callback_data: 'menu:feedback' }],
     [{ text: '✉️ E-mail personnalisé', callback_data: 'compose:email' }, { text: '✉️ Templates', callback_data: 'menu:templates' }],
+    [{ text: '🎖️ Reconnaissance bêta', callback_data: 'campaign:recognition' }],
     [{ text: '✅ État plateforme', callback_data: 'menu:status' }, { text: '⏳ Actions en attente', callback_data: 'menu:pending' }],
     [{ text: '❓ Aide', callback_data: 'menu:help' }],
   ] };
@@ -640,6 +648,7 @@ function callbackToCommand(data: string): { command: OperatorCommand | null; arg
     return { command: map[value] || null, argument: '' };
   }
   if (action === 'compose' && value === 'email') return { command: '/email', argument: '__select_recipient__' };
+  if (action === 'campaign' && value === 'recognition') return { command: '/recognition_invite_draft', argument: '' };
   if (action === 'emailto') return { command: '/email', argument: value };
   if (action === 'feedback') return { command: '/feedback', argument: value };
   if (action === 'welcome') return { command: '/welcome', argument: value };
@@ -1017,11 +1026,13 @@ async function getUserMessage(admin: any, user: ResolvedUser) {
   ].join('\n');
 }
 
-function customEmailHtml(subject: string, displayName: string, bodyText: string) {
+function customEmailHtml(subject: string, displayName: string, bodyText: string, cta = { url: 'https://bacpilot.site', label: 'Commencer dès maintenant' }) {
   const safeSubject = escapeHtml(subject, 160);
   const safeName = escapeHtml(displayName || 'utilisateur BacPilot', 120);
   const safeBody = messageText(bodyText, 6000).split('\n').map((line) => escapeHtml(line, 6000)).join('<br>');
-  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div><div style="text-align:center;margin:30px 0 24px"><a href="https://bacpilot.site" style="display:inline-block;background:#f43f5e;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:10px">Commencer dès maintenant</a></div><p style="font-size:13px;line-height:1.6;color:#778198;margin:0">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br><a href="https://bacpilot.site" style="color:#d52e59;word-break:break-all">https://bacpilot.site</a></p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS<br><a href="https://bacpilot.site" style="color:#d52e59">bacpilot.site</a></p></div></body></html>`;
+  const ctaUrl = cta.url === 'https://bacpilot.site/beta' ? cta.url : 'https://bacpilot.site';
+  const safeCtaLabel = escapeHtml(cta.label, 80) || 'Commencer dès maintenant';
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:linear-gradient(135deg,#171d3b,#321b48)"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fda4af;font-weight:700">BacPilot — par MHM SOLUTIONS</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div><div style="text-align:center;margin:30px 0 24px"><a href="${ctaUrl}" style="display:inline-block;background:#f43f5e;color:#ffffff;text-decoration:none;font-weight:700;padding:14px 24px;border-radius:10px">${safeCtaLabel}</a></div><p style="font-size:13px;line-height:1.6;color:#778198;margin:0">Si le bouton ne fonctionne pas, copie ce lien dans ton navigateur :<br><a href="${ctaUrl}" style="color:#d52e59;word-break:break-all">${ctaUrl}</a></p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS<br><a href="https://bacpilot.site" style="color:#d52e59">bacpilot.site</a></p></div></body></html>`;
 }
 
 function transactionalWelcomeHtml(displayName: string) {
@@ -1179,7 +1190,11 @@ async function sendCustomEmail(email: string, displayName: string, subject: stri
         reply_to: 'contact@bacpilot.site',
         to: [email],
         subject: template === 'welcome' ? 'Votre compte BacPilot est prêt' : text(subject, 160),
-        html: template === 'welcome' ? transactionalWelcomeHtml(displayName) : customEmailHtml(subject, displayName, bodyText),
+        html: template === 'welcome'
+          ? transactionalWelcomeHtml(displayName)
+          : template === 'recognition_invite'
+            ? customEmailHtml(subject, displayName, bodyText, { url: 'https://bacpilot.site/beta', label: 'Valoriser ma contribution' })
+            : customEmailHtml(subject, displayName, bodyText),
         text: template === 'welcome'
           ? `Bonjour ${displayName || 'utilisateur BacPilot'},\n\nVotre compte BacPilot vient d’être créé. Vous pouvez accéder à votre espace : https://bacpilot.site\n\nBesoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.`
           : `Bonjour ${displayName || 'utilisateur BacPilot'},\n\n${messageText(bodyText, 6000)}\n\nBacPilot — par MHM SOLUTIONS`,
@@ -1255,11 +1270,93 @@ async function listPending(admin: any, chatId: string) {
 
 type PendingAction = {
   id: string;
-  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'collector_revoke' | 'email_send';
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'collector_revoke' | 'email_send' | 'email_campaign_recognition';
   target_user_id: string;
   payload: Record<string, unknown> | null;
   expires_at: string;
 };
+
+type RecognitionDeliveryResult = {
+  status: BetaEmailResult['status'];
+  userId: string;
+  email: string;
+  errorMessage: string | null;
+};
+
+async function sendRecognitionInviteToRecipient(admin: any, chatId: string, recipient: RecognitionRecipient): Promise<RecognitionDeliveryResult> {
+  const now = new Date().toISOString();
+  let bodyText = '';
+  let result: BetaEmailResult;
+  try {
+    const metrics = await getRecognitionMetrics(admin, recipient.id);
+    bodyText = recognitionInviteBody(metrics);
+    result = await withTimeout(
+      sendCustomEmail(recipient.email, recipient.display_name || '', RECOGNITION_EMAIL_SUBJECT, bodyText, 'recognition_invite'),
+      10_000,
+    ).catch((error): BetaEmailResult => ({
+      status: 'failed',
+      error_message: error instanceof Error ? text(error.message, 180) : 'Délai email dépassé.',
+    }));
+  } catch (error) {
+    result = { status: 'failed', error_message: error instanceof Error ? text(error.message, 180) : 'Indicateurs de contribution indisponibles.' };
+    bodyText = 'Invitation non envoyée : les indicateurs de contribution nécessaires à la personnalisation étaient indisponibles.';
+  }
+  const { error: deliveryLogError } = await admin.from('operator_email_deliveries').insert({
+    telegram_chat_id: chatId,
+    target_user_id: recipient.id,
+    recipient_email: recipient.email,
+    subject: RECOGNITION_EMAIL_SUBJECT,
+    body_text: bodyText,
+    status: result.status,
+    provider_message_id: result.provider_message_id || null,
+    error_message: result.error_message || null,
+    sent_at: result.status === 'sent' ? now : null,
+  });
+  if (deliveryLogError) console.error('Journal invitation reconnaissance impossible:', deliveryLogError.message);
+  return { status: result.status, userId: recipient.id, email: recipient.email, errorMessage: result.error_message || null };
+}
+
+async function executeRecognitionInviteCampaign(admin: any, chatId: string, pending: PendingAction) {
+  const requestedIds = Array.isArray(pending.payload?.audience_user_ids)
+    ? pending.payload?.audience_user_ids.map((item) => text(item, 80)).filter(Boolean)
+    : [];
+  if (!requestedIds.length) return 'Campagne non envoyée : audience préparée introuvable.';
+  const recipients = await listRecognitionRecipients(admin, requestedIds);
+  if (!recipients.length) {
+    await audit(admin, chatId, '/recognition_invite_draft', 'confirmed', pending.target_user_id, {
+      action: 'email_campaign_recognition', campaign_key: RECOGNITION_CAMPAIGN_KEY, audience_prepared: requestedIds.length, audience_sent: 0, reason: 'no_longer_eligible',
+    });
+    return 'Campagne confirmée mais non envoyée : aucun destinataire de l’audience préparée n’est encore bêta-testeur actif avec une adresse e-mail.';
+  }
+  const queue = [...recipients];
+  const deliveries: RecognitionDeliveryResult[] = [];
+  const workerCount = Math.min(4, queue.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (queue.length) {
+      const recipient = queue.shift();
+      if (!recipient) return;
+      deliveries.push(await sendRecognitionInviteToRecipient(admin, chatId, recipient));
+    }
+  }));
+  const sent = deliveries.filter((item) => item.status === 'sent').length;
+  const failed = deliveries.filter((item) => item.status === 'failed' || item.status === 'not_configured').length;
+  const skipped = deliveries.filter((item) => item.status === 'skipped').length;
+  await audit(admin, chatId, '/recognition_invite_draft', 'confirmed', pending.target_user_id, {
+    action: 'email_campaign_recognition',
+    campaign_key: RECOGNITION_CAMPAIGN_KEY,
+    audience_prepared: requestedIds.length,
+    audience_eligible: recipients.length,
+    sent,
+    failed,
+    skipped,
+  });
+  return [
+    'Campagne de reconnaissance traitée.',
+    `Audience préparée : ${requestedIds.length} · encore éligible : ${recipients.length}.`,
+    `Acceptés par Resend : ${sent} · non envoyés/échoués : ${failed} · ignorés : ${skipped}.`,
+    'Chaque tentative est journalisée. Utilise /mailstatus avec un e-mail ou un ID pour vérifier un destinataire précis.',
+  ].join('\n');
+}
 
 async function executePendingAction(admin: any, chatId: string, pending: PendingAction) {
   const now = new Date().toISOString();
@@ -1272,6 +1369,10 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
     .select('id')
     .maybeSingle();
   if (lockError || !lock) return 'Cette action est déjà en cours ou indisponible.';
+
+  if (pending.action === 'email_campaign_recognition') {
+    return await executeRecognitionInviteCampaign(admin, chatId, pending);
+  }
 
   if (pending.action === 'email_send') {
     const { data: profile } = await admin.from('profiles').select('email, display_name').eq('id', pending.target_user_id).maybeSingle();
@@ -1425,10 +1526,12 @@ async function beginConfirmationSession(admin: any, chatId: string) {
 
   const isUserDeletion = pending.action === 'user_delete';
   const isCollectorRevocation = pending.action === 'collector_revoke';
-  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : 'envoyer un email personnalisé à';
+  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : pending.action === 'email_campaign_recognition' ? 'envoyer la campagne de reconnaissance à' : 'envoyer un email personnalisé à';
   const targetLabel = text((pending.payload as any)?.label, 140) || pending.target_user_id;
   const description = pending.action === 'email_send'
     ? `Tu vas envoyer l’email « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}.`
+    : pending.action === 'email_campaign_recognition'
+      ? `Tu vas envoyer l’invitation « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}. L’audience sera revalidée : seuls les bêta-testeurs toujours actifs avec une adresse e-mail recevront le message.`
     : isUserDeletion
       ? `Tu vas supprimer définitivement le compte de ${targetLabel} ainsi que ses données BacPilot associées.`
       : isCollectorRevocation
@@ -1729,6 +1832,107 @@ async function prepareReferralCampaignDraft(admin: any) {
   ].join('\n');
 }
 
+const RECOGNITION_EMAIL_SUBJECT = 'Votre contribution à BacPilot mérite d’être reconnue';
+const RECOGNITION_CAMPAIGN_KEY = 'beta_recognition_v1';
+
+type RecognitionRecipient = {
+  id: string;
+  email: string;
+  display_name: string | null;
+};
+
+async function listRecognitionRecipients(admin: any, candidateIds: string[] | null = null) {
+  const { data: activeTesters, error: betaError } = await admin
+    .from('beta_testers')
+    .select('user_id')
+    .eq('status', 'active');
+  if (betaError) throw new Error('Audience bêta indisponible.');
+  const activeIds = (activeTesters || []).map((item: any) => text(item.user_id, 80)).filter(Boolean);
+  const targetIds = (candidateIds || activeIds).filter((id) => activeIds.includes(id));
+  if (!targetIds.length) return [] as RecognitionRecipient[];
+  const { data: profiles, error: profileError } = await admin
+    .from('profiles')
+    .select('id, email, display_name')
+    .in('id', targetIds)
+    .not('email', 'is', null);
+  if (profileError) throw new Error('Profils bêta indisponibles.');
+  return (profiles || [])
+    .map((profile: any) => ({ id: text(profile.id, 80), email: text(profile.email, 180).toLowerCase(), display_name: text(profile.display_name, 120) || null }))
+    .filter((profile: RecognitionRecipient) => profile.id && profile.email);
+}
+
+async function getRecognitionMetrics(admin: any, userId: string) {
+  const [{ count: activityCount, error: activityError }, { count: feedbackCount, error: feedbackError }] = await Promise.all([
+    admin.from('beta_test_events').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    admin.from('beta_feedback').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+  ]);
+  if (activityError || feedbackError) throw new Error('Indicateurs de contribution indisponibles.');
+  return {
+    activityCount: Number.isFinite(Number(activityCount)) ? Number(activityCount) : 0,
+    feedbackCount: Number.isFinite(Number(feedbackCount)) ? Number(feedbackCount) : 0,
+  };
+}
+
+function recognitionInviteBody(metrics: { activityCount: number; feedbackCount: number }) {
+  return [
+    'Votre participation aide BacPilot à devenir plus fiable et plus utile pour les futurs bacheliers du Bénin. Merci pour le temps consacré à tester, explorer et signaler ce qui doit être amélioré.',
+    '',
+    `Votre contribution vérifiée à ce jour : ${metrics.activityCount} activité(s) de test enregistrée(s) et ${metrics.feedbackCount} retour(s) transmis.`,
+    '',
+    'Un indicateur de contribution est désormais disponible dans votre espace bêta. Il est calculé uniquement à partir d’activités réelles : exploration de la plateforme, retours transmis, retours pris en compte et retours résolus. Il ne concerne pas votre orientation et ne crée aucun classement scolaire.',
+    '',
+    'Vous pouvez aussi choisir de faire connaître votre contribution. Rien n’est public par défaut : dans votre espace, vous décidez entre profil privé, nom uniquement ou profil détaillé. Une photo et l’indexation par les moteurs de recherche nécessitent chacune votre accord explicite.',
+    '',
+    'Votre contribution peut encourager d’autres étudiants à tester, signaler et améliorer BacPilot avec nous. Ouvrez votre espace bêta pour voir vos indicateurs et configurer votre profil si vous le souhaitez.',
+    '',
+    'Merci de construire BacPilot avec nous. TESTE → TROUVE → SIGNALE → AMÉLIORE.',
+  ].join('\n');
+}
+
+async function prepareRecognitionInviteDraft(admin: any, chatId: string) {
+  const audience = await listRecognitionRecipients(admin);
+  if (!audience.length) {
+    return 'Aucun bêta-testeur actif avec une adresse e-mail exploitable. Aucun brouillon ni action d’envoi n’a été créé.';
+  }
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const { error } = await admin.from('operator_pending_actions').insert({
+    telegram_chat_id: chatId,
+    action: 'email_campaign_recognition',
+    target_user_id: audience[0].id,
+    confirmation_code: makeConfirmationCode(),
+    payload: {
+      label: `${audience.length} bêta-testeur(s) actif(s)`,
+      subject: RECOGNITION_EMAIL_SUBJECT,
+      template: 'recognition_invite',
+      campaign_key: RECOGNITION_CAMPAIGN_KEY,
+      audience_user_ids: audience.map((recipient) => recipient.id),
+      audience_count: audience.length,
+    },
+    expires_at: expiresAt,
+  });
+  if (error) throw new Error('Brouillon de reconnaissance indisponible.');
+  await audit(admin, chatId, '/recognition_invite_draft', 'pending', audience[0].id, {
+    action: 'email_campaign_recognition',
+    audience_count: audience.length,
+    template: 'recognition_invite',
+    expires_at: expiresAt,
+  });
+  return [
+    'BacPilot — invitation de reconnaissance bêta',
+    '',
+    `Audience prête : ${audience.length} bêta-testeur(s) actif(s) avec une adresse e-mail.`,
+    'Statut : PRÉPARÉ — aucun e-mail n’a été envoyé.',
+    '',
+    `Objet : ${RECOGNITION_EMAIL_SUBJECT}`,
+    '',
+    'Le message remercie chaque contributeur, présente uniquement ses activités réelles, explique les niveaux de visibilité et rappelle que rien ne peut être publié sans consentement explicite. Le bouton ouvre https://bacpilot.site/beta.',
+    '',
+    '1. Confirmer l’envoi à cette audience figée',
+    '2. Annuler',
+    `Expire : ${formatDate(expiresAt)}`,
+  ].join('\n');
+}
+
 function emailTemplatesMessage() {
   return [
     'BacPilot — templates e-mail',
@@ -1738,6 +1942,7 @@ function emailTemplatesMessage() {
     '3. feedback_received — accusé de réception d’un retour bêta',
     '4. reminder — rappel personnalisé avec bouton BacPilot',
     '5. custom — rédaction libre avec habillage BacPilot et bouton d’accès',
+    '6. recognition_invite — invitation de reconnaissance des bêta-testeurs actifs ; profil public toujours optionnel',
     '',
     'Utilisation immédiate : /welcome <e-mail ou ID>',
     'État exact d’un destinataire : /mailstatus <e-mail ou ID>',
@@ -1768,6 +1973,7 @@ function helpMessage() {
     '/welcome [e-mail|ID] — préparer le mail de bienvenue avec bouton BacPilot',
     '/mailstatus [e-mail|ID] — état welcome, bêta et e-mails opérateur ; sans valeur, le bot demande',
     '/templates — afficher les templates e-mail disponibles',
+    '/recognition_invite_draft — préparer l’invitation aux bêta-testeurs actifs ; confirmation obligatoire avant l’envoi',
     '/collector_issue [libellé] — générer un code d’activation à usage unique', 
     '/collector_list — afficher les appareils enrôlés et leur état',
     '/collector_revoke [ID] — préparer la révocation d’un appareil ; confirmation 1/2',
@@ -2035,6 +2241,8 @@ Deno.serve(async (request) => {
       reply = emailTemplatesMessage();
     } else if (command === '/campaign_referral_draft') {
       reply = await withTimeout(prepareReferralCampaignDraft(admin, sourceChatId));
+    } else if (command === '/recognition_invite_draft') {
+      reply = await withTimeout(prepareRecognitionInviteDraft(admin, sourceChatId));
     } else if (command === '/email') {
       if (!argument || argument === '__select_recipient__') {
         const selection = await withTimeout(beginEmailRecipient(admin, sourceChatId));
@@ -2092,7 +2300,7 @@ Deno.serve(async (request) => {
       reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }
 
-    if (!['/user_delete', '/email', '/welcome', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel', '/webhook_repair', '/campaign_referral_draft'].includes(command)) {
+    if (!['/user_delete', '/email', '/welcome', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel', '/webhook_repair', '/campaign_referral_draft', '/recognition_invite_draft'].includes(command)) {
       await withTimeout(audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) })).catch((error) => {
         console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
       });
@@ -2101,7 +2309,7 @@ Deno.serve(async (request) => {
       ? mainInlineKeyboard()
       : (command === '/user' || command === '/mailstatus') && targetUserId
         ? userDetailInlineKeyboard(targetUserId)
-        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/user_delete' || command === '/collector_revoke' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
+        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/user_delete' || command === '/collector_revoke' || command === '/recognition_invite_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
           ? confirmationInlineKeyboard(command === '/user_delete')
           : (command === '/confirm' || command === '/cancel')
             ? mainInlineKeyboard()

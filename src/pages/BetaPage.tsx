@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Bug, Camera, CheckCircle2, Lightbulb, MessageSquare, ShieldCheck, Sparkles, ThumbsUp } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { getBetaStats, submitBetaFeedback, type BetaStats } from '../lib/beta';
+import { BetaContributorPanel } from '../components/BetaContributorPanel';
 import type { BetaFeedbackCategory, BetaFeedbackSeverity, BetaZone } from '../types/orientation';
 
 interface BetaPageProps { navigate: (route: string) => void; }
@@ -74,6 +75,8 @@ export const BetaPage: React.FC<BetaPageProps> = ({ navigate }) => {
   return <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8"><div className="mb-8 flex flex-col justify-between gap-4 lg:flex-row lg:items-end"><div><div className="mb-3 inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-rose-600 dark:border-rose-900/50 dark:bg-rose-950/20 dark:text-rose-300"><Sparkles className="h-3.5 w-3.5" /> Bêta-testeur actif</div><h1 className="text-3xl font-black tracking-tight sm:text-4xl">Teste, trouve, signale.</h1><p className="mt-2 max-w-2xl text-slate-500">Bonjour {profile?.display_name || 'testeur'} ! Utilise cet espace pour envoyer un retour en moins d’une minute, directement depuis la zone que tu testes.</p></div><div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-800 dark:bg-slate-900"><span className="text-slate-500">Compte bêta</span><strong className="ml-2 text-rose-500">{user.email}</strong></div></div>
 
     <div className="mb-8 grid gap-4 sm:grid-cols-3"><StatCard label="Retours envoyés" value={stats?.feedbackCount ?? '—'} /><StatCard label="Bugs encore ouverts" value={stats?.bugsOpen ?? '—'} accent="text-amber-500" /><StatCard label="Actions testées" value={stats?.eventCount ?? '—'} accent="text-emerald-500" /></div>
+
+    <div className="mb-8"><BetaContributorPanel navigate={navigate} refreshKey={stats?.feedbackCount ?? 0} /></div>
 
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]"><form onSubmit={submit} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8"><div className="mb-6 flex items-start justify-between gap-4"><div><h2 className="text-xl font-black">Nouveau retour</h2><p className="mt-1 text-sm text-slate-500">Les champs essentiels sont courts ; les détails nous aident à reproduire le problème.</p></div><Bug className="h-6 w-6 text-rose-500" /></div>
       <div className="grid gap-2 sm:grid-cols-2">{categoryOptions.map((item) => <button key={item.value} type="button" onClick={() => setCategory(item.value)} className={`flex items-center gap-2 rounded-xl border px-3 py-3 text-left text-sm font-bold ${category === item.value ? 'border-rose-400 bg-rose-50 text-rose-600 dark:bg-rose-950/30' : 'border-slate-200 text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}>{item.icon}{item.label}</button>)}</div>

@@ -86,6 +86,15 @@ const founderProfileSchema: JsonLd = {
   mainEntity: founderPerson,
 };
 
+const contributorDirectorySchema: JsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Contributeurs bêta BacPilot',
+  description: 'Une page de reconnaissance des bêta-testeurs BacPilot ayant choisi de présenter publiquement leur contribution.',
+  url: `${SITE_URL}/contributeurs-beta`,
+  isPartOf: { '@id': `${SITE_URL}/#organization` },
+};
+
 const aboutOrganizationSchema: JsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
@@ -161,6 +170,13 @@ const configs: Record<string, SeoConfig> = {
     description:
       'Rejoignez le programme bêta de BacPilot, initiative de MHM SOLUTIONS créée par Hilarus Gbagoule, pour tester les outils d’orientation et transmettre vos retours.',
     path: '/beta',
+  },
+  '/contributeurs-beta': {
+    title: 'Contributeurs bêta BacPilot | Communauté et reconnaissance',
+    description:
+      'Découvrez les contributeurs bêta BacPilot qui ont choisi de présenter publiquement leur participation à l’amélioration de l’orientation post-bac.',
+    path: '/contributeurs-beta',
+    schema: contributorDirectorySchema,
   },
   '/a-propos': {
     title: 'À propos de BacPilot et MHM SOLUTIONS | BacPilot',
