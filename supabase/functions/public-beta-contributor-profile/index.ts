@@ -13,6 +13,8 @@ type PublicProfile = {
   portfolio_url: string | null;
   linkedin_url: string | null;
   contribution_level: string;
+  contribution_highlight: string;
+  seo_eligible: boolean;
   published_at: string | null;
   public_updated_at: string | null;
 };
@@ -56,6 +58,27 @@ function jsonResult(status: number, body: unknown, noindex = false) {
       'X-Robots-Tag': noindex ? 'noindex, nofollow' : 'noindex, nofollow',
     },
   });
+}
+
+function normalizeFocusAreas(areas: unknown) {
+  const aliases: Record<string, string> = {
+    'inteligence artificielle': 'Intelligence artificielle',
+    'intelligence artificielle': 'Intelligence artificielle',
+    'ia': 'Intelligence artificielle',
+    'data science': 'Data science',
+    'developpement web': 'Développement web',
+    'développement web': 'Développement web',
+    'education': 'Éducation',
+    'éducation': 'Éducation',
+  };
+  if (!Array.isArray(areas)) return [];
+  return areas
+    .filter((area): area is string => typeof area === 'string')
+    .map((area) => area.trim().replace(/\s+/g, ' '))
+    .filter(Boolean)
+    .map((area) => aliases[area.toLocaleLowerCase()] || area)
+    .filter((area, index, all) => all.findIndex((item) => item.toLocaleLowerCase() === area.toLocaleLowerCase()) === index)
+    .slice(0, 3);
 }
 
 function levelDescription(level: string) {
@@ -189,6 +212,24 @@ Deno.serve(async (request) => {
     return contributorSitemap(safeRows, request.method);
   }
 
+  if (asset === 'directory') {
+    const directoryRows = await admin.rpc('list_public_beta_contributor_seo_directory', { p_limit: 120 });
+    if (directoryRows.error) return jsonResult(500, { error: { status: 500, message: 'Annuaire indisponible.' } }, true);
+    const contributors = (Array.isArray(directoryRows.data) ? directoryRows.data : []).flatMap((row) => {
+      if (typeof row.public_slug !== 'string' || !SLUG_PATTERN.test(row.public_slug)) return [];
+      if (typeof row.public_name !== 'string' || typeof row.public_bio !== 'string') return [];
+      return [{
+        public_slug: row.public_slug,
+        public_name: row.public_name,
+        public_bio: row.public_bio,
+        focus_areas: normalizeFocusAreas(row.focus_areas),
+        contribution_level: typeof row.contribution_level === 'string' ? row.contribution_level : 'Contributeur bêta',
+        public_updated_at: typeof row.public_updated_at === 'string' ? row.public_updated_at : null,
+      }];
+    });
+    return jsonResult(200, { contributors }, true);
+  }
+
   const slug = (url.searchParams.get('slug') || '').trim().toLocaleLowerCase();
   if (!SLUG_PATTERN.test(slug)) {
     return requestedFormat === 'json'
@@ -221,6 +262,7 @@ Deno.serve(async (request) => {
     return jsonResult(200, {
       profile: {
         ...safeProfile,
+        focus_areas: normalizeFocusAreas(profile.focus_areas),
         photo_url: profile.photo_path ? `${SITE_URL}${PROFILE_PATH}/${encodeURIComponent(profile.public_slug)}/photo` : null,
       },
     });

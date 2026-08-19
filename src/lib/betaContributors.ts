@@ -53,6 +53,47 @@ export type PublicBetaContributor = {
 
 const PHOTO_BUCKET = 'beta-contributor-photos';
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const SEO_PROFILE_MIN_BIO_LENGTH = 140;
+export const SEO_PROFILE_MAX_FOCUS_AREAS = 3;
+
+const FOCUS_AREA_ALIASES: Record<string, string> = {
+  'inteligence artificielle': 'Intelligence artificielle',
+  'intelligence artificielle': 'Intelligence artificielle',
+  'ia': 'Intelligence artificielle',
+  'data science': 'Data science',
+  'developpement web': 'Développement web',
+  'développement web': 'Développement web',
+  'technologie': 'Technologie',
+  'design': 'Design',
+  'education': 'Éducation',
+  'éducation': 'Éducation',
+  'entrepreneuriat': 'Entrepreneuriat',
+  'communication': 'Communication',
+  'environnement': 'Environnement',
+  'sante': 'Santé',
+  'santé': 'Santé',
+};
+
+export function normalizeContributorFocusAreas(values: string[]) {
+  return values
+    .map((item) => item.trim().replace(/\s+/g, ' '))
+    .filter(Boolean)
+    .map((item) => FOCUS_AREA_ALIASES[item.toLocaleLowerCase()] || item)
+    .filter((item, index, all) => all.findIndex((value) => value.toLocaleLowerCase() === item.toLocaleLowerCase()) === index)
+    .slice(0, SEO_PROFILE_MAX_FOCUS_AREAS)
+    .map((item) => item.slice(0, 40));
+}
+
+export function isContributorProfileSeoReady(input: { publicBio: string; focusAreas: string[]; publicationStatus: ContributorPublicationStatus; profileConsent: boolean; searchIndexingConsent: boolean }) {
+  const areas = normalizeContributorFocusAreas(input.focusAreas);
+  return input.publicationStatus === 'published_profile'
+    && input.profileConsent
+    && input.searchIndexingConsent
+    && input.publicBio.trim().length >= SEO_PROFILE_MIN_BIO_LENGTH
+    && input.publicBio.trim().length <= 420
+    && areas.length >= 1
+    && areas.length <= SEO_PROFILE_MAX_FOCUS_AREAS;
+}
 
 function requireClient() {
   if (!realSupabase) throw new Error('La connexion sécurisée à BacPilot est indisponible.');
@@ -180,12 +221,13 @@ export async function saveMyBetaContributorProfile(input: {
     throw new Error('Confirme que tu as l’autorisation nécessaire avant de publier une fiche individuelle.');
   }
 
-  const focusAreas = input.focusAreas
+  const rawFocusAreas = input.focusAreas
     .map((item) => item.trim())
-    .filter(Boolean)
-    .filter((item, index, all) => all.findIndex((value) => value.toLocaleLowerCase() === item.toLocaleLowerCase()) === index)
-    .slice(0, 6)
-    .map((item) => item.slice(0, 40));
+    .filter(Boolean);
+  if (isIndividualProfile && rawFocusAreas.length > SEO_PROFILE_MAX_FOCUS_AREAS) {
+    throw new Error('Choisis au maximum trois domaines pour une fiche individuelle claire.');
+  }
+  const focusAreas = normalizeContributorFocusAreas(rawFocusAreas);
 
   const now = new Date().toISOString();
   const payload = {

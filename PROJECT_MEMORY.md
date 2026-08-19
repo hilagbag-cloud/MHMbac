@@ -620,3 +620,18 @@ La fonction Edge `public-beta-contributor-profile` est active en version 2 et se
 Recette effectuée : compilation TypeScript et build Vite réussis ; annuaire public opérationnel ; sitemap dynamique XML opérationnel et vide conformément au consentement ; `robots.txt` contient les deux sitemaps ; aucune fiche individuelle n’a été créée. Une fiche historique reste limitée à l’état `published_name`, sans URL individuelle, tant que son auteur ne repasse pas volontairement par les nouveaux consentements.
 
 Commit local de publication : `5eb14ad` — `feat: add voluntary public beta contributor profiles`. Déploiement Vercel production réalisé le 19 août 2026 ; aucune publication sociale ni aucun e-mail n’a été envoyé.
+
+
+## Mise à jour du 19 août 2026 — automatisation SEO des fiches de contributeurs
+
+Le pilote de profils individuels est maintenant complet et vérifié sur `https://bacpilot.site/contributeurs-beta/hilarus-gbagoule`. La migration `20260819_bacpilot_contributor_profile_seo_automation.sql` est appliquée. Elle centralise l’éligibilité à l’indexation dans `is_beta_contributor_profile_seo_ready()` : statut `published_profile`, consentement de profil, consentement d’indexation, biographie de **140 à 420 caractères** et **un à trois** centres d’intérêt non vides. Le sitemap dynamique et l’annuaire public ne retiennent que les fiches qualifiées. Recette sans écriture : bio de 139 caractères et domaines absents refusés ; bio de 140 caractères et deux domaines acceptée.
+
+Le rendu HTML de la fiche est assuré par `api/contributor-profile.js` côté Vercel, car la passerelle Edge convertissait précédemment une réponse HTML en `text/plain`. La fiche publique renvoie désormais `HTTP 200`, `text/html; charset=utf-8`, `X-Robots-Tag: index, follow, max-image-preview:large` et ne reste pas en cache. L’annuaire est rendu par `api/contributor-directory.js` avec des ancres crawlables vers les fiches éligibles. La route `/contributeurs-beta/:slug` conserve `404 + noindex` pour un slug inconnu et `410 + noindex` pour un profil retiré.
+
+La fonction Edge `public-beta-contributor-profile` est active en version **6**. Elle alimente le JSON, le sitemap, l’annuaire et le proxy photo. Elle normalise l’affichage public des domaines sans modifier les données privées, par exemple `INTELIGENCE ARTIFICIELLE` devient « Intelligence artificielle ». Elle retourne également `seo_eligible` et un résumé qualitatif de contribution, sans afficher de score scolaire ou de chiffre de classement.
+
+L’éditeur de profil bêta explique désormais les critères de préparation SEO, le nombre de caractères restants et les consentements nécessaires, avec suggestions de domaines. Aucun profil n’est publié ou indexé sans la décision et les consentements de son auteur. Le composant promotionnel `BetaProfilePromoModal.tsx` et les visuels WebP associés sont également publiés pour présenter l’initiative de reconnaissance aux visiteurs.
+
+Contrôles publics finalisés : la fiche pilote contient `ProfilePage`, `Person`, un identifiant stable, un alias de slug et `worksFor`; l’annuaire expose l’ancre crawlable de la fiche; `sitemap-contributeurs-beta.xml` expose uniquement la fiche qualifiée avec son `lastmod`; `robots.txt` déclare les deux sitemaps. Le détail opérationnel est documenté dans `docs/SEO_PROFILS_CONTRIBUTEURS_AUTOMATISATION_20260819.md`.
+
+> Action opérateur manuelle restante : dans Google Search Console, soumettre `https://bacpilot.site/sitemap-contributeurs-beta.xml`, demander l’indexation de l’annuaire `/contributeurs-beta`, inspecter la fiche pilote en test d’URL en direct et utiliser le test de résultats enrichis. Google décide de l’indexation et de l’affichage ; ne promettre ni position ni résultat enrichi.

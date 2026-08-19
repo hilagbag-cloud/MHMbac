@@ -37,6 +37,10 @@
       "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?asset=sitemap"
     },
     {
+      "source": "/contributeurs-beta",
+      "destination": "/api/contributor-directory"
+    },
+    {
       "source": "/contributeurs-beta/:slug/photo",
       "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?slug=:slug&asset=photo"
     },
