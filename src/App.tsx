@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { VerificationModal } from './components/VerificationModal';
+import { BetaProfilePromoModal } from './components/BetaProfilePromoModal';
 import { HomePage } from './pages/HomePage';
 import { Seo } from './components/Seo';
 import { recordBetaEvent } from './lib/beta';
@@ -182,6 +183,9 @@ function AppContent() {
 
       {/* Pied de page global */}
       <Footer navigate={navigate} />
+
+      {/* Parcours de reconnaissance bêta : affiché une fois par session, fermable à tout moment. */}
+      <BetaProfilePromoModal navigate={navigate} />
 
       {/* Modal des Tests Automatisés & Vérifications MVP1 */}
       <VerificationModal
