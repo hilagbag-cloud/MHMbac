@@ -34,7 +34,7 @@
   "rewrites": [
     {
       "source": "/sitemap-contributeurs-beta.xml",
-      "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?asset=sitemap"
+      "destination": "/api/contributor-sitemap"
     },
     {
       "source": "/contributeurs-beta",

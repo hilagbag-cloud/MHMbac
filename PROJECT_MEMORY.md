@@ -635,3 +635,8 @@ L’éditeur de profil bêta explique désormais les critères de préparation S
 Contrôles publics finalisés : la fiche pilote contient `ProfilePage`, `Person`, un identifiant stable, un alias de slug et `worksFor`; l’annuaire expose l’ancre crawlable de la fiche; `sitemap-contributeurs-beta.xml` expose uniquement la fiche qualifiée avec son `lastmod`; `robots.txt` déclare les deux sitemaps. Le détail opérationnel est documenté dans `docs/SEO_PROFILS_CONTRIBUTEURS_AUTOMATISATION_20260819.md`.
 
 > Action opérateur manuelle restante : dans Google Search Console, soumettre `https://bacpilot.site/sitemap-contributeurs-beta.xml`, demander l’indexation de l’annuaire `/contributeurs-beta`, inspecter la fiche pilote en test d’URL en direct et utiliser le test de résultats enrichis. Google décide de l’indexation et de l’affichage ; ne promettre ni position ni résultat enrichi.
+
+
+## Correctif du 19 août 2026 — type XML du sitemap contributeurs
+
+Le sitemap spécialisé était initialement réécrit directement vers la fonction Edge. Bien que son contenu XML soit valide, la passerelle exposait `text/plain`. Un proxy Vercel `api/contributor-sitemap.js` récupère désormais le sitemap dynamique et le sert avec `Content-Type: application/xml; charset=utf-8`, `X-Content-Type-Options: nosniff` et un cache désactivé. La réécriture `/sitemap-contributeurs-beta.xml` cible ce proxy. Après le déploiement Vercel de production, le sitemap répond HTTP 200, conserve l’unique URL qualifiée de la fiche pilote et la fiche reste indexable avec son HTML UTF-8 et `index, follow`.
