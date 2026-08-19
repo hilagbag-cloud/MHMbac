@@ -46,7 +46,10 @@ Deno.serve(async (request) => {
       const signed = await admin.storage.from('beta-contributor-photos').createSignedUrl(photoPath, 60 * 30);
       photoUrl = signed.data?.signedUrl || null;
     }
+    const publicationStatus = row.publication_status === 'published_profile' ? 'published_profile' : 'published_name';
     return {
+      public_slug: publicationStatus === 'published_profile' && typeof row.public_slug === 'string' ? row.public_slug : null,
+      publication_status: publicationStatus,
       public_name: String(row.public_name || ''),
       public_bio: row.public_bio ? String(row.public_bio) : null,
       focus_areas: Array.isArray(row.focus_areas) ? row.focus_areas.map(String) : [],

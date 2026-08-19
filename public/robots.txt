@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://bacpilot.site/sitemap.xml
+Sitemap: https://bacpilot.site/sitemap-contributeurs-beta.xml

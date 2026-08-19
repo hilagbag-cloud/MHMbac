@@ -1,6 +1,7 @@
 import { realSupabase } from './supabase';
 
 export type ContributorVisibility = 'private' | 'name_only' | 'profile';
+export type ContributorPublicationStatus = 'draft' | 'private' | 'published_name' | 'published_profile' | 'withdrawn';
 
 export type BetaContributionSummary = {
   contribution_score: number;
@@ -24,6 +25,12 @@ export type BetaContributorProfile = {
   portfolio_url: string | null;
   linkedin_url: string | null;
   visibility_level: ContributorVisibility;
+  publication_status: ContributorPublicationStatus;
+  public_slug: string | null;
+  published_at: string | null;
+  public_updated_at: string | null;
+  withdrawn_at: string | null;
+  publication_attestation_at: string | null;
   profile_consent_at: string | null;
   photo_consent_at: string | null;
   search_indexing_consent_at: string | null;
@@ -31,6 +38,8 @@ export type BetaContributorProfile = {
 };
 
 export type PublicBetaContributor = {
+  public_slug: string | null;
+  publication_status: 'published_name' | 'published_profile';
   public_name: string;
   public_bio: string | null;
   focus_areas: string[];
@@ -43,6 +52,7 @@ export type PublicBetaContributor = {
 };
 
 const PHOTO_BUCKET = 'beta-contributor-photos';
+const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 function requireClient() {
   if (!realSupabase) throw new Error('La connexion sécurisée à BacPilot est indisponible.');
@@ -59,6 +69,16 @@ function normalizeHttpsUrl(value: string, label: string) {
   } catch {
     throw new Error(`${label} doit être une URL sécurisée commençant par https://.`);
   }
+}
+
+export function createContributorSlug(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 56);
 }
 
 export async function getMyBetaContributionSummary(): Promise<BetaContributionSummary | null> {
@@ -87,7 +107,7 @@ export async function getMyBetaContributorProfile(): Promise<BetaContributorProf
   if (!user) throw new Error('Connectez-vous pour gérer votre profil contributeur.');
   const { data, error } = await client
     .from('beta_contributor_profiles')
-    .select('user_id, public_name, public_bio, focus_areas, photo_path, portfolio_url, linkedin_url, visibility_level, profile_consent_at, photo_consent_at, search_indexing_consent_at, updated_at')
+    .select('user_id, public_name, public_bio, focus_areas, photo_path, portfolio_url, linkedin_url, visibility_level, publication_status, public_slug, published_at, public_updated_at, withdrawn_at, publication_attestation_at, profile_consent_at, photo_consent_at, search_indexing_consent_at, updated_at')
     .eq('user_id', user.id)
     .maybeSingle();
   if (error) throw new Error(`Lecture du profil contributeur impossible : ${error.message}`);
@@ -126,6 +146,9 @@ export async function saveMyBetaContributorProfile(input: {
   portfolioUrl: string;
   linkedinUrl: string;
   visibilityLevel: ContributorVisibility;
+  publicationStatus: ContributorPublicationStatus;
+  publicSlug: string;
+  publicationAttestation: boolean;
   profileConsent: boolean;
   photoConsent: boolean;
   searchIndexingConsent: boolean;
@@ -136,14 +159,27 @@ export async function saveMyBetaContributorProfile(input: {
   if (!user) throw new Error('Connectez-vous pour enregistrer votre profil.');
 
   const publicName = input.publicName.trim();
-  const isPublic = input.visibilityLevel !== 'private';
-  if (isPublic && (!input.profileConsent || !input.searchIndexingConsent)) {
-    throw new Error('La publication nécessite votre accord pour apparaître et être indexé sur la page des contributeurs.');
+  const isPublished = input.publicationStatus === 'published_name' || input.publicationStatus === 'published_profile';
+  const isIndividualProfile = input.publicationStatus === 'published_profile';
+  const slug = createContributorSlug(input.publicSlug);
+
+  if (isPublished && (!input.profileConsent || !input.searchIndexingConsent)) {
+    throw new Error('La publication nécessite votre accord pour apparaître et être indexé par les moteurs de recherche.');
   }
-  if (isPublic && (publicName.length < 2 || publicName.length > 80)) {
+  if (isPublished && (publicName.length < 2 || publicName.length > 80)) {
     throw new Error('Le nom public doit comporter entre 2 et 80 caractères.');
   }
   if (input.publicBio.trim().length > 420) throw new Error('La présentation doit comporter au maximum 420 caractères.');
+  if (isIndividualProfile && !SLUG_PATTERN.test(slug)) {
+    throw new Error('Choisis une adresse publique courte, avec des lettres, chiffres et tirets seulement.');
+  }
+  if (isIndividualProfile && input.publicBio.trim().length < 60) {
+    throw new Error('Une fiche individuelle nécessite une présentation publique d’au moins 60 caractères.');
+  }
+  if (isIndividualProfile && !input.publicationAttestation) {
+    throw new Error('Confirme que tu as l’autorisation nécessaire avant de publier une fiche individuelle.');
+  }
+
   const focusAreas = input.focusAreas
     .map((item) => item.trim())
     .filter(Boolean)
@@ -161,9 +197,12 @@ export async function saveMyBetaContributorProfile(input: {
     portfolio_url: normalizeHttpsUrl(input.portfolioUrl, 'Le lien portfolio'),
     linkedin_url: normalizeHttpsUrl(input.linkedinUrl, 'Le lien LinkedIn'),
     visibility_level: input.visibilityLevel,
-    profile_consent_at: isPublic && input.profileConsent ? now : null,
-    photo_consent_at: input.visibilityLevel === 'profile' && input.photoPath && input.photoConsent ? now : null,
-    search_indexing_consent_at: isPublic && input.searchIndexingConsent ? now : null,
+    publication_status: input.publicationStatus,
+    public_slug: slug || null,
+    publication_attestation_at: isIndividualProfile && input.publicationAttestation ? now : null,
+    profile_consent_at: isPublished && input.profileConsent ? now : null,
+    photo_consent_at: isIndividualProfile && input.photoPath && input.photoConsent ? now : null,
+    search_indexing_consent_at: isPublished && input.searchIndexingConsent ? now : null,
   };
 
   const { error } = await client.from('beta_contributor_profiles').upsert(payload, { onConflict: 'user_id' });
@@ -181,6 +220,8 @@ export async function listPublicBetaContributors(): Promise<PublicBetaContributo
   const payload = await response.json();
   const rows = Array.isArray(payload?.contributors) ? payload.contributors : [];
   return rows.map((row: Record<string, unknown>) => ({
+    public_slug: row.public_slug ? String(row.public_slug) : null,
+    publication_status: row.publication_status === 'published_profile' ? 'published_profile' : 'published_name',
     public_name: String(row.public_name || ''),
     public_bio: row.public_bio ? String(row.public_bio) : null,
     focus_areas: Array.isArray(row.focus_areas) ? row.focus_areas.map(String) : [],

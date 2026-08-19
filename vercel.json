@@ -33,7 +33,19 @@
   ],
   "rewrites": [
     {
-      "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|site\\.webmanifest|favicon\\.ico|apple-touch-icon\\.png).*)",
+      "source": "/sitemap-contributeurs-beta.xml",
+      "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?asset=sitemap"
+    },
+    {
+      "source": "/contributeurs-beta/:slug/photo",
+      "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?slug=:slug&asset=photo"
+    },
+    {
+      "source": "/contributeurs-beta/:slug",
+      "destination": "https://uxdfrnogiuefoqjpobpf.supabase.co/functions/v1/public-beta-contributor-profile?slug=:slug"
+    },
+    {
+      "source": "/((?!assets/|branding/|robots\\.txt|sitemap\\.xml|sitemap-contributeurs-beta\\.xml|site\\.webmanifest|favicon\\.ico|apple-touch-icon\\.png).*)",
       "destination": "/index.html"
     }
   ],
