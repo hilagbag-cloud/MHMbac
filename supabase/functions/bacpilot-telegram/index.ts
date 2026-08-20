@@ -69,8 +69,8 @@ type ResolvedUser = {
 
 type InputSession = {
   telegram_chat_id: string;
-  expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_recipient' | 'email_subject' | 'email_body' | 'deletion_reason';
-  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/mailstatus' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
+  expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_recipient' | 'email_subject' | 'email_body' | 'deletion_reason' | 'campaign_return_days' | 'campaign_return_subject' | 'campaign_return_body';
+  origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/mailstatus' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel' | '/orientation_return_draft';
   pending_action_id?: string | null;
   menu_state?: string | null;
   menu_context?: Record<string, unknown> | null;
@@ -2182,7 +2182,6 @@ function recognitionInviteBody(metrics: { activityCount: number; feedbackCount: 
   ].join('\n');
 }
 
-const ORIENTATION_RETURN_EMAIL_SUBJECT = 'La période de choix avance : BacPilot reste à vos côtés';
 const ORIENTATION_RETURN_CAMPAIGN_KEY = 'orientation_return_v1';
 
 type OrientationReturnRecipient = {
@@ -2216,9 +2215,15 @@ async function listOrientationReturnRecipients(admin: any, candidateIds: string[
     });
 }
 
-function orientationReturnBody() {
+function orientationReturnDefaultSubject(days: number) {
+  const suffix = days > 1 ? 's' : '';
+  return `Plus que ${days} jour${suffix} avant la clôture des choix : BacPilot reste à vos côtés`;
+}
+
+function orientationReturnDefaultBody(days: number) {
+  const suffix = days > 1 ? 's' : '';
   return [
-    'La période de choix de filière approche de sa clôture. Si vous n’avez pas encore finalisé votre réflexion, BacPilot reste à vos côtés pour vous aider à avancer avec méthode.',
+    `Plus que ${days} jour${suffix} avant la clôture de la période de choix de filière. Si vous n’avez pas encore finalisé votre réflexion, BacPilot reste à vos côtés pour vous aider à avancer avec méthode.`,
     '',
     'Vous pouvez revenir sur votre espace pour reprendre votre profil, comparer les pistes disponibles, relire les informations utiles et préciser ce qui compte le plus pour votre projet après le bac.',
     '',
@@ -2230,11 +2235,76 @@ function orientationReturnBody() {
   ].join('\n');
 }
 
-async function sendOrientationReturnToRecipient(admin: any, chatId: string, pendingActionId: string, recipient: OrientationReturnRecipient): Promise<RecognitionDeliveryResult> {
+async function beginOrientationReturnDays(admin: any, chatId: string) {
+  const { error } = await admin.from('operator_input_sessions').upsert({
+    telegram_chat_id: chatId,
+    expected_input: 'campaign_return_days',
+    origin_command: '/orientation_return_draft',
+    pending_action_id: null,
+    menu_state: 'orientation_return_compose',
+    menu_context: {},
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  }, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Composition de campagne indisponible.');
+  return [
+    'Campagne de retour — étape 1/3',
+    '',
+    'Dans combien de jours la période de choix se clôture-t-elle ?',
+    'Envoie uniquement un nombre entre 1 et 365. Exemple : 4.',
+    '',
+    'Aucun brouillon d’envoi n’est encore créé. Réponds /cancel pour annuler.',
+  ].join('\n');
+}
+
+async function beginOrientationReturnSubject(admin: any, chatId: string, days: number) {
+  const defaultSubject = orientationReturnDefaultSubject(days);
+  const { error } = await admin.from('operator_input_sessions').upsert({
+    telegram_chat_id: chatId,
+    expected_input: 'campaign_return_subject',
+    origin_command: '/orientation_return_draft',
+    pending_action_id: null,
+    menu_state: 'orientation_return_compose',
+    menu_context: { days, default_subject: defaultSubject },
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  }, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Composition de campagne indisponible.');
+  return [
+    'Campagne de retour — étape 2/3',
+    '',
+    `Sujet proposé : ${defaultSubject}`,
+    '',
+    'Envoie ton sujet personnalisé, ou réponds OK pour conserver ce sujet.',
+    'Réponds /cancel pour annuler.',
+  ].join('\n');
+}
+
+async function beginOrientationReturnBody(admin: any, chatId: string, days: number, subject: string) {
+  const defaultBody = orientationReturnDefaultBody(days);
+  const { error } = await admin.from('operator_input_sessions').upsert({
+    telegram_chat_id: chatId,
+    expected_input: 'campaign_return_body',
+    origin_command: '/orientation_return_draft',
+    pending_action_id: null,
+    menu_state: 'orientation_return_compose',
+    menu_context: { days, subject, default_body: defaultBody },
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  }, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Composition de campagne indisponible.');
+  return [
+    'Campagne de retour — étape 3/3',
+    '',
+    'Texte proposé :',
+    defaultBody,
+    '',
+    'Envoie ton texte personnalisé, ou réponds OK pour conserver ce texte.',
+    'Le bot affichera ensuite l’aperçu complet et demandera une confirmation séparée avant tout envoi.',
+  ].join('\n');
+}
+
+async function sendOrientationReturnToRecipient(admin: any, chatId: string, pendingActionId: string, recipient: OrientationReturnRecipient, subject: string, bodyText: string): Promise<RecognitionDeliveryResult> {
   const now = new Date().toISOString();
-  const bodyText = orientationReturnBody();
   const result = await withTimeout(
-    sendCustomEmail(recipient.email, recipient.display_name || '', ORIENTATION_RETURN_EMAIL_SUBJECT, bodyText, 'orientation_return', `orientation-return/${pendingActionId}/${recipient.id}`),
+    sendCustomEmail(recipient.email, recipient.display_name || '', subject, bodyText, 'orientation_return', `orientation-return/${pendingActionId}/${recipient.id}`),
     10_000,
   ).catch((error): BetaEmailResult => ({
     status: 'failed',
@@ -2244,7 +2314,7 @@ async function sendOrientationReturnToRecipient(admin: any, chatId: string, pend
     telegram_chat_id: chatId,
     target_user_id: recipient.id,
     recipient_email: recipient.email,
-    subject: ORIENTATION_RETURN_EMAIL_SUBJECT,
+    subject,
     body_text: bodyText,
     status: result.status,
     provider_message_id: result.provider_message_id || null,
@@ -2256,6 +2326,9 @@ async function sendOrientationReturnToRecipient(admin: any, chatId: string, pend
 }
 
 async function executeOrientationReturnCampaign(admin: any, chatId: string, pending: PendingAction) {
+  const subject = text(pending.payload?.subject, 160);
+  const bodyText = messageText(pending.payload?.body_text, 6000);
+  if (!subject || !bodyText) return 'Campagne non envoyée : le sujet ou le message personnalisé est introuvable.';
   const requestedIds = Array.isArray(pending.payload?.audience_user_ids)
     ? pending.payload?.audience_user_ids.map((item) => text(item, 80)).filter(Boolean)
     : [];
@@ -2274,7 +2347,7 @@ async function executeOrientationReturnCampaign(admin: any, chatId: string, pend
     while (queue.length) {
       const recipient = queue.shift();
       if (!recipient) return;
-      deliveries.push(await sendOrientationReturnToRecipient(admin, chatId, pending.id, recipient));
+      deliveries.push(await sendOrientationReturnToRecipient(admin, chatId, pending.id, recipient, subject, bodyText));
     }
   }));
   const sent = deliveries.filter((item) => item.status === 'sent').length;
@@ -2291,11 +2364,14 @@ async function executeOrientationReturnCampaign(admin: any, chatId: string, pend
   ].join('\n');
 }
 
-async function prepareOrientationReturnDraft(admin: any, chatId: string) {
+async function prepareOrientationReturnDraft(admin: any, chatId: string, customization: { days: number; subject: string; bodyText: string }) {
+  const days = Math.min(365, Math.max(1, Math.trunc(Number(customization.days) || 0)));
+  const subject = text(customization.subject, 160);
+  const bodyText = messageText(customization.bodyText, 6000);
+  if (!days || !subject || !bodyText) return 'Brouillon non créé : le compte à rebours, le sujet ou le texte est incomplet.';
   const audience = await listOrientationReturnRecipients(admin);
   if (!audience.length) return 'Aucun utilisateur actif avec une adresse Auth confirmée. Aucun brouillon ni action d’envoi n’a été créé.';
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-  const bodyText = orientationReturnBody();
   const { error } = await admin.from('operator_pending_actions').insert({
     telegram_chat_id: chatId,
     action: 'email_campaign_orientation_return',
@@ -2303,8 +2379,9 @@ async function prepareOrientationReturnDraft(admin: any, chatId: string) {
     confirmation_code: makeConfirmationCode(),
     payload: {
       label: `${audience.length} utilisateur(s) actif(s)`,
-      subject: ORIENTATION_RETURN_EMAIL_SUBJECT,
+      subject,
       body_text: bodyText,
+      countdown_days: days,
       template: 'orientation_return',
       campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY,
       audience_user_ids: audience.map((recipient) => recipient.id),
@@ -2314,7 +2391,7 @@ async function prepareOrientationReturnDraft(admin: any, chatId: string) {
   });
   if (error) throw new Error('Brouillon de campagne de retour indisponible.');
   await audit(admin, chatId, '/orientation_return_draft', 'pending', audience[0].id, {
-    action: 'email_campaign_orientation_return', campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY, audience_count: audience.length, template: 'orientation_return', expires_at: expiresAt,
+    action: 'email_campaign_orientation_return', campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY, audience_count: audience.length, template: 'orientation_return', countdown_days: days, expires_at: expiresAt,
   });
   return [
     'BacPilot — campagne de retour orientation',
@@ -2322,7 +2399,8 @@ async function prepareOrientationReturnDraft(admin: any, chatId: string) {
     `Audience prête : ${audience.length} utilisateur(s) actif(s) avec une adresse Auth confirmée.`,
     'Statut : PRÉPARÉ — aucun e-mail n’a été envoyé.',
     '',
-    `Objet : ${ORIENTATION_RETURN_EMAIL_SUBJECT}`,
+    `Compte à rebours : plus que ${days} jour${days > 1 ? 's' : ''}.`,
+    `Objet : ${subject}`,
     '',
     bodyText,
     '',
@@ -2491,7 +2569,9 @@ Deno.serve(async (request) => {
     (activeSession.expected_input === 'beta_user_identifier' && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingText) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(incomingText))) ||
     (activeSession.expected_input === 'email_recipient' && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingText) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(incomingText))) ||
     activeSession.expected_input === 'email_subject' || activeSession.expected_input === 'email_body' ||
-    activeSession.expected_input === 'deletion_reason'
+    activeSession.expected_input === 'deletion_reason' ||
+    (activeSession.expected_input === 'campaign_return_days' && /^(?:[1-9]|[1-9][0-9]|[12][0-9]{2}|3[0-6][0-5])$/.test(incomingText)) ||
+    activeSession.expected_input === 'campaign_return_subject' || activeSession.expected_input === 'campaign_return_body'
   ));
 
   const shouldRouteNaturalLanguageToAi = Boolean(
@@ -2514,12 +2594,12 @@ Deno.serve(async (request) => {
       argument = text(update.message?.text, 180);
     } else {
       command = activeSession.origin_command;
-      argument = activeSession.expected_input === 'email_body'
+      argument = activeSession.expected_input === 'email_body' || activeSession.expected_input === 'campaign_return_body'
         ? messageText(update.message?.text, 6000)
         : activeSession.expected_input === 'deletion_reason'
           ? messageText(update.message?.text, 600)
           : text(update.message?.text, 180);
-      if (!['confirmation_ack', 'email_subject', 'email_body', 'deletion_reason'].includes(activeSession.expected_input)) {
+      if (!['confirmation_ack', 'email_subject', 'email_body', 'deletion_reason', 'campaign_return_days', 'campaign_return_subject', 'campaign_return_body'].includes(activeSession.expected_input)) {
         await clearInputSession(admin, sourceChatId).catch((error) => {
           console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
         });
@@ -2577,7 +2657,39 @@ Deno.serve(async (request) => {
   let replyMarkup: InlineKeyboard | undefined;
 
   try {
-    if (activeSession?.expected_input === 'deletion_reason' && command === '/user_delete') {
+    if (activeSession?.expected_input === 'campaign_return_days' && command === '/orientation_return_draft') {
+      const days = Number(text(argument, 3));
+      if (!Number.isInteger(days) || days < 1 || days > 365) {
+        reply = 'Envoie uniquement un nombre entre 1 et 365. Exemple : 4. Réponds /cancel pour annuler.';
+      } else {
+        reply = await withTimeout(beginOrientationReturnSubject(admin, sourceChatId, days));
+      }
+    } else if (activeSession?.expected_input === 'campaign_return_subject' && command === '/orientation_return_draft') {
+      const days = Number(activeSession.menu_context?.days);
+      if (!Number.isInteger(days) || days < 1 || days > 365) {
+        await clearInputSession(admin, sourceChatId);
+        reply = 'Le compte à rebours a expiré. Recommence avec /orientation_return_draft.';
+      } else {
+        const defaultSubject = text(activeSession.menu_context?.default_subject, 160) || orientationReturnDefaultSubject(days);
+        const subject = /^(?:ok|oui|default|par défaut)$/i.test(text(argument, 160)) ? defaultSubject : text(argument, 160);
+        if (!subject) reply = 'Le sujet est vide. Envoie un sujet ou réponds OK pour garder la proposition.';
+        else reply = await withTimeout(beginOrientationReturnBody(admin, sourceChatId, days, subject));
+      }
+    } else if (activeSession?.expected_input === 'campaign_return_body' && command === '/orientation_return_draft') {
+      const days = Number(activeSession.menu_context?.days);
+      const subject = text(activeSession.menu_context?.subject, 160);
+      const defaultBody = messageText(activeSession.menu_context?.default_body, 6000) || orientationReturnDefaultBody(days);
+      const bodyText = /^(?:ok|oui|default|par défaut)$/i.test(text(argument, 40)) ? defaultBody : messageText(argument, 6000);
+      if (!Number.isInteger(days) || days < 1 || days > 365 || !subject) {
+        await clearInputSession(admin, sourceChatId);
+        reply = 'La composition a expiré. Recommence avec /orientation_return_draft.';
+      } else if (!bodyText) {
+        reply = 'Le texte est vide. Envoie ton texte ou réponds OK pour garder la proposition.';
+      } else {
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(prepareOrientationReturnDraft(admin, sourceChatId, { days, subject, bodyText }));
+      }
+    } else if (activeSession?.expected_input === 'deletion_reason' && command === '/user_delete') {
       const userId = text(activeSession.menu_context?.user_id, 80);
       const user = await withTimeout(resolveUser(admin, userId));
       if (!user) {
@@ -2707,7 +2819,7 @@ Deno.serve(async (request) => {
     } else if (command === '/recognition_invite_draft') {
       reply = await withTimeout(prepareRecognitionInviteDraft(admin, sourceChatId));
     } else if (command === '/orientation_return_draft') {
-      reply = await withTimeout(prepareOrientationReturnDraft(admin, sourceChatId));
+      reply = await withTimeout(beginOrientationReturnDays(admin, sourceChatId));
     } else if (command === '/email') {
       if (!argument || argument === '__select_recipient__') {
         const selection = await withTimeout(beginEmailRecipient(admin, sourceChatId));
@@ -2796,7 +2908,7 @@ Deno.serve(async (request) => {
       ? mainInlineKeyboard()
       : (command === '/user' || command === '/mailstatus') && targetUserId
         ? userDetailInlineKeyboard(targetUserId)
-        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/collector_revoke' || command === '/recognition_invite_draft' || command === '/orientation_return_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
+        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/collector_revoke' || command === '/recognition_invite_draft' || (command === '/orientation_return_draft' && /^BacPilot — campagne de retour orientation/.test(reply)) || (command === '/feedback' && /^(ack|resolved):/.test(argument))
           ? confirmationInlineKeyboard(false)
           : command === '/user_delete' && /^Brouillon de (suppression|vérification)/.test(reply)
             ? confirmationInlineKeyboard(/^Brouillon de suppression/.test(reply))
