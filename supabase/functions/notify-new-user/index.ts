@@ -206,9 +206,17 @@ Deno.serve(async (request) => {
     ? `${deviceClass || 'type inconnu'} · ${browser || 'navigateur inconnu'}`
     : 'non communiqué';
   const emailAddress = cleanText(payload.record?.email, 180).toLowerCase();
+  const emailFormatValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i.test(emailAddress);
+  const { data: authLookup } = await admin.auth.admin.getUserById(userId);
+  const emailConfirmed = Boolean(authLookup?.user?.email_confirmed_at);
+  const emailSecurityStatus = !emailFormatValid
+    ? 'format invalide ou absent — aucun e-mail automatique'
+    : emailConfirmed
+      ? 'format valide · identité Auth confirmée'
+      : 'format valide · confirmation du titulaire en attente';
   const resendKey = Deno.env.get('RESEND_API_KEY');
-  let welcomeStatus = emailAddress ? 'à envoyer' : 'en attente — adresse e-mail absente';
-  if (emailAddress && resendKey) {
+  let welcomeStatus = emailFormatValid ? 'à envoyer' : 'ignoré — adresse e-mail absente ou invalide';
+  if (emailFormatValid && resendKey) {
     const { data: existingWelcome } = await admin.from('welcome_email_deliveries').select('id, status, attempts').eq('user_id', userId).maybeSingle();
     if (existingWelcome?.status === 'sent') {
       welcomeStatus = 'déjà envoyé';
@@ -235,7 +243,7 @@ Deno.serve(async (request) => {
         }).eq('id', ledger.id);
       }
     }
-  } else if (!resendKey && emailAddress) {
+  } else if (!resendKey && emailFormatValid) {
     welcomeStatus = 'à envoyer — Resend non configuré';
   }
 
@@ -251,6 +259,7 @@ Deno.serve(async (request) => {
     `Entrée : ${entrypoint} · ${route}`,
     `Contexte technique consenti : ${technicalContext}`,
     `Statut bêta actuel : ${status}`,
+    `E-mail : ${emailSecurityStatus}`,
     `Welcome : ${welcomeStatus}`,
     '',
     betaRequested
@@ -264,7 +273,7 @@ Deno.serve(async (request) => {
     inline_keyboard: [
       [{ text: '✉️ Renvoyer welcome', callback_data: `welcome:${userId}` }, { text: '👤 Voir la fiche', callback_data: `user:${userId}` }],
       ...(betaRequested ? [[{ text: '✅ Valider bêta', callback_data: `beta_add:${userId}` }]] : []),
-      [{ text: '🗑️ Supprimer', callback_data: `delete:${userId}` }],
+      [{ text: '🛡️ Vérifier / supprimer', callback_data: `delete:${userId}` }],
     ],
   };
 

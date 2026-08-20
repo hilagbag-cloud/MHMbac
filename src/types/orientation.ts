@@ -15,6 +15,7 @@ export type SignupIntent = 'standard' | 'beta_interest';
 export type SignupEntrypoint = 'direct' | 'beta_portal' | 'partner_portal' | 'other';
 export type SignupDeviceClass = 'mobile' | 'tablet' | 'desktop' | 'unknown';
 export type SignupBrowser = 'Chrome' | 'Safari' | 'Firefox' | 'Edge' | 'Other';
+export type AccountStatus = 'active' | 'suspended_notice';
 
 export type AcademicSubjectScores = Record<string, number>;
 
@@ -43,6 +44,11 @@ export interface UserProfile {
   signup_device_class?: SignupDeviceClass | null;
   signup_browser?: SignupBrowser | null;
   signup_context_consent_at?: string | null;
+  account_status?: AccountStatus;
+  account_notice_title?: string | null;
+  account_notice_body?: string | null;
+  account_notice_created_at?: string | null;
+  account_notice_reason?: string | null;
   created_at?: string;
   updated_at?: string;
 }

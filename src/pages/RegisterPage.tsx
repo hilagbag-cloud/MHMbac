@@ -52,6 +52,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
   const [signupContextConsent, setSignupContextConsent] = useState(returnToBeta);
   const [isLoading, setIsLoading] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
+  const [confirmationPending, setConfirmationPending] = useState(false);
 
   const resolveEntrypoint = (): SignupEntrypoint => {
     const hostname = window.location.hostname.toLowerCase();
@@ -94,6 +95,10 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
         referralCode: referralCode || null,
       });
       if (res.success) {
+        if (res.requiresEmailConfirmation) {
+          setConfirmationPending(true);
+          return;
+        }
         navigate(wantsBeta || returnToBeta ? '/beta-access' : '/onboarding');
       } else {
         setLocalError(res.error || 'Erreur lors de l’inscription.');
@@ -132,7 +137,13 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {confirmationPending ? (
+            <section className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-950 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-100" role="status">
+              <div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" /><div><h2 className="font-bold">Confirme ton adresse e-mail</h2><p className="mt-1 leading-6">Un lien de confirmation a été envoyé à <strong>{email.trim().toLowerCase()}</strong>. Ouvre-le avant de te connecter à BacPilot : cette étape protège ton compte et permet de recevoir les informations importantes.</p></div></div>
+              <button type="button" onClick={() => navigate('/login')} className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-800">J’ai confirmé mon e-mail</button>
+              <button type="button" onClick={() => setConfirmationPending(false)} className="block text-xs font-semibold underline underline-offset-4">Corriger mon adresse</button>
+            </section>
+          ) : <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nom complet ou prénom</label>
               <div className="relative">
@@ -155,6 +166,9 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
                 <input
                   type="email"
                   value={email}
+                  autoComplete="email"
+                  inputMode="email"
+                  pattern="[^\\s@]+@[^\\s@]+\\.[^\\s@]+"
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="ton.email@exemple.com"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
@@ -217,7 +231,7 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
               {wantsBeta ? <FlaskConical className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
               <span>{isLoading ? 'Création en cours…' : wantsBeta ? 'Envoyer ma demande bêta' : 'Créer mon compte & continuer'}</span>
             </button>
-          </form>
+          </form>}
 
           <p className="pt-2 text-center text-xs text-slate-500 dark:text-slate-400">Déjà inscrit ? <button onClick={() => navigate(returnToBeta ? '/login?returnTo=beta' : '/login')} className="font-bold text-rose-500 underline hover:text-rose-600">Se connecter ici</button></p>
           <p className="flex items-center justify-center gap-1.5 text-center text-[11px] text-slate-400"><Laptop className="h-3.5 w-3.5" />Le contexte technique est collecté uniquement après consentement à une demande bêta.</p>

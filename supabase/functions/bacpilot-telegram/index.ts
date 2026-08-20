@@ -68,7 +68,7 @@ type ResolvedUser = {
 
 type InputSession = {
   telegram_chat_id: string;
-  expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_recipient' | 'email_subject' | 'email_body';
+  expected_input: 'user_identifier' | 'beta_user_identifier' | 'confirmation_ack' | 'menu_choice' | 'email_recipient' | 'email_subject' | 'email_body' | 'deletion_reason';
   origin_command: '/start' | '/help' | '/menu' | '/status' | '/stats' | '/user' | '/email' | '/welcome' | '/mailstatus' | '/user_delete' | '/beta_add' | '/beta_pause' | '/beta_revoke' | '/confirm' | '/cancel';
   pending_action_id?: string | null;
   menu_state?: string | null;
@@ -656,8 +656,10 @@ function callbackToCommand(data: string): { command: OperatorCommand | null; arg
   if (action === 'user') return { command: '/user', argument: value };
   if (action === 'beta_add') return { command: '/beta_add', argument: value };
   if (action === 'delete') return { command: '/user_delete', argument: value };
+  if (action === 'dr') return { command: '/user_delete', argument: `reason:${value}` };
+  if (action === 'dc') return { command: '/user_delete', argument: `custom:${value}` };
   if (action === 'confirm') return { command: '/confirm', argument: value };
-  if (action === 'cancel') return { command: '/cancel', argument: value };
+  if (action === 'cancel') return { command: '/cancel', argument: value === 'current' ? '' : value };
   return { command: null, argument: '' };
 }
 
@@ -669,6 +671,12 @@ function escapeHtml(value: unknown, limit = 240) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;');
 }
+
+type AccountEmailEligibility = {
+  email: string | null;
+  verified: boolean;
+  reason: string | null;
+};
 
 type BetaEmailResult = {
   status: 'sent' | 'failed' | 'not_configured' | 'skipped';
@@ -821,6 +829,80 @@ async function clearInputSession(admin: any, chatId: string) {
 
 function userLabel(user: { display_name?: unknown; email?: unknown; id?: unknown }) {
   return text(user.display_name, 80) || text(user.email, 120) || text(user.id, 120);
+}
+
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
+
+const deletionReasonPresets: Record<string, { label: string; reason: string }> = {
+  invalid_information: {
+    label: 'Informations non vérifiables',
+    reason: 'Les informations de compte fournies ne peuvent pas être vérifiées de manière fiable.',
+  },
+  duplicate_account: {
+    label: 'Compte en double',
+    reason: 'Un doublon de compte a été détecté ; un seul compte fiable peut être conservé par utilisateur.',
+  },
+  terms_violation: {
+    label: 'Non-respect des règles',
+    reason: 'Le compte ne respecte pas les conditions d’utilisation ou les règles de sécurité de BacPilot.',
+  },
+  user_request: {
+    label: 'Demande du titulaire',
+    reason: 'La suppression du compte a été demandée par son titulaire.',
+  },
+};
+
+function deletionReasonInlineKeyboard(userId: string): InlineKeyboard {
+  return {
+    inline_keyboard: [
+      [{ text: '⚠️ Informations non vérifiables', callback_data: `dr:${userId}:invalid_information` }],
+      [{ text: '🧩 Compte en double', callback_data: `dr:${userId}:duplicate_account` }],
+      [{ text: '📜 Non-respect des règles', callback_data: `dr:${userId}:terms_violation` }],
+      [{ text: '🙋 Demande du titulaire', callback_data: `dr:${userId}:user_request` }],
+      [{ text: '✍️ Motif personnalisé', callback_data: `dc:${userId}` }],
+      [{ text: '❌ Annuler', callback_data: 'cancel:current' }],
+    ],
+  };
+}
+
+async function getAccountEmailEligibility(admin: any, user: ResolvedUser): Promise<AccountEmailEligibility> {
+  const email = text(user.email, 180).toLowerCase();
+  if (!EMAIL_FORMAT.test(email)) {
+    return { email: email || null, verified: false, reason: 'Adresse e-mail absente ou au format non exploitable.' };
+  }
+  const { data, error } = await admin.auth.admin.getUserById(user.id);
+  const authUser = data?.user;
+  if (error || !authUser) {
+    return { email, verified: false, reason: 'Identité Auth introuvable ou lecture impossible.' };
+  }
+  if (text(authUser.email, 180).toLowerCase() !== email) {
+    return { email, verified: false, reason: 'L’adresse du profil ne correspond pas à l’identité Auth.' };
+  }
+  if (!authUser.email_confirmed_at) {
+    return { email, verified: false, reason: 'Adresse non confirmée par son titulaire.' };
+  }
+  return { email, verified: true, reason: null };
+}
+
+async function beginCustomDeletionReason(admin: any, chatId: string, userId: string) {
+  const { error } = await admin.from('operator_input_sessions').upsert({
+    telegram_chat_id: chatId,
+    expected_input: 'deletion_reason',
+    origin_command: '/user_delete',
+    pending_action_id: null,
+    menu_state: 'deletion_reason_custom',
+    menu_context: { user_id: userId },
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+  }, { onConflict: 'telegram_chat_id' });
+  if (error) throw new Error('Saisie du motif de suppression indisponible.');
+  return 'Motif personnalisé — décris la raison de manière factuelle, en 10 à 600 caractères.\n\nAucune suppression ni aucun e-mail ne seront déclenchés avant la confirmation finale. Réponds /cancel pour annuler.';
+}
+
+function accountRemovalEmailHtml(subject: string, displayName: string, bodyText: string) {
+  const safeSubject = escapeHtml(subject, 160);
+  const safeName = escapeHtml(displayName || 'utilisateur BacPilot', 120);
+  const safeBody = messageText(bodyText, 6000).split('\n').map((line) => escapeHtml(line, 6000)).join('<br>');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${safeSubject}</title></head><body style="margin:0;background:#f4f6fb;color:#172033;font-family:Arial,Helvetica,sans-serif"><div style="max-width:640px;margin:0 auto;padding:28px 16px"><div style="background:#fff;border:1px solid #e4e8f0;border-radius:20px;overflow:hidden"><div style="padding:24px 28px;background:#3b1020"><img src="https://bacpilot.site/branding/bacpilot-mark-512.png" width="64" height="64" alt="BacPilot" style="display:block;width:64px;height:64px;object-fit:contain;margin-bottom:16px"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#fecdd3;font-weight:700">BacPilot — information de compte</div><h1 style="margin:10px 0 0;color:#fff;font-size:26px;line-height:1.2">${safeSubject}</h1></div><div style="padding:28px"><p style="font-size:16px;line-height:1.6;margin-top:0">Bonjour ${safeName},</p><div style="font-size:16px;line-height:1.75;color:#303b50">${safeBody}</div><p style="margin:28px 0 0;font-size:13px;line-height:1.65;color:#64748b">Si vous pensez qu’il s’agit d’une erreur, vous pouvez écrire à <a href="mailto:contact@bacpilot.site" style="color:#be123c">contact@bacpilot.site</a>. Conservez ce message pour faciliter le suivi de votre demande.</p></div></div><p style="font-size:12px;line-height:1.6;color:#778198;text-align:center;margin:18px 0">BacPilot — Compare. Décide. Avance.<br>Créé par Hilarus GBAGOULE · MHM SOLUTIONS</p></div></body></html>`;
 }
 
 async function getStatusMessage(admin: any) {
@@ -1166,7 +1248,7 @@ async function prepareFeedbackFollowup(admin: any, chatId: string, feedbackId: s
   return await beginConfirmationSession(admin, chatId);
 }
 
-async function sendCustomEmail(email: string, displayName: string, subject: string, bodyText: string, template = 'custom'): Promise<BetaEmailResult> {
+async function sendCustomEmail(email: string, displayName: string, subject: string, bodyText: string, template = 'custom', idempotencyKey: string | null = null): Promise<BetaEmailResult> {
   if (!email) return { status: 'skipped', error_message: 'Adresse email absente du profil.' };
   const apiKey = Deno.env.get('RESEND_API_KEY');
   if (!apiKey) return { status: 'not_configured', error_message: 'RESEND_API_KEY absente des secrets Edge Function.' };
@@ -1183,6 +1265,7 @@ async function sendCustomEmail(email: string, displayName: string, subject: stri
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
         'User-Agent': 'BacPilot/1.0 (https://bacpilot.site)',
+        ...(idempotencyKey ? { 'Idempotency-Key': text(idempotencyKey, 256) } : {}),
       },
       signal: controller.signal,
       body: JSON.stringify({
@@ -1194,7 +1277,9 @@ async function sendCustomEmail(email: string, displayName: string, subject: stri
           ? transactionalWelcomeHtml(displayName)
           : template === 'recognition_invite'
             ? customEmailHtml(subject, displayName, bodyText, { url: 'https://bacpilot.site/beta', label: 'Valoriser ma contribution' })
-            : customEmailHtml(subject, displayName, bodyText),
+            : template === 'account_removal'
+              ? accountRemovalEmailHtml(subject, displayName, bodyText)
+              : customEmailHtml(subject, displayName, bodyText),
         text: template === 'welcome'
           ? `Bonjour ${displayName || 'utilisateur BacPilot'},\n\nVotre compte BacPilot vient d’être créé. Vous pouvez accéder à votre espace : https://bacpilot.site\n\nBesoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.`
           : `Bonjour ${displayName || 'utilisateur BacPilot'},\n\n${messageText(bodyText, 6000)}\n\nBacPilot — par MHM SOLUTIONS`,
@@ -1248,6 +1333,82 @@ async function createPendingAction(admin: any, chatId: string, command: string, 
   ].join('\n');
 }
 
+function accountRemovalBody(reason: string) {
+  return [
+    'Nous vous informons qu’une décision de suppression de votre compte BacPilot a été préparée par l’équipe.',
+    '',
+    `Motif communiqué : ${reason}`,
+    '',
+    'Après confirmation de cette décision, votre accès à BacPilot et les données associées à ce compte seront supprimés conformément au processus opérateur sécurisé.',
+    '',
+    'Si vous pensez qu’il s’agit d’une erreur, contactez rapidement contact@bacpilot.site en indiquant l’adresse concernée.',
+  ].join('\n');
+}
+
+function accountNoticeBody(reason: string) {
+  return [
+    'Nous devons vérifier certaines informations liées à votre compte avant de rétablir l’accès à BacPilot.',
+    '',
+    `Motif communiqué : ${reason}`,
+    '',
+    'Votre accès est temporairement restreint. Si vous pensez qu’il s’agit d’une erreur, écrivez à contact@bacpilot.site depuis une adresse fiable et indiquez les informations utiles à la vérification.',
+  ].join('\n');
+}
+
+async function prepareAccountRemovalAction(admin: any, chatId: string, user: ResolvedUser, rawReason: string) {
+  const reason = messageText(rawReason, 600);
+  if (reason.length < 10) throw new Error('Le motif doit contenir au moins 10 caractères factuels.');
+  const eligibility = await getAccountEmailEligibility(admin, user);
+  const canEmailAndDelete = eligibility.verified && Boolean(eligibility.email);
+  const action = canEmailAndDelete ? 'user_delete' : 'user_notice_suspend';
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const payload = {
+    label: userLabel(user),
+    reason,
+    notification_channel: canEmailAndDelete ? 'email_then_delete' : 'private_notice',
+    recipient_email: eligibility.email,
+    email_eligibility_reason: eligibility.reason,
+    subject: 'Information importante concernant votre compte BacPilot',
+    body_text: canEmailAndDelete ? accountRemovalBody(reason) : accountNoticeBody(reason),
+    template: 'account_removal',
+  };
+  const { data: pending, error } = await admin.from('operator_pending_actions').insert({
+    telegram_chat_id: chatId,
+    action,
+    target_user_id: user.id,
+    confirmation_code: makeConfirmationCode(),
+    payload,
+    expires_at: expiresAt,
+  }).select('id').maybeSingle();
+  if (error || !pending?.id) throw new Error('Brouillon de suppression indisponible.');
+  await audit(admin, chatId, '/user_delete', 'pending', user.id, {
+    action,
+    notification_channel: payload.notification_channel,
+    recipient_email_present: Boolean(eligibility.email),
+    email_eligibility_reason: eligibility.reason,
+    expires_at: expiresAt,
+  });
+  const overview = canEmailAndDelete
+    ? [
+      'Brouillon de suppression — e-mail puis suppression',
+      '',
+      `Compte : ${userLabel(user)} <${eligibility.email}>`,
+      `Motif : ${reason}`,
+      '',
+      'Le message e-mail est prêt, mais aucun e-mail n’a été envoyé et aucune donnée n’a été supprimée.',
+    ]
+    : [
+      'Brouillon de vérification — avis privé dans l’application',
+      '',
+      `Compte : ${userLabel(user)}`,
+      `Motif : ${reason}`,
+      `E-mail : ${eligibility.reason || 'absent ou non exploitable'}`,
+      '',
+      'Pour que le titulaire puisse voir le message dans sa session, le compte sera temporairement restreint et ne sera pas supprimé à cette étape.',
+    ];
+  return `${overview.join('\n')}\n\n${await beginConfirmationSession(admin, chatId)}`;
+}
+
 async function listPending(admin: any, chatId: string) {
   const { data: pending } = await admin
     .from('operator_pending_actions')
@@ -1270,7 +1431,7 @@ async function listPending(admin: any, chatId: string) {
 
 type PendingAction = {
   id: string;
-  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'collector_revoke' | 'email_send' | 'email_campaign_recognition';
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'user_notice_suspend' | 'collector_revoke' | 'email_send' | 'email_campaign_recognition';
   target_user_id: string;
   payload: Record<string, unknown> | null;
   expires_at: string;
@@ -1451,20 +1612,95 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
     return `Action confirmée : le collecteur ${collectorId} est révoqué. Ses prochaines synchronisations seront refusées.`;
   }
 
+  if (pending.action === 'user_notice_suspend') {
+    const reason = messageText(pending.payload?.reason, 600);
+    const title = 'Votre accès BacPilot est temporairement restreint';
+    const body = messageText(pending.payload?.body_text, 1600) || accountNoticeBody(reason || 'Des informations liées au compte doivent être vérifiées.');
+    const { error: suspendError } = await admin.from('profiles').update({
+      account_status: 'suspended_notice',
+      account_notice_title: title,
+      account_notice_body: body,
+      account_notice_reason: reason || null,
+      account_notice_created_at: now,
+      updated_at: now,
+    }).eq('id', pending.target_user_id);
+    if (suspendError) {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      throw new Error('Avis privé non enregistré ; aucune suppression n’a été exécutée.');
+    }
+    await audit(admin, chatId, '/confirm', 'confirmed', pending.target_user_id, {
+      action: pending.action,
+      notice_visible_to_user: true,
+      notification_channel: 'private_notice',
+      reason,
+    });
+    return 'Action confirmée : l’accès du compte est temporairement restreint. Le titulaire verra uniquement cet avis à sa prochaine connexion ; aucune donnée n’a été supprimée et aucun e-mail n’a été envoyé.';
+  }
+
   if (pending.action === 'user_delete') {
+    const { data: profile } = await admin.from('profiles').select('email, display_name').eq('id', pending.target_user_id).maybeSingle();
+    const recipientEmail = text(pending.payload?.recipient_email || profile?.email, 180).toLowerCase();
+    const subject = text(pending.payload?.subject, 160) || 'Information importante concernant votre compte BacPilot';
+    const bodyText = messageText(pending.payload?.body_text, 6000);
+    const reason = messageText(pending.payload?.reason, 600);
+    if (!EMAIL_FORMAT.test(recipientEmail) || !bodyText) {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      throw new Error('Adresse e-mail ou message de suppression indisponible ; aucune donnée n’a été supprimée.');
+    }
+
+    const result: BetaEmailResult = await withTimeout(
+      sendCustomEmail(recipientEmail, text(profile?.display_name, 120), subject, bodyText, 'account_removal', `account-removal/${pending.id}`),
+      10_000,
+    ).catch((error): BetaEmailResult => ({ status: 'failed', error_message: error instanceof Error ? text(error.message, 180) : 'Délai e-mail dépassé.' }));
+
+    const { data: priorDelivery } = await admin.from('operator_email_deliveries').select('id').eq('operator_action_id', pending.id).maybeSingle();
+    const deliveryPayload = {
+      telegram_chat_id: chatId,
+      target_user_id: pending.target_user_id,
+      recipient_email: recipientEmail,
+      subject,
+      body_text: bodyText,
+      status: result.status,
+      provider_message_id: result.provider_message_id || null,
+      error_message: result.error_message || null,
+      sent_at: result.status === 'sent' ? now : null,
+      operator_action_id: pending.id,
+    };
+    const deliveryWrite = priorDelivery?.id
+      ? await admin.from('operator_email_deliveries').update(deliveryPayload).eq('id', priorDelivery.id)
+      : await admin.from('operator_email_deliveries').insert(deliveryPayload);
+    if (deliveryWrite.error) {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      await audit(admin, chatId, '/confirm', 'failed', pending.target_user_id, { action: pending.action, reason, email_status: result.status, cleanup: 'email_ledger_failed' });
+      throw new Error('Notification e-mail traitée mais non journalisée ; aucune suppression n’a été exécutée.');
+    }
+    if (result.status !== 'sent') {
+      await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
+      await audit(admin, chatId, '/confirm', 'failed', pending.target_user_id, { action: pending.action, reason, email_status: result.status, email_error: result.error_message || null });
+      return `E-mail non accepté par Resend : ${result.error_message || 'erreur fournisseur'}. Le compte est conservé et l’action reste disponible pour une reprise confirmée.`;
+    }
+
     const { error: authDeleteError } = await admin.auth.admin.deleteUser(pending.target_user_id);
     if (authDeleteError) {
       await admin.from('operator_pending_actions').update({ executed_at: null }).eq('id', pending.id);
-      throw new Error('Compte Auth non supprimé.');
+      await audit(admin, chatId, '/confirm', 'failed', pending.target_user_id, { action: pending.action, reason, email_status: result.status, email_provider_message_id: result.provider_message_id || null, cleanup: 'auth_delete_failed' });
+      throw new Error('E-mail accepté par Resend, mais le compte Auth n’a pas été supprimé.');
     }
     const { error: profileDeleteError } = await admin.from('profiles').delete().eq('id', pending.target_user_id);
     if (profileDeleteError) {
-      // L’accès a déjà été supprimé ; l’erreur est explicitement journalisée pour permettre la reprise opérateur.
-      await audit(admin, chatId, '/confirm', 'failed', null, { action: pending.action, cleanup: 'profile_failed' });
-      throw new Error('Accès supprimé, mais nettoyage du profil incomplet.');
+      await audit(admin, chatId, '/confirm', 'failed', null, { action: pending.action, removed_user_id: pending.target_user_id, reason, email_status: result.status, cleanup: 'profile_failed' });
+      throw new Error('Accès supprimé après notification, mais nettoyage du profil incomplet.');
     }
-    await audit(admin, chatId, '/confirm', 'confirmed', null, { action: pending.action, account_removed: true });
-    return 'Action confirmée : le compte et ses données BacPilot associées ont été supprimés.';
+    await audit(admin, chatId, '/confirm', 'confirmed', null, {
+      action: pending.action,
+      account_removed: true,
+      removed_user_id: pending.target_user_id,
+      reason,
+      notification_channel: 'email_then_delete',
+      email_status: result.status,
+      email_provider_message_id: result.provider_message_id || null,
+    });
+    return `Action confirmée : l’e-mail a été accepté par Resend pour ${recipientEmail}, puis le compte et ses données BacPilot associées ont été supprimés. Référence : ${result.provider_message_id || 'confirmée par Resend'}.`;
   }
 
   const desiredStatus = pending.action === 'beta_activate' ? 'active' : pending.action === 'beta_pause' ? 'paused' : 'revoked';
@@ -1525,6 +1761,7 @@ async function beginConfirmationSession(admin: any, chatId: string) {
   if (error) throw new Error('Confirmation conversationnelle indisponible.');
 
   const isUserDeletion = pending.action === 'user_delete';
+  const isUserNoticeSuspension = pending.action === 'user_notice_suspend';
   const isCollectorRevocation = pending.action === 'collector_revoke';
   const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : pending.action === 'email_campaign_recognition' ? 'envoyer la campagne de reconnaissance à' : 'envoyer un email personnalisé à';
   const targetLabel = text((pending.payload as any)?.label, 140) || pending.target_user_id;
@@ -1533,7 +1770,9 @@ async function beginConfirmationSession(admin: any, chatId: string) {
     : pending.action === 'email_campaign_recognition'
       ? `Tu vas envoyer l’invitation « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}. L’audience sera revalidée : seuls les bêta-testeurs toujours actifs avec une adresse e-mail recevront le message.`
     : isUserDeletion
-      ? `Tu vas supprimer définitivement le compte de ${targetLabel} ainsi que ses données BacPilot associées.`
+      ? `Tu vas envoyer l’e-mail de suppression à ${text((pending.payload as any)?.recipient_email, 180) || targetLabel}, puis supprimer définitivement le compte de ${targetLabel} et ses données BacPilot associées. Motif : ${text((pending.payload as any)?.reason, 600) || 'non précisé'}.`
+      : isUserNoticeSuspension
+        ? `Tu vas restreindre temporairement l’accès de ${targetLabel} et afficher uniquement à ce titulaire un avis privé dans l’application. Aucune donnée ne sera supprimée. Motif : ${text((pending.payload as any)?.reason, 600) || 'non précisé'}.`
       : isCollectorRevocation
         ? `Tu vas révoquer définitivement le collecteur ${targetLabel}. Ses prochaines synchronisations seront refusées.`
         : `Tu vas ${label} le statut bêta de ${targetLabel}.`;
@@ -1543,7 +1782,9 @@ async function beginConfirmationSession(admin: any, chatId: string) {
     '',
     isUserDeletion
       ? '1. Confirmer SUPPRIMER\n2. Annuler'
-      : '1. Confirmer\n2. Annuler',
+      : isUserNoticeSuspension
+        ? '1. Confirmer la restriction\n2. Annuler'
+        : '1. Confirmer\n2. Annuler',
   ].join('\n');
 }
 
@@ -1740,7 +1981,7 @@ async function showUserDetailMenu(admin: any, chatId: string, userId: string) {
     '1. Activer comme bêta-testeur',
     '2. Mettre en pause le bêta',
     '3. Révoquer le bêta',
-    '4. Préparer la suppression définitive',
+    '4. Préparer une notification et une suppression sécurisée',
     '5. Rédiger et envoyer un email',
     '0. Retour à la liste des utilisateurs',
   ].join('\n');
@@ -1784,11 +2025,47 @@ async function handleMenuChoice(admin: any, chatId: string, session: InputSessio
     const user = await resolveUser(admin, userId);
     if (!user) return showUserList(admin, chatId);
     if (choice === '5') return beginEmailSubject(admin, chatId, user);
-    const action = choice === '1' ? 'beta_activate' : choice === '2' ? 'beta_pause' : choice === '3' ? 'beta_revoke' : choice === '4' ? 'user_delete' : null;
+    if (choice === '4') {
+      await setMenuSession(admin, chatId, 'user_deletion_reason_select', { user_id: user.id });
+      return [
+        'Suppression de compte — étape 1/2',
+        '',
+        `Compte : ${userLabel(user)}`,
+        'Choisis un motif :',
+        '1. Informations non vérifiables',
+        '2. Compte en double',
+        '3. Non-respect des règles',
+        '4. Demande du titulaire',
+        '5. Motif personnalisé',
+        '0. Annuler',
+        '',
+        'Aucun e-mail, aucune restriction et aucune suppression ne sont déclenchés à cette étape.',
+      ].join('\n');
+    }
+    const action = choice === '1' ? 'beta_activate' : choice === '2' ? 'beta_pause' : choice === '3' ? 'beta_revoke' : null;
     if (!action) return showUserDetailMenu(admin, chatId, userId);
-    const command = action === 'beta_activate' ? '/beta_add' : action === 'beta_pause' ? '/beta_pause' : action === 'beta_revoke' ? '/beta_revoke' : '/user_delete';
+    const command = action === 'beta_activate' ? '/beta_add' : action === 'beta_pause' ? '/beta_pause' : '/beta_revoke';
     await clearInputSession(admin, chatId);
     return createPendingAction(admin, chatId, command, action, user);
+  }
+
+  if (state === 'user_deletion_reason_select') {
+    const userId = text(session.menu_context?.user_id, 80);
+    const user = await resolveUser(admin, userId);
+    if (!user) return showUserList(admin, chatId);
+    if (choice === '5') return beginCustomDeletionReason(admin, chatId, user.id);
+    const reasonKey = choice === '1'
+      ? 'invalid_information'
+      : choice === '2'
+        ? 'duplicate_account'
+        : choice === '3'
+          ? 'terms_violation'
+          : choice === '4'
+            ? 'user_request'
+            : '';
+    const preset = deletionReasonPresets[reasonKey];
+    if (!preset) return showUserDetailMenu(admin, chatId, user.id);
+    return prepareAccountRemovalAction(admin, chatId, user, preset.reason);
   }
 
   if (state === 'confirm_action') {
@@ -2037,11 +2314,16 @@ Deno.serve(async (request) => {
 
   const isStructuredSessionReply = Boolean(activeSession && (
     (activeSession.expected_input === 'confirmation_ack' && /^(?:oui|non|yes|no|o|n|supprimer|1|2)$/i.test(incomingText)) ||
-    (activeSession.expected_input === 'menu_choice' && /^(?:1|2)$/i.test(incomingText)) ||
+    (activeSession.expected_input === 'menu_choice' && (
+      activeSession.menu_state === 'confirm_action'
+        ? /^(?:1|2|oui|non|yes|no|o|n|supprimer|sup)$/i.test(incomingText)
+        : /^(?:0|1|2|3|4|5|6|7|8)$/i.test(incomingText)
+    )) ||
     (activeSession.expected_input === 'user_identifier' && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingText) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(incomingText))) ||
     (activeSession.expected_input === 'beta_user_identifier' && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingText) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(incomingText))) ||
     (activeSession.expected_input === 'email_recipient' && (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingText) || /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(incomingText))) ||
-    activeSession.expected_input === 'email_subject' || activeSession.expected_input === 'email_body'
+    activeSession.expected_input === 'email_subject' || activeSession.expected_input === 'email_body' ||
+    activeSession.expected_input === 'deletion_reason'
   ));
 
   const shouldRouteNaturalLanguageToAi = Boolean(
@@ -2066,8 +2348,10 @@ Deno.serve(async (request) => {
       command = activeSession.origin_command;
       argument = activeSession.expected_input === 'email_body'
         ? messageText(update.message?.text, 6000)
-        : text(update.message?.text, 180);
-      if (!['confirmation_ack', 'email_subject', 'email_body'].includes(activeSession.expected_input)) {
+        : activeSession.expected_input === 'deletion_reason'
+          ? messageText(update.message?.text, 600)
+          : text(update.message?.text, 180);
+      if (!['confirmation_ack', 'email_subject', 'email_body', 'deletion_reason'].includes(activeSession.expected_input)) {
         await clearInputSession(admin, sourceChatId).catch((error) => {
           console.error('Nettoyage de session Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
         });
@@ -2125,7 +2409,18 @@ Deno.serve(async (request) => {
   let replyMarkup: InlineKeyboard | undefined;
 
   try {
-    if (activeSession?.expected_input === 'email_recipient' && command === '/email') {
+    if (activeSession?.expected_input === 'deletion_reason' && command === '/user_delete') {
+      const userId = text(activeSession.menu_context?.user_id, 80);
+      const user = await withTimeout(resolveUser(admin, userId));
+      if (!user) {
+        await clearInputSession(admin, sourceChatId);
+        reply = 'Utilisateur introuvable. Recommence la suppression depuis sa fiche.';
+      } else {
+        targetUserId = user.id;
+        await clearInputSession(admin, sourceChatId);
+        reply = await withTimeout(prepareAccountRemovalAction(admin, sourceChatId, user, messageText(argument, 600)));
+      }
+    } else if (activeSession?.expected_input === 'email_recipient' && command === '/email') {
       const user = await withTimeout(resolveUser(admin, argument));
       if (!user || !text(user.email, 180)) {
         const selection = await withTimeout(beginEmailRecipient(admin, sourceChatId));
@@ -2257,13 +2552,35 @@ Deno.serve(async (request) => {
         }
       }
     } else if (command === '/user_delete') {
-      if (!argument) reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user_delete'));
-      else {
+      if (!argument) {
+        reply = await withTimeout(beginInputSession(admin, sourceChatId, '/user_delete'));
+      } else if (argument.startsWith('reason:')) {
+        const composite = argument.slice('reason:'.length);
+        const separator = composite.lastIndexOf(':');
+        const userId = separator > 0 ? composite.slice(0, separator) : '';
+        const reasonKey = separator > 0 ? composite.slice(separator + 1) : '';
+        const preset = deletionReasonPresets[reasonKey];
+        const user = await withTimeout(resolveUser(admin, userId));
+        if (!user || !preset) reply = 'Choix de motif expiré ou utilisateur introuvable. Rouvre la fiche du compte pour recommencer.';
+        else {
+          targetUserId = user.id;
+          reply = await withTimeout(prepareAccountRemovalAction(admin, sourceChatId, user, preset.reason));
+        }
+      } else if (argument.startsWith('custom:')) {
+        const userId = argument.slice('custom:'.length);
+        const user = await withTimeout(resolveUser(admin, userId));
+        if (!user) reply = 'Utilisateur introuvable. Rouvre sa fiche pour recommencer.';
+        else {
+          targetUserId = user.id;
+          reply = await withTimeout(beginCustomDeletionReason(admin, sourceChatId, user.id));
+        }
+      } else {
         const user = await withTimeout(resolveUser(admin, argument));
         if (!user) reply = 'Utilisateur introuvable. Vérifie l’e-mail exact ou l’ID BacPilot, puis réessaie.';
         else {
           targetUserId = user.id;
-          reply = await withTimeout(createPendingAction(admin, sourceChatId, command, 'user_delete', user));
+          reply = ['Suppression de compte — étape 1/2', '', `Compte : ${userLabel(user)}`, 'Choisis un motif. Le bot préparera ensuite l’e-mail ou, si l’adresse est absente/non vérifiable, un avis privé visible uniquement dans la session de ce compte.', '', 'Aucun e-mail, aucune restriction et aucune suppression ne sont déclenchés à cette étape.'].join('\n');
+          replyMarkup = deletionReasonInlineKeyboard(user.id);
         }
       }
     } else if (command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke') {
@@ -2309,8 +2626,10 @@ Deno.serve(async (request) => {
       ? mainInlineKeyboard()
       : (command === '/user' || command === '/mailstatus') && targetUserId
         ? userDetailInlineKeyboard(targetUserId)
-        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/user_delete' || command === '/collector_revoke' || command === '/recognition_invite_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
-          ? confirmationInlineKeyboard(command === '/user_delete')
+        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/collector_revoke' || command === '/recognition_invite_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
+          ? confirmationInlineKeyboard(false)
+          : command === '/user_delete' && /^Brouillon de (suppression|vérification)/.test(reply)
+            ? confirmationInlineKeyboard(/^Brouillon de suppression/.test(reply))
           : (command === '/confirm' || command === '/cancel')
             ? mainInlineKeyboard()
             : undefined);

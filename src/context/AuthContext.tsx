@@ -50,7 +50,7 @@ interface AuthContextType {
   isDemoMode: boolean;
   errorMessage: string | null;
   clearError: () => void;
-  signUp: (request: SignupRequest) => Promise<{ success: boolean; error?: string }>;
+  signUp: (request: SignupRequest) => Promise<{ success: boolean; requiresEmailConfirmation?: boolean; error?: string }>;
   signIn: (email: string, pass: string) => Promise<{ success: boolean; error?: string }>;
   signOut: () => Promise<void>;
   leaveBetaProgram: () => Promise<{ success: boolean; error?: string }>;
@@ -61,6 +61,10 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Ce contrôle bloque les adresses manifestement malformées. La possession réelle
+// de l’adresse est ensuite établie par le lien de confirmation Supabase.
+const EMAIL_FORMAT = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -247,8 +251,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setErrorMessage(err);
       return { success: false, error: err };
     }
-    if (!email.trim() || !email.includes('@')) {
-      const err = 'Veuillez fournir une adresse e-mail valide.';
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!EMAIL_FORMAT.test(normalizedEmail)) {
+      const err = 'Veuillez fournir une adresse e-mail valide, par exemple nom@exemple.com.';
       setErrorMessage(err);
       return { success: false, error: err };
     }
@@ -266,7 +271,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (isSupabaseLive && realSupabase) {
         const { data, error } = await realSupabase.auth.signUp({
-          email,
+          email: normalizedEmail,
           password: pass,
           options: {
             data: {
@@ -289,26 +294,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (data.user) {
+          // Le profil est créé côté serveur par déclencheur Auth. Lorsqu’une confirmation
+          // est active, Supabase ne retourne pas de session avant le clic sur le lien reçu.
+          if (!data.session) return { success: true, requiresEmailConfirmation: true };
+
           setUser(data.user);
-          const initialProf: UserProfile = {
-            id: data.user.id,
-            display_name: displayName,
-            email,
-            signup_intent: signupIntent,
-            signup_entrypoint: signupEntrypoint,
-            signup_route: signupRoute,
-            signup_device_class: signupDeviceClass,
-            signup_browser: signupBrowser,
-            signup_context_consent_at: signupIntent === 'beta_interest' && signupContextConsent ? new Date().toISOString() : null,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          };
-          await realSupabase.from('profiles').upsert(initialProf);
+          await fetchSupabaseUserData(data.user.id, data.user);
           if (referralCode?.trim()) {
             const { error: referralError } = await realSupabase.rpc('apply_referral_code', { p_code: referralCode.trim() });
             if (referralError) console.warn('Parrainage non appliqué:', referralError.message);
           }
-          setProfile(initialProf);
           return { success: true };
         }
       } else {
@@ -316,7 +311,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const mockId = `usr-${Date.now()}`;
         const mockUser = {
           id: mockId,
-          email,
+          email: normalizedEmail,
           user_metadata: { display_name: displayName },
         };
         const initialProf: UserProfile = {
@@ -458,7 +453,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const payload = {
           id: updated.id,
           display_name: updated.display_name,
-          email: updated.email ?? user.email ?? null,
           series: updated.series ?? null,
           mention: updated.mention ?? null,
           updated_at: updated.updated_at,

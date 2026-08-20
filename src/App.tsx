@@ -5,6 +5,7 @@
  */
 
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { AlertTriangle, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -41,7 +42,7 @@ const ArticlesPage = lazy(() => import('./pages/ArticlesPage'));
 const ArticlePage = lazy(() => import('./pages/ArticlePage'));
 
 function AppContent() {
-  const { user, isBetaTester, isLoading } = useAuth();
+  const { user, profile, isBetaTester, isLoading, signOut } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>('/');
   const [isTestsModalOpen, setIsTestsModalOpen] = useState(false);
   const isPartnerPortal = typeof window !== 'undefined' && window.location.hostname === 'partenaires.bacpilot.site';
@@ -89,6 +90,19 @@ function AppContent() {
             Chargement de MHM SOLUTIONS...
           </div>
         </div>
+      );
+    }
+
+    if (user && profile?.account_status === 'suspended_notice') {
+      return (
+        <section className="mx-auto flex min-h-[70vh] max-w-2xl items-center px-4 py-12">
+          <div className="w-full rounded-3xl border border-amber-200 bg-amber-50 p-6 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/25 sm:p-9" role="alert">
+            <div className="flex items-start gap-4"><span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-amber-200 text-amber-900 dark:bg-amber-900/60 dark:text-amber-100"><AlertTriangle className="h-6 w-6" /></span><div><p className="text-xs font-black uppercase tracking-[0.14em] text-amber-700 dark:text-amber-300">Vérification requise</p><h1 className="mt-2 font-serif text-2xl font-bold tracking-tight text-amber-950 dark:text-amber-50">{profile.account_notice_title || 'Votre accès BacPilot est temporairement restreint'}</h1></div></div>
+            <p className="mt-6 whitespace-pre-line text-sm leading-7 text-amber-950/85 dark:text-amber-100/85">{profile.account_notice_body || 'Nous devons vérifier certaines informations liées à ce compte avant de rétablir l’accès à la plateforme.'}</p>
+            <p className="mt-4 text-xs leading-5 text-amber-900/75 dark:text-amber-200/70">Si vous pensez qu’il s’agit d’une erreur, écrivez à <a href="mailto:contact@bacpilot.site" className="font-bold underline">contact@bacpilot.site</a> en indiquant l’adresse associée à votre compte.</p>
+            <button type="button" onClick={async () => { await signOut(); navigate('/'); }} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-amber-900 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-amber-950 dark:bg-amber-200 dark:text-amber-950 dark:hover:bg-amber-100"><LogOut className="h-4 w-4" /> Se déconnecter</button>
+          </div>
+        </section>
       );
     }
 
@@ -185,7 +199,7 @@ function AppContent() {
       <Footer navigate={navigate} />
 
       {/* Parcours de reconnaissance bêta : affiché une fois par session, fermable à tout moment. */}
-      <BetaProfilePromoModal navigate={navigate} />
+      {profile?.account_status !== 'suspended_notice' && <BetaProfilePromoModal navigate={navigate} />}
 
       {/* Modal des Tests Automatisés & Vérifications MVP1 */}
       <VerificationModal
