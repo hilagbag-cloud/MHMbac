@@ -168,7 +168,6 @@ export const RegisterPage: React.FC<RegisterPageProps> = ({ navigate }) => {
                   value={email}
                   autoComplete="email"
                   inputMode="email"
-                  pattern="[^\\s@]+@[^\\s@]+\\.[^\\s@]+"
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="ton.email@exemple.com"
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-rose-500 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
