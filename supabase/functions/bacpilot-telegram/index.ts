@@ -46,6 +46,7 @@ type OperatorCommand =
   | '/templates'
   | '/campaign_referral_draft'
   | '/recognition_invite_draft'
+  | '/orientation_return_draft'
   | '/collector_issue'
   | '/collector_list'
   | '/collector_revoke';
@@ -84,7 +85,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const commandNames = new Set<OperatorCommand>([
   '/start', '/help', '/status', '/stats', '/health', '/test', '/user', '/user_list', '/user_delete', '/webhook_repair',
   '/beta_add', '/beta_pause', '/beta_revoke', '/beta_list', '/feedback',
-  '/pending', '/confirm', '/cancel', '/menu', '/email', '/welcome', '/mailstatus', '/templates', '/campaign_referral_draft', '/collector_issue', '/collector_list', '/collector_revoke',
+  '/pending', '/confirm', '/cancel', '/menu', '/email', '/welcome', '/mailstatus', '/templates', '/campaign_referral_draft', '/recognition_invite_draft', '/orientation_return_draft', '/collector_issue', '/collector_list', '/collector_revoke',
 ]);
 
 const betaStatuses = new Set(['active', 'invited', 'paused', 'revoked']);
@@ -143,6 +144,7 @@ type OperatorAiIntent =
   | 'email_prepare'
   | 'email_campaign_draft'
   | 'recognition_invite_draft'
+  | 'orientation_return_draft'
   | 'templates_list'
   | 'beta_activate'
   | 'beta_pause'
@@ -166,13 +168,13 @@ const TELEGRAM_AI_MAX_AUDIO_BYTES = 10 * 1024 * 1024;
 const TELEGRAM_AI_MAX_AUDIO_SECONDS = 180;
 const TELEGRAM_AI_INTENTS = new Set<OperatorAiIntent>([
   'platform_status', 'platform_stats', 'user_lookup', 'user_list', 'beta_list', 'feedback_list', 'pending_list',
-  'mail_status', 'welcome_prepare', 'email_prepare', 'email_campaign_draft', 'recognition_invite_draft', 'templates_list', 'beta_activate', 'beta_pause', 'beta_revoke', 'user_delete',
+  'mail_status', 'welcome_prepare', 'email_prepare', 'email_campaign_draft', 'recognition_invite_draft', 'orientation_return_draft', 'templates_list', 'beta_activate', 'beta_pause', 'beta_revoke', 'user_delete',
   'documentation_question', 'webhook_repair', 'clarification', 'unsupported',
 ]);
 
 const TELEGRAM_OPERATOR_AI_ROLE = [
   'Tu es l’agent privé de gestion BacPilot. Tout message libre de l’opérateur doit être interprété comme une demande en langage naturel, jamais comme une commande inconnue.',
-  'BacPilot est une plateforme béninoise d’orientation post-bac. Les opérations autorisées sont : lire l’état et les statistiques de la plateforme, rechercher ou lister des utilisateurs, bêta-testeurs et retours, vérifier le statut d’un e-mail, afficher les templates e-mail, préparer un e-mail individuel, préparer un brouillon de campagne de parrainage ou une invitation de reconnaissance pour les bêta-testeurs actifs, préparer une activation, pause ou révocation bêta, préparer une suppression de compte, répondre à une question de documentation et réparer le webhook Telegram.',
+  'BacPilot est une plateforme béninoise d’orientation post-bac. Les opérations autorisées sont : lire l’état et les statistiques de la plateforme, rechercher ou lister des utilisateurs, bêta-testeurs et retours, vérifier le statut d’un e-mail, afficher les templates e-mail, préparer un e-mail individuel, préparer un brouillon de campagne de parrainage, un brouillon de retour pour les utilisateurs actifs lorsque la période de choix approche de sa clôture, ou une invitation de reconnaissance pour les bêta-testeurs actifs, préparer une activation, pause ou révocation bêta, préparer une suppression de compte, répondre à une question de documentation et réparer le webhook Telegram.',
   'Les lectures peuvent être exécutées immédiatement par le serveur. Une écriture, notamment un e-mail, un changement de statut, une révocation, une suppression ou une modification de webhook, doit seulement être préparée puis soumise à la confirmation explicite de l’opérateur. Ne confirme jamais toi-même une action et ne prétends jamais l’avoir exécutée.',
   'Ne révèles aucune clé ni information secrète. N’accèdes pas à Internet. Pour une demande conditionnelle, identifie d’abord la vérification nécessaire et explique la prochaine action qui devra être confirmée. Si la cible n’est pas certaine, demande une précision concise.',
   'Réponds exclusivement avec un objet JSON, sans Markdown et sans texte avant ou après. Utilise exactement les clés intent, user_identifier, beta_status, transcript, clarification et operator_reply. intent doit être une valeur autorisée. Les valeurs user_identifier et beta_status sont null quand elles ne sont pas certaines. operator_reply doit être en français, bref, concret et adapté à l’opérateur.',
@@ -194,6 +196,7 @@ function parseOperatorAiPlan(raw: string): OperatorAiPlan | null {
       send_welcome: 'welcome_prepare', prepare_welcome: 'welcome_prepare',
       send_email: 'email_prepare', prepare_email: 'email_prepare',
       email_campaign: 'email_campaign_draft', campaign_draft: 'email_campaign_draft', referral_campaign: 'email_campaign_draft',
+      orientation_return: 'orientation_return_draft', return_campaign: 'orientation_return_draft', orientation_campaign: 'orientation_return_draft',
       recognition_campaign: 'recognition_invite_draft', recognition_invite: 'recognition_invite_draft', beta_recognition: 'recognition_invite_draft',
       templates: 'templates_list', email_templates: 'templates_list', list_templates: 'templates_list',
       activate_beta: 'beta_activate', add_beta: 'beta_activate',
@@ -245,6 +248,7 @@ function fallbackReadPlan(input: string): OperatorAiPlan | null {
   if (/(retour|feedback|avis|suggestion|bug)/.test(normalized) && /(liste|list|affiche|montre|donne|dernier)/.test(normalized)) return withIntent('feedback_list');
   if (/(template|modele|modèle|maquette)/.test(normalized) && /(mail|email|liste|list|dispo|affiche|montre)/.test(normalized)) return withIntent('templates_list');
   if (/(reconnaissance|contributeur|contribution|profil public)/.test(normalized) && /(beta|testeur|invitation|inviter|mail|email|campagne)/.test(normalized)) return withIntent('recognition_invite_draft');
+  if (/(retour|relance|revenir|cloture|choix|orientation)/.test(normalized) && /(campagne|mail|email|courriel|utilisateur|tous|tout)/.test(normalized)) return withIntent('orientation_return_draft');
   if (/(mail|email|courriel)/.test(normalized) && (/(parrainage|partag|inviter|referral)/.test(normalized) || /(tous|tout|all|users|utilisateurs)/.test(normalized))) return withIntent('email_campaign_draft');
   if (/(action|demande)/.test(normalized) && /(attente|pending|confirmer)/.test(normalized)) return withIntent('pending_list');
   return null;
@@ -263,6 +267,7 @@ function operatorPlanCommand(plan: OperatorAiPlan): { command: OperatorCommand |
   if (plan.intent === 'welcome_prepare' && identifier) return { command: '/welcome', argument: identifier };
   if (plan.intent === 'email_prepare' && identifier) return { command: '/email', argument: identifier };
   if (plan.intent === 'email_campaign_draft') return { command: '/campaign_referral_draft', argument: '' };
+  if (plan.intent === 'orientation_return_draft') return { command: '/orientation_return_draft', argument: '' };
   if (plan.intent === 'recognition_invite_draft') return { command: '/recognition_invite_draft', argument: '' };
   if (plan.intent === 'templates_list') return { command: '/templates', argument: '' };
   if (plan.intent === 'beta_activate' && identifier) return { command: '/beta_add', argument: identifier };
@@ -289,6 +294,7 @@ const GEMINI_AGENT_FUNCTIONS = [
   { name: 'list_pending_actions', description: 'Lister les actions déjà préparées qui attendent une confirmation opérateur.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'list_email_templates', description: 'Afficher les modèles e-mail BacPilot disponibles.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'draft_referral_campaign', description: 'Préparer un brouillon de communication sur le parrainage. Ceci ne doit jamais envoyer d’e-mail.', parameters: { type: 'OBJECT', properties: {} } },
+  { name: 'draft_orientation_return_campaign', description: 'Préparer une campagne de retour pour les utilisateurs actifs lorsque la phase de choix approche de sa clôture. Ne jamais envoyer automatiquement : afficher le message, l’audience et exiger une confirmation humaine.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'draft_recognition_invite', description: 'Préparer une invitation de reconnaissance encourageante pour les bêta-testeurs actifs. Cette action ne doit jamais envoyer d’e-mail automatiquement et doit afficher l’audience avant confirmation humaine.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'list_collectors', description: 'Lister les collecteurs et leur état.', parameters: { type: 'OBJECT', properties: {} } },
   { name: 'prepare_welcome_email', description: 'Préparer, sans envoyer, un e-mail de bienvenue pour une personne précise. Une confirmation humaine sera obligatoire.', parameters: { type: 'OBJECT', properties: { identifier: { type: 'STRING', description: 'E-mail ou UUID BacPilot de la personne.' } }, required: ['identifier'] } },
@@ -322,6 +328,7 @@ function agentFunctionToCommand(call: GeminiAgentFunctionCall): { command: Opera
   if (call.name === 'list_pending_actions') return { command: '/pending', argument: '' };
   if (call.name === 'list_email_templates') return { command: '/templates', argument: '' };
   if (call.name === 'draft_referral_campaign') return { command: '/campaign_referral_draft', argument: '' };
+  if (call.name === 'draft_orientation_return_campaign') return { command: '/orientation_return_draft', argument: '' };
   if (call.name === 'draft_recognition_invite') return { command: '/recognition_invite_draft', argument: '' };
   if (call.name === 'list_collectors') return { command: '/collector_list', argument: '' };
   if (call.name === 'prepare_welcome_email' && identifier) return { command: '/welcome', argument: identifier };
@@ -614,7 +621,7 @@ function mainInlineKeyboard(): InlineKeyboard {
     [{ text: '📊 Statistiques', callback_data: 'menu:stats' }, { text: '👥 Utilisateurs', callback_data: 'menu:users' }],
     [{ text: '🧪 Bêta-testeurs', callback_data: 'menu:beta' }, { text: '💬 Retours bêta', callback_data: 'menu:feedback' }],
     [{ text: '✉️ E-mail personnalisé', callback_data: 'compose:email' }, { text: '✉️ Templates', callback_data: 'menu:templates' }],
-    [{ text: '🎖️ Reconnaissance bêta', callback_data: 'campaign:recognition' }],
+    [{ text: '🔔 Campagne de retour', callback_data: 'campaign:return' }, { text: '🎖️ Reconnaissance bêta', callback_data: 'campaign:recognition' }],
     [{ text: '✅ État plateforme', callback_data: 'menu:status' }, { text: '⏳ Actions en attente', callback_data: 'menu:pending' }],
     [{ text: '❓ Aide', callback_data: 'menu:help' }],
   ] };
@@ -648,6 +655,7 @@ function callbackToCommand(data: string): { command: OperatorCommand | null; arg
     return { command: map[value] || null, argument: '' };
   }
   if (action === 'compose' && value === 'email') return { command: '/email', argument: '__select_recipient__' };
+  if (action === 'campaign' && value === 'return') return { command: '/orientation_return_draft', argument: '' };
   if (action === 'campaign' && value === 'recognition') return { command: '/recognition_invite_draft', argument: '' };
   if (action === 'emailto') return { command: '/email', argument: value };
   if (action === 'feedback') return { command: '/feedback', argument: value };
@@ -1279,7 +1287,9 @@ async function sendCustomEmail(email: string, displayName: string, subject: stri
             ? customEmailHtml(subject, displayName, bodyText, { url: 'https://bacpilot.site/beta', label: 'Valoriser ma contribution' })
             : template === 'account_removal'
               ? accountRemovalEmailHtml(subject, displayName, bodyText)
-              : customEmailHtml(subject, displayName, bodyText),
+              : template === 'orientation_return'
+                ? customEmailHtml(subject, displayName, bodyText, { url: 'https://bacpilot.site/onboarding', label: 'Reprendre mon orientation' })
+                : customEmailHtml(subject, displayName, bodyText),
         text: template === 'welcome'
           ? `Bonjour ${displayName || 'utilisateur BacPilot'},\n\nVotre compte BacPilot vient d’être créé. Vous pouvez accéder à votre espace : https://bacpilot.site\n\nBesoin d’aide ? Répondez à cet e-mail ou écrivez à contact@bacpilot.site.`
           : `Bonjour ${displayName || 'utilisateur BacPilot'},\n\n${messageText(bodyText, 6000)}\n\nBacPilot — par MHM SOLUTIONS`,
@@ -1431,7 +1441,7 @@ async function listPending(admin: any, chatId: string) {
 
 type PendingAction = {
   id: string;
-  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'user_notice_suspend' | 'collector_revoke' | 'email_send' | 'email_campaign_recognition';
+  action: 'beta_activate' | 'beta_pause' | 'beta_revoke' | 'user_delete' | 'user_notice_suspend' | 'collector_revoke' | 'email_send' | 'email_campaign_recognition' | 'email_campaign_orientation_return';
   target_user_id: string;
   payload: Record<string, unknown> | null;
   expires_at: string;
@@ -1533,6 +1543,10 @@ async function executePendingAction(admin: any, chatId: string, pending: Pending
 
   if (pending.action === 'email_campaign_recognition') {
     return await executeRecognitionInviteCampaign(admin, chatId, pending);
+  }
+
+  if (pending.action === 'email_campaign_orientation_return') {
+    return await executeOrientationReturnCampaign(admin, chatId, pending);
   }
 
   if (pending.action === 'email_send') {
@@ -1763,12 +1777,14 @@ async function beginConfirmationSession(admin: any, chatId: string) {
   const isUserDeletion = pending.action === 'user_delete';
   const isUserNoticeSuspension = pending.action === 'user_notice_suspend';
   const isCollectorRevocation = pending.action === 'collector_revoke';
-  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : pending.action === 'email_campaign_recognition' ? 'envoyer la campagne de reconnaissance à' : 'envoyer un email personnalisé à';
+  const label = pending.action === 'beta_activate' ? 'activer' : pending.action === 'beta_pause' ? 'mettre en pause' : pending.action === 'beta_revoke' ? 'révoquer' : pending.action === 'collector_revoke' ? 'révoquer le collecteur' : pending.action === 'email_campaign_recognition' ? 'envoyer la campagne de reconnaissance à' : pending.action === 'email_campaign_orientation_return' ? 'envoyer la campagne de retour à' : 'envoyer un email personnalisé à';
   const targetLabel = text((pending.payload as any)?.label, 140) || pending.target_user_id;
   const description = pending.action === 'email_send'
     ? `Tu vas envoyer l’email « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}.`
     : pending.action === 'email_campaign_recognition'
       ? `Tu vas envoyer l’invitation « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}. L’audience sera revalidée : seuls les bêta-testeurs toujours actifs avec une adresse e-mail recevront le message.`
+    : pending.action === 'email_campaign_orientation_return'
+      ? `Tu vas envoyer la campagne « ${text((pending.payload as any)?.subject, 160)} » à ${targetLabel}. L’audience sera revalidée : seuls les utilisateurs encore actifs avec une adresse Auth confirmée recevront le message.`
     : isUserDeletion
       ? `Tu vas envoyer l’e-mail de suppression à ${text((pending.payload as any)?.recipient_email, 180) || targetLabel}, puis supprimer définitivement le compte de ${targetLabel} et ses données BacPilot associées. Motif : ${text((pending.payload as any)?.reason, 600) || 'non précisé'}.`
       : isUserNoticeSuspension
@@ -2166,6 +2182,156 @@ function recognitionInviteBody(metrics: { activityCount: number; feedbackCount: 
   ].join('\n');
 }
 
+const ORIENTATION_RETURN_EMAIL_SUBJECT = 'La période de choix avance : BacPilot reste à vos côtés';
+const ORIENTATION_RETURN_CAMPAIGN_KEY = 'orientation_return_v1';
+
+type OrientationReturnRecipient = {
+  id: string;
+  email: string;
+  display_name: string | null;
+};
+
+async function listOrientationReturnRecipients(admin: any, candidateIds: string[] | null = null) {
+  const { data: profiles, error: profileError } = await admin
+    .from('profiles')
+    .select('id, email, display_name')
+    .eq('account_status', 'active')
+    .not('email', 'is', null)
+    .limit(500);
+  if (profileError) throw new Error('Audience de retour indisponible.');
+
+  const { data: authData, error: authError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  if (authError) throw new Error('Vérification des adresses Auth indisponible.');
+  const authById = new Map((authData?.users || []).map((user: any) => [text(user.id, 80), user]));
+  const eligibleIds = new Set((candidateIds || (profiles || []).map((profile: any) => text(profile.id, 80))).filter(Boolean));
+
+  return (profiles || [])
+    .map((profile: any) => ({ id: text(profile.id, 80), email: text(profile.email, 180).toLowerCase(), display_name: text(profile.display_name, 120) || null }))
+    .filter((profile: OrientationReturnRecipient) => {
+      const authUser = authById.get(profile.id);
+      return eligibleIds.has(profile.id)
+        && EMAIL_FORMAT.test(profile.email)
+        && Boolean(authUser?.email_confirmed_at)
+        && text(authUser?.email, 180).toLowerCase() === profile.email;
+    });
+}
+
+function orientationReturnBody() {
+  return [
+    'La période de choix de filière approche de sa clôture. Si vous n’avez pas encore finalisé votre réflexion, BacPilot reste à vos côtés pour vous aider à avancer avec méthode.',
+    '',
+    'Vous pouvez revenir sur votre espace pour reprendre votre profil, comparer les pistes disponibles, relire les informations utiles et préciser ce qui compte le plus pour votre projet après le bac.',
+    '',
+    'BacPilot vous accompagne pour mieux comprendre les établissements, localités, filières, conditions et informations collectées. Les résultats restent indicatifs : votre décision finale doit toujours être vérifiée sur les plateformes et sources officielles.',
+    '',
+    'Prenez quelques minutes pour revoir vos choix et construire une orientation qui correspond réellement à votre parcours et à vos objectifs.',
+    '',
+    'BacPilot — Compare. Décide. Avance.',
+  ].join('\n');
+}
+
+async function sendOrientationReturnToRecipient(admin: any, chatId: string, pendingActionId: string, recipient: OrientationReturnRecipient): Promise<RecognitionDeliveryResult> {
+  const now = new Date().toISOString();
+  const bodyText = orientationReturnBody();
+  const result = await withTimeout(
+    sendCustomEmail(recipient.email, recipient.display_name || '', ORIENTATION_RETURN_EMAIL_SUBJECT, bodyText, 'orientation_return', `orientation-return/${pendingActionId}/${recipient.id}`),
+    10_000,
+  ).catch((error): BetaEmailResult => ({
+    status: 'failed',
+    error_message: error instanceof Error ? text(error.message, 180) : 'Délai e-mail dépassé.',
+  }));
+  const { error: deliveryLogError } = await admin.from('operator_email_deliveries').insert({
+    telegram_chat_id: chatId,
+    target_user_id: recipient.id,
+    recipient_email: recipient.email,
+    subject: ORIENTATION_RETURN_EMAIL_SUBJECT,
+    body_text: bodyText,
+    status: result.status,
+    provider_message_id: result.provider_message_id || null,
+    error_message: result.error_message || null,
+    sent_at: result.status === 'sent' ? now : null,
+  });
+  if (deliveryLogError) console.error('Journal campagne retour impossible:', deliveryLogError.message);
+  return { status: result.status, userId: recipient.id, email: recipient.email, errorMessage: result.error_message || null };
+}
+
+async function executeOrientationReturnCampaign(admin: any, chatId: string, pending: PendingAction) {
+  const requestedIds = Array.isArray(pending.payload?.audience_user_ids)
+    ? pending.payload?.audience_user_ids.map((item) => text(item, 80)).filter(Boolean)
+    : [];
+  if (!requestedIds.length) return 'Campagne non envoyée : audience préparée introuvable.';
+  const recipients = await listOrientationReturnRecipients(admin, requestedIds);
+  if (!recipients.length) {
+    await audit(admin, chatId, '/orientation_return_draft', 'confirmed', pending.target_user_id, {
+      action: 'email_campaign_orientation_return', campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY, audience_prepared: requestedIds.length, audience_sent: 0, reason: 'no_longer_eligible',
+    });
+    return 'Campagne confirmée mais non envoyée : aucun utilisateur de l’audience préparée n’est encore actif avec une adresse Auth confirmée.';
+  }
+  const queue = [...recipients];
+  const deliveries: RecognitionDeliveryResult[] = [];
+  const workerCount = Math.min(4, queue.length);
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (queue.length) {
+      const recipient = queue.shift();
+      if (!recipient) return;
+      deliveries.push(await sendOrientationReturnToRecipient(admin, chatId, pending.id, recipient));
+    }
+  }));
+  const sent = deliveries.filter((item) => item.status === 'sent').length;
+  const failed = deliveries.filter((item) => item.status === 'failed' || item.status === 'not_configured').length;
+  const skipped = deliveries.filter((item) => item.status === 'skipped').length;
+  await audit(admin, chatId, '/orientation_return_draft', 'confirmed', pending.target_user_id, {
+    action: 'email_campaign_orientation_return', campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY, audience_prepared: requestedIds.length, audience_eligible: recipients.length, sent, failed, skipped,
+  });
+  return [
+    'Campagne de retour traitée.',
+    `Audience préparée : ${requestedIds.length} · encore éligible : ${recipients.length}.`,
+    `Acceptés par Resend : ${sent} · non envoyés/échoués : ${failed} · ignorés : ${skipped}.`,
+    'Chaque tentative est journalisée. Utilise /mailstatus avec un e-mail ou un ID pour vérifier un destinataire précis.',
+  ].join('\n');
+}
+
+async function prepareOrientationReturnDraft(admin: any, chatId: string) {
+  const audience = await listOrientationReturnRecipients(admin);
+  if (!audience.length) return 'Aucun utilisateur actif avec une adresse Auth confirmée. Aucun brouillon ni action d’envoi n’a été créé.';
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const bodyText = orientationReturnBody();
+  const { error } = await admin.from('operator_pending_actions').insert({
+    telegram_chat_id: chatId,
+    action: 'email_campaign_orientation_return',
+    target_user_id: audience[0].id,
+    confirmation_code: makeConfirmationCode(),
+    payload: {
+      label: `${audience.length} utilisateur(s) actif(s)`,
+      subject: ORIENTATION_RETURN_EMAIL_SUBJECT,
+      body_text: bodyText,
+      template: 'orientation_return',
+      campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY,
+      audience_user_ids: audience.map((recipient) => recipient.id),
+      audience_count: audience.length,
+    },
+    expires_at: expiresAt,
+  });
+  if (error) throw new Error('Brouillon de campagne de retour indisponible.');
+  await audit(admin, chatId, '/orientation_return_draft', 'pending', audience[0].id, {
+    action: 'email_campaign_orientation_return', campaign_key: ORIENTATION_RETURN_CAMPAIGN_KEY, audience_count: audience.length, template: 'orientation_return', expires_at: expiresAt,
+  });
+  return [
+    'BacPilot — campagne de retour orientation',
+    '',
+    `Audience prête : ${audience.length} utilisateur(s) actif(s) avec une adresse Auth confirmée.`,
+    'Statut : PRÉPARÉ — aucun e-mail n’a été envoyé.',
+    '',
+    `Objet : ${ORIENTATION_RETURN_EMAIL_SUBJECT}`,
+    '',
+    bodyText,
+    '',
+    '1. Confirmer l’envoi à cette audience figée',
+    '2. Annuler',
+    `Expire : ${formatDate(expiresAt)}`,
+  ].join('\n');
+}
+
 async function prepareRecognitionInviteDraft(admin: any, chatId: string) {
   const audience = await listRecognitionRecipients(admin);
   if (!audience.length) {
@@ -2220,6 +2386,7 @@ function emailTemplatesMessage() {
     '4. reminder — rappel personnalisé avec bouton BacPilot',
     '5. custom — rédaction libre avec habillage BacPilot et bouton d’accès',
     '6. recognition_invite — invitation de reconnaissance des bêta-testeurs actifs ; profil public toujours optionnel',
+    '7. orientation_return — retour vers BacPilot à l’approche de la clôture des choix ; campagne préparée puis confirmée manuellement',
     '',
     'Utilisation immédiate : /welcome <e-mail ou ID>',
     'État exact d’un destinataire : /mailstatus <e-mail ou ID>',
@@ -2251,6 +2418,7 @@ function helpMessage() {
     '/mailstatus [e-mail|ID] — état welcome, bêta et e-mails opérateur ; sans valeur, le bot demande',
     '/templates — afficher les templates e-mail disponibles',
     '/recognition_invite_draft — préparer l’invitation aux bêta-testeurs actifs ; confirmation obligatoire avant l’envoi',
+    '/orientation_return_draft — préparer la campagne de retour pour les utilisateurs actifs ; confirmation obligatoire avant l’envoi',
     '/collector_issue [libellé] — générer un code d’activation à usage unique', 
     '/collector_list — afficher les appareils enrôlés et leur état',
     '/collector_revoke [ID] — préparer la révocation d’un appareil ; confirmation 1/2',
@@ -2538,6 +2706,8 @@ Deno.serve(async (request) => {
       reply = await withTimeout(prepareReferralCampaignDraft(admin, sourceChatId));
     } else if (command === '/recognition_invite_draft') {
       reply = await withTimeout(prepareRecognitionInviteDraft(admin, sourceChatId));
+    } else if (command === '/orientation_return_draft') {
+      reply = await withTimeout(prepareOrientationReturnDraft(admin, sourceChatId));
     } else if (command === '/email') {
       if (!argument || argument === '__select_recipient__') {
         const selection = await withTimeout(beginEmailRecipient(admin, sourceChatId));
@@ -2617,7 +2787,7 @@ Deno.serve(async (request) => {
       reply = await withTimeout(cancelAction(admin, sourceChatId, argument));
     }
 
-    if (!['/user_delete', '/email', '/welcome', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel', '/webhook_repair', '/campaign_referral_draft', '/recognition_invite_draft'].includes(command)) {
+    if (!['/user_delete', '/email', '/welcome', '/beta_add', '/beta_pause', '/beta_revoke', '/confirm', '/cancel', '/webhook_repair', '/campaign_referral_draft', '/recognition_invite_draft', '/orientation_return_draft'].includes(command)) {
       await withTimeout(audit(admin, sourceChatId, command, 'read', targetUserId, { has_argument: Boolean(argument) })).catch((error) => {
         console.error('Audit Telegram impossible:', error instanceof Error ? error.message : JSON.stringify(error));
       });
@@ -2626,7 +2796,7 @@ Deno.serve(async (request) => {
       ? mainInlineKeyboard()
       : (command === '/user' || command === '/mailstatus') && targetUserId
         ? userDetailInlineKeyboard(targetUserId)
-        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/collector_revoke' || command === '/recognition_invite_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
+        : command === '/welcome' || command === '/beta_add' || command === '/beta_pause' || command === '/beta_revoke' || command === '/collector_revoke' || command === '/recognition_invite_draft' || command === '/orientation_return_draft' || (command === '/feedback' && /^(ack|resolved):/.test(argument))
           ? confirmationInlineKeyboard(false)
           : command === '/user_delete' && /^Brouillon de (suppression|vérification)/.test(reply)
             ? confirmationInlineKeyboard(/^Brouillon de suppression/.test(reply))
