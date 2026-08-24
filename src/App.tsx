@@ -40,6 +40,7 @@ const ReviewsPage = lazy(() => import('./pages/ReviewsPage'));
 const SupportPage = lazy(() => import('./pages/SupportPage'));
 const ArticlesPage = lazy(() => import('./pages/ArticlesPage'));
 const ArticlePage = lazy(() => import('./pages/ArticlePage'));
+const BilanCloture2026Page = lazy(() => import('./pages/BilanCloture2026Page'));
 
 function AppContent() {
   const { user, profile, isBetaTester, isLoading, signOut } = useAuth();
@@ -129,6 +130,8 @@ function AppContent() {
         return <ReviewsPage navigate={navigate} />;
       case '/articles':
         return <ArticlesPage navigate={navigate} />;
+      case '/bilan-cloture-orientation-2026':
+        return <BilanCloture2026Page navigate={navigate} />;
       case '/soutenir':
         return <SupportPage navigate={navigate} />;
       case '/beta':

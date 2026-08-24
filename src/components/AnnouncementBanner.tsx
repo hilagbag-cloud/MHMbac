@@ -17,6 +17,15 @@ type CampaignSlide = {
 
 const slides: CampaignSlide[] = [
   {
+    src: '/campaign/bilan-2026/01-bilan-bacpilot-2026.png',
+    alt: 'Bilan BacPilot 2026 et clôture de la campagne d’orientation au Bénin',
+    eyebrow: 'Événement du 24 août 2026',
+    title: 'Bilan de clôture BacPilot 2026',
+    description: 'Découvrez les chiffres de la campagne, l’engagement des bêta-testeurs et la vision qui accompagne la suite du projet.',
+    cta: 'Lire le bilan',
+    destination: '/bilan-cloture-orientation-2026',
+  },
+  {
     src: '/campaign/bacpilot-carrousel-01-decouvrir.webp',
     alt: 'Visuel de lancement BacPilot présentant la plateforme d’orientation post-bac',
     eyebrow: 'À découvrir',

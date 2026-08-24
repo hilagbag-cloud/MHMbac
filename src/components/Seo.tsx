@@ -125,6 +125,24 @@ const configs: Record<string, SeoConfig> = {
     description: 'Des conseils pratiques pour préparer ses choix après le bac au Bénin, comparer des filières et vérifier les démarches auprès des sources officielles.',
     path: '/articles',
   },
+  '/bilan-cloture-orientation-2026': {
+    title: 'Bilan BacPilot 2026 : clôture de la campagne d’orientation au Bénin',
+    description: 'Bilan public de la campagne BacPilot 2026 : statistiques enregistrées, engagement des bêta-testeurs, vision de Hilarus Gbagoule et prochaines étapes.',
+    path: '/bilan-cloture-orientation-2026',
+    schema: {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      headline: 'Bilan BacPilot 2026 : une campagne d’orientation construite avec sa communauté',
+      description: 'Retour sur la campagne d’orientation BacPilot 2026 au Bénin, ses activités enregistrées, ses bêta-testeurs et ses prochaines étapes.',
+      datePublished: '2026-08-24',
+      dateModified: '2026-08-24',
+      mainEntityOfPage: `${SITE_URL}/bilan-cloture-orientation-2026`,
+      author: { '@type': 'Person', name: 'Hilarus Gbagoule', url: `${SITE_URL}/fondateur-hilarus-gbagoule` },
+      publisher: { '@type': 'Organization', name: 'MHM SOLUTIONS', url: SITE_URL, logo: `${SITE_URL}/branding/bacpilot-mark-512.png` },
+      image: `${SITE_URL}/campaign/bilan-2026/01-bilan-bacpilot-2026.png`,
+      keywords: 'BacPilot, orientation post-bac au Bénin, bacheliers béninois, intelligence artificielle, bêta-testeurs, Hilarus Gbagoule',
+    },
+  },
   '/orientation-bac-benin': {
     title: 'Orientation après le bac au Bénin : guide pratique | BacPilot',
     description:
@@ -309,6 +327,11 @@ export function Seo({ route, partnerPortal = false, betaPortal = false }: { rout
     setMeta('meta[property="og:title"]', { property: 'og:title', content: config.title });
     setMeta('meta[property="og:description"]', { property: 'og:description', content: config.description });
     setMeta('meta[property="og:url"]', { property: 'og:url', content: canonicalUrl });
+    setMeta('meta[property="og:type"]', { property: 'og:type', content: config.schema?.['@type'] === 'Article' ? 'article' : 'website' });
+    setMeta('meta[property="og:image"]', { property: 'og:image', content: `${SITE_URL}/campaign/bilan-2026/01-bilan-bacpilot-2026.png` });
+    setMeta('meta[property="og:image:alt"]', { property: 'og:image:alt', content: 'Bilan BacPilot 2026 — orientation post-bac au Bénin' });
+    setMeta('meta[name="twitter:card"]', { name: 'twitter:card', content: 'summary_large_image' });
+    setMeta('meta[name="twitter:image"]', { name: 'twitter:image', content: `${SITE_URL}/campaign/bilan-2026/01-bilan-bacpilot-2026.png` });
     setMeta('meta[name="twitter:title"]', { name: 'twitter:title', content: config.title });
     setMeta('meta[name="twitter:description"]', { name: 'twitter:description', content: config.description });
 

@@ -20,6 +20,60 @@ export type BacPilotArticle = {
 
 export const BACPILOT_ARTICLES: BacPilotArticle[] = [
   {
+    slug: 'bilan-bacpilot-cloture-campagne-orientation-2026',
+    category: 'Bilan de campagne',
+    title: 'Bilan BacPilot 2026 : une campagne d’orientation construite avec sa communauté',
+    description: 'Retour sur la clôture de la campagne d’orientation BacPilot 2026 au Bénin : statistiques enregistrées, engagement des bêta-testeurs, vision de Hilarus Gbagoule et prochaines étapes.',
+    publishedAt: '2026-08-24',
+    updatedAt: '2026-08-24',
+    readingTime: '8 min de lecture',
+    sourceLabel: 'Bilan d’activités BacPilot au 24 août 2026 et portail officiel de la campagne',
+    sourceUrl: 'https://apresmonbac.bj/',
+    takeaway: 'La campagne se clôture, mais la communauté et les enseignements du bêta-test ouvrent une nouvelle étape pour BacPilot et ses outils d’orientation post-bac au Bénin.',
+    sections: [
+      {
+        heading: 'Une campagne dédiée aux bacheliers béninois',
+        paragraphs: [
+          'La campagne d’orientation 2026 a été l’occasion de tester une approche plus lisible de la préparation des choix post-bac. BacPilot a aidé les utilisateurs à réunir leur profil, leurs intentions, les informations de filière et les observations disponibles avant de vérifier leurs démarches sur le portail officiel.',
+          'BacPilot est une initiative indépendante de MHM SOLUTIONS. Elle ne remplace pas le portail officiel et ne garantit ni admission, ni inscription, ni bourse. Son rôle est de rendre la comparaison plus compréhensible et de permettre à chaque candidat de mieux préparer ses questions.',
+        ],
+        points: [
+          'Comprendre les filières, établissements, localités et débouchés à explorer.',
+          'Comparer les informations disponibles avec leur fraîcheur et leurs limites.',
+          'Garder la vérification finale et la décision entre les mains du candidat.',
+        ],
+      },
+      {
+        heading: 'Les chiffres enregistrés pendant la phase 2026',
+        paragraphs: [
+          'Au moment de la clôture, les activités enregistrées dans BacPilot représentaient 36 profils créés, 24 sessions d’orientation, 148 recommandations assistées par l’intelligence artificielle et 294 événements de test bêta.',
+          'Ces indicateurs décrivent l’activité de la plateforme. Ils ne constituent pas une enquête exhaustive de satisfaction et ne doivent pas être interprétés comme une garantie de résultat pour les candidats.',
+        ],
+      },
+      {
+        heading: 'Le bêta-test : apprendre avec les utilisateurs',
+        paragraphs: [
+          'Dix bêta-testeurs actifs ont participé aux essais de la plateforme. Ils ont recherché des incohérences, testé les parcours, transmis des suggestions et aidé à améliorer la manière dont l’assistant présente les pistes d’orientation.',
+          'Une reconnaissance particulière est adressée à Hilarus Gbagoule, Hamdane K. ADAMBI et Rhonel AHOMADEGBE lorsque leur profil public de reconnaissance a été activé avec leur consentement. La gratitude de BacPilot s’adresse aussi à l’ensemble des testeurs qui ont contribué, qu’ils aient été mis en avant publiquement ou non.',
+        ],
+      },
+      {
+        heading: 'La vision portée par Hilarus Gbagoule',
+        paragraphs: [
+          'BacPilot a été créé et développé par Hilarus Gbagoule, fondateur de MHM SOLUTIONS. Sa vision est de mobiliser le développement web, les données et l’intelligence artificielle pour construire des outils numériques utiles, accessibles et proches des besoins réels des utilisateurs.',
+          'La clôture de cette campagne marque une étape dans ce parcours de création. Les retours de la communauté serviront à orienter les prochains travaux et à renforcer la qualité des explications proposées aux étudiants.',
+        ],
+      },
+      {
+        heading: 'Et maintenant ?',
+        paragraphs: [
+          'La fermeture de la campagne officielle ne met pas fin à l’apprentissage du projet. Elle permet de prendre du recul, de consolider les retours, de documenter les améliorations et de préparer de nouveaux projets numériques avec la communauté.',
+          'Les bêta-testeurs seront invités à participer à de prochaines expériences lorsque de nouveaux outils auront besoin d’être testés. Leur rôle restera volontaire, transparent et fondé sur le consentement.',
+        ],
+      },
+    ],
+  },
+  {
     slug: 'preparer-ses-choix-apres-le-bac-benin',
     category: 'Préparer son orientation',
     title: 'Comment préparer ses choix après le bac au Bénin sans décider dans la précipitation',
