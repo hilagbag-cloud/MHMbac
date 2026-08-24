@@ -1,4 +1,4 @@
-import { ArrowRight, CalendarDays, ExternalLink, Heart, Sparkles, Users } from 'lucide-react';
+import { ArrowRight, CalendarDays, ExternalLink, Facebook, Heart, Instagram, Linkedin, Sparkles, Users } from 'lucide-react';
 
 const gallery = [
   {
@@ -45,6 +45,12 @@ const gallery = [
   },
 ];
 
+const socialPosts = [
+  { name: 'LinkedIn', href: 'https://lnkd.in/p/ey6YB6b2', icon: Linkedin, tone: 'border-sky-300/30 bg-sky-300/10 text-sky-100', label: 'Lire le bilan sur LinkedIn' },
+  { name: 'Facebook', href: 'https://www.facebook.com/share/p/1GKoepuJtH/', icon: Facebook, tone: 'border-blue-300/30 bg-blue-300/10 text-blue-100', label: 'Lire le bilan sur Facebook' },
+  { name: 'Instagram', href: 'https://www.instagram.com/p/DccA5U4kXcL/?img_index=6&igsh=MWF4MWFpazh0bW5yNQ==', icon: Instagram, tone: 'border-pink-300/30 bg-pink-300/10 text-pink-100', label: 'Voir le carrousel sur Instagram' },
+];
+
 export function BilanCloture2026Page({ navigate }: { navigate: (route: string) => void }) {
   return (
     <main className="bg-slate-950 text-slate-100">
@@ -75,6 +81,8 @@ export function BilanCloture2026Page({ navigate }: { navigate: (route: string) =
       <section id="carrousel-bilan" className="mx-auto max-w-6xl scroll-mt-8 px-4 py-14 sm:px-6 sm:py-20"><div className="max-w-3xl"><p className="text-xs font-black uppercase tracking-[0.2em] text-rose-300">Le bilan en images</p><h2 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">Sept moments pour comprendre l’aventure</h2><p className="mt-4 text-base leading-7 text-slate-400">Chaque visuel est accompagné d’une description pour rendre le récit accessible, partageable et compréhensible même sans consulter la présentation complète.</p></div><div className="mt-10 grid gap-8 md:grid-cols-2">{gallery.map((item, index) => <figure key={item.src} className="overflow-hidden border border-white/10 bg-white/[0.035]"><div className="aspect-video bg-slate-900"><img src={item.src} alt={item.alt} width={2000} height={1125} loading={index === 0 ? 'eager' : 'lazy'} className="h-full w-full object-contain" /></div><figcaption className="border-t border-white/10 px-5 py-5"><p className="text-xs font-black uppercase tracking-[0.16em] text-rose-300">Étape {index + 1}</p><h3 className="mt-2 text-xl font-black text-white">{item.title}</h3><p className="mt-2 text-sm leading-7 text-slate-400">{item.text}</p></figcaption></figure>)}</div></section>
 
       <section className="border-t border-white/10 bg-[linear-gradient(110deg,rgba(236,72,153,0.15),rgba(139,92,246,0.18))] px-4 py-14 sm:px-6 sm:py-20"><div className="mx-auto max-w-4xl text-center"><Heart className="mx-auto h-8 w-8 text-rose-300" /><h2 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-4xl">Merci aux bêta-testeurs</h2><p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-200">Cette première version a progressé grâce aux personnes qui ont accepté de tester, de questionner et de signaler. D’autres projets numériques arriveront et auront besoin de cette même énergie pour devenir plus utiles.</p><div className="mt-8 flex flex-wrap justify-center gap-3"><button type="button" onClick={() => navigate('/contributeurs-beta')} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black text-slate-950 transition hover:bg-slate-100">Voir la communauté bêta <ArrowRight className="h-4 w-4" /></button><button type="button" onClick={() => navigate('/beta')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/30 px-5 py-3 text-sm font-black text-white transition hover:bg-white/10">Participer aux prochains tests</button></div></div></section>
+
+      <section className="border-t border-white/10 bg-slate-900/70 px-4 py-14 sm:px-6 sm:py-20"><div className="mx-auto max-w-5xl text-center"><p className="text-xs font-black uppercase tracking-[0.2em] text-violet-300">Le bilan sur les réseaux</p><h2 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">Lire, partager et faire connaître l’initiative</h2><p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-400">Retrouvez la publication complète sur les canaux officiels de BacPilot. Chaque bouton ouvre directement le post correspondant dans un nouvel onglet.</p><div className="mt-8 grid gap-4 md:grid-cols-3">{socialPosts.map(({ name, href, icon: Icon, tone, label }) => <a key={name} href={href} target="_blank" rel="noopener noreferrer" aria-label={label} className={`group flex min-h-20 items-center gap-4 rounded-2xl border px-5 py-4 text-left transition hover:-translate-y-0.5 hover:bg-white/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-300 ${tone}`}><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-950/50"><Icon className="h-5 w-5" aria-hidden="true" /></span><span><strong className="block text-sm font-black text-white">{name}</strong><span className="mt-1 block text-xs font-semibold opacity-80">{label}</span></span><ExternalLink className="ml-auto h-4 w-4 shrink-0 opacity-70 transition group-hover:opacity-100" /></a>)}</div></div></section>
     </main>
   );
 }
