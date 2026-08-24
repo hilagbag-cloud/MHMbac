@@ -202,7 +202,7 @@ function AppContent() {
       <Footer navigate={navigate} />
 
       {/* Parcours de reconnaissance bêta : affiché une fois par session, fermable à tout moment. */}
-      {profile?.account_status !== 'suspended_notice' && <BetaProfilePromoModal navigate={navigate} />}
+      {profile?.account_status !== 'suspended_notice' && routePath !== '/bilan-cloture-orientation-2026' && <BetaProfilePromoModal navigate={navigate} />}
 
       {/* Modal des Tests Automatisés & Vérifications MVP1 */}
       <VerificationModal
